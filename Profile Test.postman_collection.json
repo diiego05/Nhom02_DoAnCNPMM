@@ -19,9 +19,9 @@
           }
         },
         "url": {
-          "raw": "{{base_url}}/auth/register",
+          "raw": "http://localhost:8088/auth/register",
           "host": [
-            "{{base_url}}"
+            "http://localhost:8088"
           ],
           "path": [
             "auth",
