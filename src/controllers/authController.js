@@ -1,6 +1,6 @@
 import authService from "../services/authService.js";
 
-// REGISTER
+//REGISTER
 const register = async (req, res) => {
   try {
     const { email, phone, password, role_id } = req.body;
@@ -59,26 +59,10 @@ const refresh = async (req, res) => {
   }
 };
 
-// LOGOUT
-const logout = async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
 
-    if (!refreshToken) {
-      return res.status(400).json({ message: "Refresh token is required" });
-    }
-
-    const response = await authService.logout(refreshToken);
-
-    return res.status(response.status).json(response);
-  } catch (error) {
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};
 
 export default {
   register,
   login,
   refresh,
-  logout,
 };

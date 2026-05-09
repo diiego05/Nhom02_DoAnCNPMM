@@ -118,13 +118,17 @@ const login = (data) => {
         expires_at: expiresAt,
         is_revoked: false,
       });
-
+      let redirectUrl = 'user/profile';
+      if (user.role_id === 1 || user.role?.role_name === 'admin') {
+        redirectUrl = 'admin/profile';
+      }
       resolve({
         status: 200,
         message: "Login success",
         data: {
           accessToken,
           refreshToken,
+          redirectUrl,
           user: {
             id: user.id,
             email: user.email,
@@ -207,32 +211,8 @@ const refreshToken = (token) => {
   });
 };
 
-const logout = (token) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      // Revoke refresh token
-      await db.RefreshToken.update(
-        { is_revoked: true },
-        {
-          where: {
-            token: token,
-          },
-        },
-      );
-
-      resolve({
-        status: 200,
-        message: "Logged out successfully",
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-};
-
 export default {
   register,
   login,
   refreshToken,
-  logout,
 };
