@@ -50,6 +50,14 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
       },
+
+      // ← CỘT MỚI: thời điểm bị khoá do nhập OTP sai quá 3 lần (flow d)
+      // Chạy migration để thêm cột này vào DB
+      locked_until: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        defaultValue: null,
+      },
     },
     {
       sequelize,

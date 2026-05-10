@@ -33,6 +33,11 @@ export default {
         type: Sequelize.BOOLEAN,
         defaultValue: false,
       },
+       locked_until: {
+        type: Sequelize.DATE,
+        allowNull: true,
+        defaultValue: null,
+      },
       created_at: {
         type: Sequelize.DATE,
         allowNull: false,

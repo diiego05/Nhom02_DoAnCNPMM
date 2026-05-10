@@ -5,6 +5,7 @@ import { connectDB } from "./config/DBConfig.js";
 import "dotenv/config";
 import userRouter from "./route/userRoute.js";
 import authRouter from "./route/authRoute.js";
+import forgotPasswordRoute from "./route/forgotPasswordRoute.js";
 
 let app = express();
 
@@ -14,6 +15,7 @@ app.use(cookieParser());
 
 app.use("/user", userRouter);
 app.use("/auth", authRouter);
+app.use("/auth/forgot-password", forgotPasswordRoute);
 
 connectDB();
 
