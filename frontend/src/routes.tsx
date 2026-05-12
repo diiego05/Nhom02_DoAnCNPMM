@@ -4,6 +4,7 @@ import AuthLayout from "@/components/layout/AuthLayout";
 import NotFound from "@/pages/NotFound";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import VerifyOTP from "@/pages/VerifyOTP";
 import ForgotPassword from "@/pages/ForgotPassword";
 import Profile from "@/pages/Profile";
 
@@ -36,6 +37,10 @@ export const getRoutes = (): RouteObject[] => {
         {
           path: "register",
           element: <Register />,
+        },
+        {
+          path: "verify-otp",
+          element: <VerifyOTP />,
         },
         {
           path: "forgot-password",

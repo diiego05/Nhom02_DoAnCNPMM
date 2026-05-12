@@ -3,7 +3,7 @@ import authService from "../services/authService.js";
 //REGISTER
 const register = async (req, res) => {
   try {
-    const { email, phone, password, role_id } = req.body;
+    const { email, phone, password, fullName, role_id } = req.body;
 
     if (!email || !phone || !password) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -13,6 +13,7 @@ const register = async (req, res) => {
       email,
       phone,
       password,
+      fullName,
       role_id,
     });
 
@@ -63,8 +64,26 @@ const refresh = async (req, res) => {
   }
 };
 
+// VERIFY OTP
+const verifyOTP = async (req, res) => {
+  try {
+    const { email, otpCode } = req.body;
+
+    if (!email || !otpCode) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const response = await authService.verifyAccountOtp({ email, otpCode });
+
+    return res.status(response.status).json(response);
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   register,
   login,
   refresh,
+  verifyOTP,
 };

@@ -1,11 +1,13 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { generateAccessToken, generateRefreshToken } from "../utils/jwt.js";
 import db from "../models/index.js";
+import { sendRegistrationOtp } from "../utils/emailService.js";
 
 const register = (data) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const { email, phone, password, role_id } = data;
+      const { email, phone, password, fullName, role_id } = data;
 
       // Check if user already exists
       const existingUser = await db.User.findOne({
@@ -31,21 +33,56 @@ const register = (data) => {
         phone,
         password: hashedPassword,
         role_id: role_id || 2, // Default to user role
-        status: "ACTIVE",
+        status: "PENDING",
       });
+
+      // Split fullName into first_name and last_name
+      let firstName = "";
+      let lastName = "";
+      if (fullName) {
+        const parts = fullName.trim().split(" ");
+        if (parts.length > 1) {
+          firstName = parts.pop();
+          lastName = parts.join(" ");
+        } else {
+          firstName = parts[0];
+        }
+      }
 
       // Create profile
       await db.UserProfile.create({
         user_id: user.id,
+        first_name: firstName,
+        last_name: lastName,
       });
+
+      // Generate OTP for account activation
+      const otpCode = crypto.randomInt(100000, 999999).toString();
+      const expiredAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+      console.log(`Generating OTP for ${email}: ${otpCode}`);
+
+      await db.OtpVerification.create({
+        user_id: user.id,
+        otp_code: otpCode,
+        type: "ACCOUNT_ACTIVATION",
+        expired_at: expiredAt,
+      });
+
+      // Send OTP email
+      console.log(`Sending registration OTP to ${email}...`);
+      sendRegistrationOtp(email, otpCode)
+        .then(() => console.log(`OTP email sent successfully to ${email}`))
+        .catch((err) =>
+          console.error(`Failed to send registration OTP to ${email}:`, err)
+        );
 
       resolve({
         status: 201,
-        message: "User registered successfully",
+        message: "User registered successfully. Please check your email for OTP.",
         data: {
           id: user.id,
           email: user.email,
-          phone: user.phone,
         },
       });
     } catch (error) {
@@ -211,8 +248,51 @@ const refreshToken = (token) => {
   });
 };
 
+const verifyAccountOtp = (data) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const { email, otpCode } = data;
+
+      const user = await db.User.findOne({ where: { email } });
+      if (!user) {
+        return resolve({ status: 404, message: "User not found" });
+      }
+
+      const otpRecord = await db.OtpVerification.findOne({
+        where: {
+          user_id: user.id,
+          type: "ACCOUNT_ACTIVATION",
+          is_used: false,
+          otp_code: otpCode,
+        },
+        order: [["created_at", "DESC"]],
+      });
+
+      if (!otpRecord) {
+        return resolve({ status: 400, message: "Invalid OTP code" });
+      }
+
+      if (new Date() > new Date(otpRecord.expired_at)) {
+        return resolve({ status: 410, message: "OTP code expired" });
+      }
+
+      // Update user status and OTP record
+      await user.update({ status: "ACTIVE" });
+      await otpRecord.update({ is_used: true });
+
+      resolve({
+        status: 200,
+        message: "Account verified successfully",
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+
 export default {
   register,
   login,
   refreshToken,
+  verifyAccountOtp,
 };

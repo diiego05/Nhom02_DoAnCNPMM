@@ -1,27 +1,32 @@
-export const verifyRecaptcha = (req, res, next) => {
-  // --- MOCK CHO TEST: Luôn cho qua ---
-  return next();
-
-  /*
+export const verifyRecaptcha = async (req, res, next) => {
   const { recaptchaToken } = req.body;
-  
+
   if (!recaptchaToken) {
     return res.status(400).json({ message: "Vui lòng xác thực reCAPTCHA" });
   }
 
-  // Logic gọi API của Google để xác thực
-  // Ví dụ sử dụng axios hoặc fetch:
-  // fetch(`https://www.google.com/recaptcha/api/siteverify?secret=YOUR_SECRET_KEY&response=${recaptchaToken}`, {
-  //   method: 'POST'
-  // })
-  // .then(res => res.json())
-  // .then(data => {
-  //   if (data.success) {
-  //     next();
-  //   } else {
-  //     res.status(400).json({ message: "Xác thực reCAPTCHA thất bại" });
-  //   }
-  // })
-  // .catch(err => res.status(500).json({ message: "Lỗi server khi xác thực reCAPTCHA" }));
-  */
+  try {
+    const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+    const response = await fetch(
+      `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${recaptchaToken}`,
+      {
+        method: "POST",
+      },
+    );
+
+    const data = await response.json();
+
+    if (data.success) {
+      next();
+    } else {
+      console.error("reCAPTCHA failed:", data["error-codes"]);
+      res.status(400).json({
+        message: "Xác thực reCAPTCHA thất bại",
+        errors: data["error-codes"],
+      });
+    }
+  } catch (err) {
+    console.error("reCAPTCHA error:", err);
+    res.status(500).json({ message: "Lỗi server khi xác thực reCAPTCHA" });
+  }
 };

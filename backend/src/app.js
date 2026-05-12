@@ -1,6 +1,7 @@
 import express from "express";
 import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 import { connectDB } from "./config/DBConfig.js";
 import "dotenv/config";
 import userRouter from "./route/userRoute.js";
@@ -9,6 +10,12 @@ import forgotPasswordRoute from "./route/forgotPasswordRoute.js";
 
 let app = express();
 
+app.use(
+  cors({
+    origin: "http://localhost:5173", // URL của frontend Vite mặc định
+    credentials: true,
+  }),
+);
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
