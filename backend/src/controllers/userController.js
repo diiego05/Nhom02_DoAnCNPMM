@@ -6,11 +6,19 @@ const getUserProfile = async (req, res) => {
     if (!userId) {
       return res.status(401).json({ message: "User not authenticated" });
     }
-    const userData = await userService.getUserProfileById(userId);
+    const user = await userService.getUserProfileById(userId);
 
-    return res
-      .status(200)
-      .json({ message: "Profile retrieved successfully", data: userData });
+    return res.status(200).json({
+      message: "Profile retrieved successfully",
+      data: {
+        fullName: user.full_name,
+        dateOfBirth: user.date_of_birth,
+        address: user.address,
+        gender: user.gender,
+        avatarUrl: user.avatar_url,
+        coverPhotoUrl: user.cover_photo_url,
+      },
+    });
   } catch (error) {
     return res.status(500).json({ message: "Internal server error" });
   }
@@ -20,15 +28,23 @@ const updateUserProfile = async (req, res) => {
   try {
     const data = { ...req.body, user_id: req.user.id };
 
-    // Nếu có file tải lên, gán đường dẫn cho avatar_url
+    // Nếu có file tải lên (Cloudinary), gán URL trực tiếp cho avatar_url
     if (req.file) {
-      data.avatar_url = `/public/uploads/avatars/${req.file.filename}`;
+      data.avatar_url = req.file.path;
     }
 
     const user = await userService.updateUserProfile(data);
-    return res
-      .status(200)
-      .json({ message: "Profile updated successfully", data: user });
+    return res.status(200).json({
+      message: "Profile updated successfully",
+      data: {
+        fullName: user.full_name,
+        dateOfBirth: user.date_of_birth,
+        address: user.address,
+        gender: user.gender,
+        avatarUrl: user.avatar_url,
+        coverPhotoUrl: user.cover_photo_url,
+      },
+    });
   } catch (error) {
     console.error("Update profile error:", error);
     return res.status(500).json({ message: "Internal server error" });

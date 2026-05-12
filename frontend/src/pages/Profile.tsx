@@ -76,7 +76,7 @@ const Profile = () => {
     setIsUpdating(true);
     try {
       let data: any = formData;
-      
+
       // Nếu có file được chọn, sử dụng FormData
       if (selectedFile) {
         const payload = new FormData();
@@ -95,11 +95,11 @@ const Profile = () => {
         dispatch(
           setUser({
             ...user!,
-            fullName: updatedProfile.full_name,
-            dateOfBirth: updatedProfile.date_of_birth,
+            fullName: updatedProfile.fullName,
+            dateOfBirth: updatedProfile.dateOfBirth,
             address: updatedProfile.address,
             gender: updatedProfile.gender,
-            avatarUrl: updatedProfile.avatar_url,
+            avatarUrl: updatedProfile.avatarUrl,
           }),
         );
         alert("Cập nhật thông tin thành công!");
@@ -120,17 +120,26 @@ const Profile = () => {
           {/* Sidebar */}
           <div className="w-full md:w-1/4 flex flex-col gap-6">
             <Card className="p-6 flex flex-col items-center text-center">
-              <div 
+              <div
                 className="w-24 h-24 rounded-full border-[3px] border-black overflow-hidden mb-4 shadow-brutal cursor-pointer relative group"
                 onClick={triggerFileInput}
               >
                 <img
-                  src={avatarPreview || (user?.avatarUrl ? `${API_URL}${user.avatarUrl}` : "https://i.pravatar.cc/150?img=47")}
+                  src={
+                    avatarPreview ||
+                    (user?.avatarUrl
+                      ? user.avatarUrl.startsWith("http")
+                        ? user.avatarUrl
+                        : `${API_URL}${user.avatarUrl}`
+                      : "https://i.pravatar.cc/150?img=47")
+                  }
                   alt={user?.fullName || "User"}
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-white text-[10px] font-bold uppercase">Thay đổi</span>
+                  <span className="text-white text-[10px] font-bold uppercase">
+                    Thay đổi
+                  </span>
                 </div>
               </div>
               <input
@@ -140,7 +149,9 @@ const Profile = () => {
                 className="hidden"
                 accept="image/*"
               />
-              <h2 className="font-serif text-2xl font-bold">{user?.fullName || "Khách"}</h2>
+              <h2 className="font-serif text-2xl font-bold">
+                {user?.fullName || "Khách"}
+              </h2>
               <span className="bg-gray-200 text-gray-600 text-xs font-bold px-3 py-1 mt-2 uppercase tracking-widest">
                 HẠNG VÀNG
               </span>

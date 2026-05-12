@@ -57,7 +57,9 @@ const Header = () => {
             <img
               src={
                 user?.avatarUrl
-                  ? `${API_URL}${user.avatarUrl}`
+                  ? user.avatarUrl.startsWith("http")
+                    ? user.avatarUrl
+                    : `${API_URL}${user.avatarUrl}`
                   : "https://i.pravatar.cc/150?img=47"
               }
               alt={user?.fullName || "User"}
