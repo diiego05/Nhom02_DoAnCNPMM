@@ -1,9 +1,6 @@
-import React from "react";
-import { Header } from "../components/layout/Header";
-import { Footer } from "../components/layout/Footer";
-import { Card } from "../components/ui/Card";
-import { Input } from "../components/ui/Input";
-import { Button } from "../components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
 import {
   User,
   Package,
@@ -16,7 +13,7 @@ import {
   Map,
 } from "lucide-react";
 
-export function Profile() {
+const Profile = () => {
   return (
     <div className="min-h-screen flex flex-col bg-[#faf9f6]">
       <main className="flex-grow max-w-7xl mx-auto w-full px-6 py-10">
@@ -284,4 +281,6 @@ export function Profile() {
       </main>
     </div>
   );
-}
+};
+
+export default Profile;

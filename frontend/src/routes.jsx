@@ -3,7 +3,7 @@ import NotFound from "@/pages/NotFound";
 import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
 import { ForgotPassword } from "@/pages/ForgotPassword";
-import { Profile } from "@/pages/Profile";
+import Profile from "@/pages/Profile";
 
 export const getRoutes = () => {
   const role = "ADMIN";

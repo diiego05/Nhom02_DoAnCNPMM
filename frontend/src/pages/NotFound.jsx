@@ -8,7 +8,7 @@ export default function NotFound() {
         <p className="text-xl text-gray-600 mb-8">Page not found</p>
         <Link
           to="/"
-          className="inline-block bg-blue-600 text-white font-bold py-3 px-6 border-2 border-transparent transition-all duration-200 hover:shadow-lg hover:border-black"
+          className="inline-block bg-primary text-white font-bold py-3 px-6 border-2 border-transparent transition-all duration-200 hover:shadow-brutal hover:border-black"
         >
           Go Home
         </Link>
