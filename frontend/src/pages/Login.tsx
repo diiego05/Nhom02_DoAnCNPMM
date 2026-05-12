@@ -1,10 +1,37 @@
-import { Link } from "react-router-dom";
+import { data, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { authService, LoginFormData } from "@/services/authService";
+import useAuth from "@/hooks/useAuth";
+import { useState } from "react";
 
 const Login = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value);
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
+  };
+
+  const { handleLogin } = useAuth();
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    // Sử dụng trực tiếp state email và password
+    onSubmit({ email_or_phone: email, password });
+  };
+
+  const onSubmit = (data: LoginFormData) => {
+    handleLogin(data);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#faf9f6]">
       <main className="flex-grow flex items-center justify-center p-6 mt-10">
@@ -42,12 +69,15 @@ const Login = () => {
                 </p>
               </div>
 
-              <form className="space-y-6">
+              <form className="space-y-6" onSubmit={handleSubmit}>
                 <Input
                   label="Email hoặc số điện thoại"
                   id="email"
+                  name="email_or_phone"
                   type="text"
                   placeholder="example@gmail.com"
+                  value={email}
+                  onChange={handleEmailChange}
                 />
 
                 <Input
@@ -55,6 +85,8 @@ const Login = () => {
                   id="password"
                   type="password"
                   placeholder="••••••••"
+                  value={password}
+                  onChange={handlePasswordChange}
                 />
 
                 <div className="flex items-center justify-between mt-4">

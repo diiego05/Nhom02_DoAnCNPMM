@@ -72,6 +72,10 @@ const login = (data) => {
             model: db.Role,
             as: "role",
           },
+          {
+            model: db.UserProfile,
+            as: "profile",
+          },
         ],
       });
 
@@ -134,6 +138,12 @@ const login = (data) => {
             email: user.email,
             phone: user.phone,
             role: user.role?.role_name,
+            fullName: user.profile?.full_name || "",
+            dateOfBirth: user.profile?.date_of_birth || null,
+            address: user.profile?.address || null,
+            gender: user.profile?.gender || null,
+            avatarUrl: user.profile?.avatar_url || null,
+            coverPhotoUrl: user.profile?.cover_photo_url || null,
           },
         },
       });

@@ -41,6 +41,9 @@ export const getRoutes = (): RouteObject[] => {
           path: "forgot-password",
           element: <ForgotPassword />,
         },
+        {
+          path: "logout",
+        },
       ],
     },
     {

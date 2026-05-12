@@ -5,14 +5,27 @@ export default {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable("user_profiles", {
       user_id: {
-        type: Sequelize.BIGINT,
+        allowNull: false,
         primaryKey: true,
+        type: Sequelize.BIGINT,
+        references: {
+          model: "users",
+          key: "id",
+        },
+        onUpdate: "CASCADE",
+        onDelete: "CASCADE",
       },
-      first_name: {
-        type: Sequelize.STRING(100),
+      full_name: {
+        type: Sequelize.STRING(200),
       },
-      last_name: {
-        type: Sequelize.STRING(100),
+      date_of_birth: {
+        type: Sequelize.DATE,
+      },
+      address: {
+        type: Sequelize.STRING(200),
+      },
+      gender: {
+        type: Sequelize.ENUM("male", "female", "other"),
       },
       id_card: {
         type: Sequelize.STRING(20),
@@ -25,8 +38,8 @@ export default {
         type: Sequelize.TEXT,
       },
       updated_at: {
-        type: Sequelize.DATE,
         allowNull: false,
+        type: Sequelize.DATE,
       },
     });
   },

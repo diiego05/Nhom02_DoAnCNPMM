@@ -1,7 +1,10 @@
 import { Link } from "react-router-dom";
 import { ShoppingBag, ShoppingCart } from "lucide-react";
-
+import { useAppSelector } from "@/stores/hooks";
+const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8088";
 const Header = () => {
+  const user = useAppSelector((state) => state.auth.user);
+
   return (
     <header className="w-full bg-white border-b-2 border-black sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
@@ -52,8 +55,12 @@ const Header = () => {
             className="w-10 h-10 rounded-full border-2 border-black overflow-hidden hover:shadow-brutal transition-all"
           >
             <img
-              src="https://i.pravatar.cc/150?img=47"
-              alt="User Avatar"
+              src={
+                user?.avatarUrl
+                  ? `${API_URL}${user.avatarUrl}`
+                  : "https://i.pravatar.cc/150?img=47"
+              }
+              alt={user?.fullName || "User"}
               className="w-full h-full object-cover"
             />
           </Link>

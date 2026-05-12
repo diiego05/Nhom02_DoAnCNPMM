@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { useAppSelector } from "@/stores/hooks";
 import {
   User,
   Package,
@@ -12,8 +13,106 @@ import {
   Ticket,
   Map,
 } from "lucide-react";
+import useAuth from "@/hooks/useAuth";
+import { userService } from "@/services/userService";
+import { useAppDispatch } from "@/stores/hooks";
+import { setUser } from "@/stores/slices/authSlice";
+import { useState, useEffect, useRef } from "react";
+
+const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8088";
 
 const Profile = () => {
+  const { handleLogout } = useAuth();
+  const user = useAppSelector((state) => state.auth.user);
+  const dispatch = useAppDispatch();
+
+  const [formData, setFormData] = useState({
+    full_name: user?.fullName || "",
+    phone: user?.phone || "",
+    date_of_birth: user?.dateOfBirth ? user.dateOfBirth.split("T")[0] : "",
+    address: user?.address || "",
+    gender: user?.gender || "male",
+  });
+
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        full_name: user.fullName || "",
+        phone: user.phone || "",
+        date_of_birth: user.dateOfBirth ? user.dateOfBirth.split("T")[0] : "",
+        address: user.address || "",
+        gender: user.gender || "male",
+      });
+    }
+  }, [user]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdating(true);
+    try {
+      let data: any = formData;
+      
+      // Nếu có file được chọn, sử dụng FormData
+      if (selectedFile) {
+        const payload = new FormData();
+        payload.append("avatar", selectedFile);
+        payload.append("full_name", formData.full_name);
+        payload.append("phone", formData.phone);
+        payload.append("date_of_birth", formData.date_of_birth);
+        payload.append("address", formData.address);
+        payload.append("gender", formData.gender);
+        data = payload;
+      }
+
+      const response = await userService.updateProfile(data);
+      if (response.data.data) {
+        const updatedProfile = response.data.data;
+        dispatch(
+          setUser({
+            ...user!,
+            fullName: updatedProfile.full_name,
+            dateOfBirth: updatedProfile.date_of_birth,
+            address: updatedProfile.address,
+            gender: updatedProfile.gender,
+            avatarUrl: updatedProfile.avatar_url,
+          }),
+        );
+        alert("Cập nhật thông tin thành công!");
+        setSelectedFile(null);
+      }
+    } catch (error) {
+      console.error("Update failed", error);
+      alert("Cập nhật thất bại. Vui lòng thử lại.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#faf9f6]">
       <main className="flex-grow max-w-7xl mx-auto w-full px-6 py-10">
@@ -21,14 +120,27 @@ const Profile = () => {
           {/* Sidebar */}
           <div className="w-full md:w-1/4 flex flex-col gap-6">
             <Card className="p-6 flex flex-col items-center text-center">
-              <div className="w-24 h-24 rounded-full border-[3px] border-black overflow-hidden mb-4 shadow-brutal">
+              <div 
+                className="w-24 h-24 rounded-full border-[3px] border-black overflow-hidden mb-4 shadow-brutal cursor-pointer relative group"
+                onClick={triggerFileInput}
+              >
                 <img
-                  src="https://i.pravatar.cc/150?img=47"
-                  alt="Minh Anh"
+                  src={avatarPreview || (user?.avatarUrl ? `${API_URL}${user.avatarUrl}` : "https://i.pravatar.cc/150?img=47")}
+                  alt={user?.fullName || "User"}
                   className="w-full h-full object-cover"
                 />
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-white text-[10px] font-bold uppercase">Thay đổi</span>
+                </div>
               </div>
-              <h2 className="font-serif text-2xl font-bold">Minh Anh</h2>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleAvatarChange}
+                className="hidden"
+                accept="image/*"
+              />
+              <h2 className="font-serif text-2xl font-bold">{user?.fullName || "Khách"}</h2>
               <span className="bg-gray-200 text-gray-600 text-xs font-bold px-3 py-1 mt-2 uppercase tracking-widest">
                 HẠNG VÀNG
               </span>
@@ -62,7 +174,11 @@ const Profile = () => {
                 </a>
                 <a
                   href="#"
-                  className="flex items-center gap-3 px-6 py-4 hover:bg-red-50 text-red-600 font-bold transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleLogout();
+                  }}
+                  className="flex items-center gap-3 px-6 py-4 hover:bg-red-50 text-red-600 font-bold transition-colors cursor-pointer"
                 >
                   <LogOut size={18} /> Đăng xuất
                 </a>
@@ -92,17 +208,21 @@ const Profile = () => {
                   </h3>
                 </div>
                 <div className="p-6 md:p-8 flex-grow">
-                  <form className="space-y-6">
+                  <form className="space-y-6" onSubmit={handleSubmit}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <Input
                         label="Họ và tên"
                         id="fullname"
-                        defaultValue="Nguyễn Minh Anh"
+                        name="full_name"
+                        value={formData.full_name}
+                        onChange={handleChange}
                       />
                       <Input
                         label="Số điện thoại"
                         id="phone"
-                        defaultValue="0901 234 567"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleChange}
                       />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -110,15 +230,29 @@ const Profile = () => {
                         label="Email"
                         id="email"
                         type="email"
-                        defaultValue="minhanh.design@gmail.com"
+                        value={user?.email || ""}
                         disabled
                         className="bg-gray-100 text-gray-500"
+                        onChange={() => {}}
                       />
                       <Input
                         label="Ngày sinh"
                         id="dob"
+                        name="date_of_birth"
                         type="date"
-                        defaultValue="1998-10-15"
+                        value={formData.date_of_birth}
+                        onChange={handleChange}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Input
+                        label="Địa chỉ"
+                        id="address"
+                        name="address"
+                        type="text"
+                        value={formData.address}
+                        onChange={handleChange}
                       />
                     </div>
 
@@ -131,6 +265,9 @@ const Profile = () => {
                           <input
                             type="radio"
                             name="gender"
+                            value="male"
+                            checked={formData.gender === "male"}
+                            onChange={handleChange}
                             className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
                           />
                           <span>Nam</span>
@@ -139,7 +276,9 @@ const Profile = () => {
                           <input
                             type="radio"
                             name="gender"
-                            defaultChecked
+                            value="female"
+                            checked={formData.gender === "female"}
+                            onChange={handleChange}
                             className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
                           />
                           <span>Nữ</span>
@@ -148,6 +287,9 @@ const Profile = () => {
                           <input
                             type="radio"
                             name="gender"
+                            value="other"
+                            checked={formData.gender === "other"}
+                            onChange={handleChange}
                             className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
                           />
                           <span>Khác</span>
@@ -156,7 +298,13 @@ const Profile = () => {
                     </div>
 
                     <div className="pt-4">
-                      <Button className="w-full md:w-auto">Lưu thay đổi</Button>
+                      <Button
+                        type="submit"
+                        disabled={isUpdating}
+                        className="w-full md:w-auto"
+                      >
+                        {isUpdating ? "Đang lưu..." : "Lưu thay đổi"}
+                      </Button>
                     </div>
                   </form>
                 </div>
@@ -267,8 +415,7 @@ const Profile = () => {
                     </span>
                   </div>
                   <p className="text-gray-700">
-                    Số 123, Đường Võ Văn Ngân, Phường Linh Chiểu, TP. Thủ Đức,
-                    TP. Hồ Chí Minh
+                    {user?.address || "Đang cập nhật"}
                   </p>
                 </div>
                 <div className="hidden md:flex w-16 h-16 border-2 border-black items-center justify-center">

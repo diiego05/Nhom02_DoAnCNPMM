@@ -19,11 +19,18 @@ const getUserProfile = async (req, res) => {
 const updateUserProfile = async (req, res) => {
   try {
     const data = { ...req.body, user_id: req.user.id };
+
+    // Nếu có file tải lên, gán đường dẫn cho avatar_url
+    if (req.file) {
+      data.avatar_url = `/public/uploads/avatars/${req.file.filename}`;
+    }
+
     const user = await userService.updateUserProfile(data);
     return res
       .status(200)
       .json({ message: "Profile updated successfully", data: user });
   } catch (error) {
+    console.error("Update profile error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

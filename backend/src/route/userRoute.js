@@ -2,6 +2,7 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import userController from "../controllers/userController.js";
 import { verifyToken } from "../middleware/auth.js";
+import upload from "../middleware/upload.js";
 
 const router = express.Router();
 
@@ -12,22 +13,28 @@ const editLimiter = rateLimit({
 });
 
 const editProfileRules = (req, res, next) => {
-  const { first_name, last_name, id_card } = req.body;
-  
-  if (first_name && first_name.length > 100) {
-    return res.status(400).json({ message: "First name must not exceed 100 characters" });
+  const { full_name, id_card } = req.body;
+
+  if (full_name && full_name.length > 200) {
+    return res
+      .status(400)
+      .json({ message: "Full name must not exceed 200 characters" });
   }
-  if (last_name && last_name.length > 100) {
-    return res.status(400).json({ message: "Last name must not exceed 100 characters" });
-  }
-  if (id_card && !/^\d{9,12}$/.test(id_card)) {
+  if (id_card && id_card !== "" && !/^\d{9,12}$/.test(id_card)) {
     return res.status(400).json({ message: "ID card must be 9-12 digits" });
   }
-  
+
   next();
 };
 
 router.get("/profile", verifyToken, userController.getUserProfile);
-router.put("/edit-profile", verifyToken, editLimiter, editProfileRules, userController.updateUserProfile);
+router.put(
+  "/edit-profile",
+  verifyToken,
+  upload.single("avatar"),
+  editLimiter,
+  editProfileRules,
+  userController.updateUserProfile,
+);
 
 export default router;

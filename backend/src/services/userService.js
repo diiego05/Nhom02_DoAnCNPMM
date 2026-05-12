@@ -29,8 +29,10 @@ const updateUserProfile = (data) => {
       });
       if (userProfile) {
         await userProfile.update({
-          first_name: data.first_name,
-          last_name: data.last_name,
+          full_name: data.full_name,
+          date_of_birth: data.date_of_birth,
+          address: data.address,
+          gender: data.gender,
           id_card: data.id_card,
           avatar_url: data.avatar_url,
           cover_photo_url: data.cover_photo_url,

@@ -17,12 +17,20 @@ export default (sequelize, DataTypes) => {
         primaryKey: true,
       },
 
-      first_name: {
-        type: DataTypes.STRING(100),
+      full_name: {
+        type: DataTypes.STRING(200),
       },
 
-      last_name: {
-        type: DataTypes.STRING(100),
+      date_of_birth: {
+        type: DataTypes.DATE,
+      },
+
+      address: {
+        type: DataTypes.STRING(200),
+      },
+
+      gender: {
+        type: DataTypes.ENUM("male", "female", "other"),
       },
 
       id_card: {
