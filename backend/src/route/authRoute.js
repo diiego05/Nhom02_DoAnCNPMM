@@ -7,11 +7,16 @@ import { verifyRecaptcha } from "../middleware/recaptcha.js";
 const authLimiter = rateLimit({
   windowMs: 1000 * 60 * 5,
   max: 6,
-  message: "Too many attempts, please try again after 5 minutes",
+  handler: (req, res, next, options) => {
+    res.status(options.statusCode).json({
+      message: "Bạn đã nhập sai quá 6 lần. Vui lòng thử lại sau 5 phút.",
+    });
+  },
 });
 
 router.post("/register", verifyRecaptcha, authController.register);
 router.post("/login", authLimiter, authController.login);
 router.post("/refresh", authController.refresh);
+router.post("/google", authController.googleLogin);
 
 export default router;

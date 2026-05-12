@@ -1,6 +1,9 @@
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { logout } from "@/stores/authSlice";
 import {
   User,
   Package,
@@ -14,6 +17,14 @@ import {
 } from "lucide-react";
 
 const Profile = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    dispatch(logout());
+    navigate("/auth/login", { replace: true });
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#faf9f6]">
       <main className="flex-grow max-w-7xl mx-auto w-full px-6 py-10">
@@ -60,12 +71,12 @@ const Profile = () => {
                 >
                   <Heart size={18} /> Sản phẩm yêu thích
                 </a>
-                <a
-                  href="#"
-                  className="flex items-center gap-3 px-6 py-4 hover:bg-red-50 text-red-600 font-bold transition-colors"
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-3 px-6 py-4 hover:bg-red-50 text-red-600 font-bold transition-colors w-full"
                 >
                   <LogOut size={18} /> Đăng xuất
-                </a>
+                </button>
               </nav>
             </div>
           </div>

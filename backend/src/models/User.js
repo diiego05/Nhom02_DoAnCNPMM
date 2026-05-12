@@ -44,13 +44,24 @@ export default (sequelize, DataTypes) => {
 
       phone: {
         type: DataTypes.STRING(20),
-        allowNull: false,
+        allowNull: true, // Có thể null khi đăng nhập bằng Google
         unique: true,
       },
 
       password: {
         type: DataTypes.STRING(255),
-        allowNull: false,
+        allowNull: true, // Có thể null khi đăng nhập bằng Google
+      },
+
+      auth_provider: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        defaultValue: "local", // 'local' hoặc 'google' hoặc 'facebook'
+      },
+
+      auth_provider_id: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
       },
 
       role_id: {

@@ -1,10 +1,11 @@
 {
   "development": {
     "username": "root",
-    "password": "@nhkiettg2005",
+    "password": "25032005",
     "database": "testdb",
     "host": "127.0.0.1",
-    "dialect": "mysql"
+    "dialect": "mysql",
+    "timezone": "+07:00"
   },
   "test": {
     "username": "root",
