@@ -18,42 +18,51 @@ import { userService } from "@/services/userService";
 import { useAppDispatch } from "@/stores/hooks";
 import { setUser } from "@/stores/slices/authSlice";
 import { useState, useEffect, useRef } from "react";
+import { Controller, useForm } from "react-hook-form";
+import * as yup from "yup";
+import { yupResolver } from "@hookform/resolvers/yup";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8088";
+
+interface IUpdateProfileData {
+  full_name: string;
+  phone: string;
+  date_of_birth: string;
+  address: string;
+  gender: string;
+}
 
 const Profile = () => {
   const { handleLogout } = useAuth();
   const user = useAppSelector((state) => state.auth.user);
   const dispatch = useAppDispatch();
 
-  const [formData, setFormData] = useState({
-    full_name: user?.fullName || "",
-    phone: user?.phone || "",
-    date_of_birth: user?.dateOfBirth ? user.dateOfBirth.split("T")[0] : "",
-    address: user?.address || "",
-    gender: user?.gender || "male",
+  const schema = yup.object({
+    full_name: yup.string().required("Tên không được để trống"),
+    phone: yup
+      .string()
+      .matches(/^[0-9]{10}$/, "Số điện thoại phải có đúng 10 chữ số")
+      .required("Số điện thoại không được để trống"),
+    date_of_birth: yup.string().required("Ngày sinh không được để trống"),
+    address: yup.string().required("Địa chỉ không được để trống"),
+    gender: yup.string().required("Giới tính không được để trống"),
+  });
+
+  const { control, handleSubmit, reset, formState: { errors } } = useForm<IUpdateProfileData>({
+    defaultValues: {
+      full_name: user?.fullName || "",
+      phone: user?.phone || "",
+      date_of_birth: user?.dateOfBirth ? user.dateOfBirth.split("T")[0] : "",
+      address: user?.address || "",
+      gender: user?.gender || "male",
+    },
+    resolver: yupResolver(schema),
   });
 
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        full_name: user.fullName || "",
-        phone: user.phone || "",
-        date_of_birth: user.dateOfBirth ? user.dateOfBirth.split("T")[0] : "",
-        address: user.address || "",
-        gender: user.gender || "male",
-      });
-    }
-  }, [user]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -71,27 +80,21 @@ const Profile = () => {
     fileInputRef.current?.click();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsUpdating(true);
+  const onSubmit = async (data: IUpdateProfileData) => {
+    const formData = new FormData();
+    formData.append("full_name", data.full_name);
+    formData.append("phone", data.phone);
+    formData.append("date_of_birth", data.date_of_birth);
+    formData.append("address", data.address);
+    formData.append("gender", data.gender);
+
+    if (selectedFile) {
+      formData.append("avatar", selectedFile);
+    }
     try {
-      let data: any = formData;
-
-      // Nếu có file được chọn, sử dụng FormData
-      if (selectedFile) {
-        const payload = new FormData();
-        payload.append("avatar", selectedFile);
-        payload.append("full_name", formData.full_name);
-        payload.append("phone", formData.phone);
-        payload.append("date_of_birth", formData.date_of_birth);
-        payload.append("address", formData.address);
-        payload.append("gender", formData.gender);
-        data = payload;
-      }
-
-      const response = await userService.updateProfile(data);
-      if (response.data.data) {
-        const updatedProfile = response.data.data;
+      const response = await userService.updateProfile(formData);
+      const updatedProfile = response.data.data;
+      if (updatedProfile) {
         dispatch(
           setUser({
             ...user!,
@@ -102,12 +105,20 @@ const Profile = () => {
             avatarUrl: updatedProfile.avatarUrl,
           }),
         );
-        alert("Cập nhật thông tin thành công!");
-        setSelectedFile(null);
+        reset({
+          full_name: updatedProfile.fullName,
+          phone: updatedProfile.phone,
+          date_of_birth: updatedProfile.dateOfBirth?.split("T")[0] || "",
+          address: updatedProfile.address,
+          gender: updatedProfile.gender,
+        });
+        // Xóa preview để hiển thị ảnh thật từ Cloudinary
+        setAvatarPreview(null);
       }
+      alert("Cập nhật thông tin thành công!");
+      setSelectedFile(null);
     } catch (error) {
-      console.error("Update failed", error);
-      alert("Cập nhật thất bại. Vui lòng thử lại.");
+      alert("Cập nhật thông tin thất bại!");
     } finally {
       setIsUpdating(false);
     }
@@ -219,21 +230,50 @@ const Profile = () => {
                   </h3>
                 </div>
                 <div className="p-6 md:p-8 flex-grow">
-                  <form className="space-y-6" onSubmit={handleSubmit}>
+                  <form
+                    className="space-y-6"
+                    onSubmit={handleSubmit((data) => onSubmit(data))}
+                  >
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <Input
-                        label="Họ và tên"
-                        id="fullname"
+                      <Controller
+                        control={control}
                         name="full_name"
-                        value={formData.full_name}
-                        onChange={handleChange}
+                        render={({ field, fieldState }) => (
+                          <div>
+                            <Input
+                              label="Họ và tên"
+                              id="fullname"
+                              name="full_name"
+                              value={field.value}
+                              onChange={field.onChange}
+                            />
+                            {fieldState.error?.message && (
+                              <p className="text-red-500 text-sm mt-1">
+                                {fieldState.error.message}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       />
-                      <Input
-                        label="Số điện thoại"
-                        id="phone"
+                      <Controller
+                        control={control}
                         name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
+                        render={({ field, fieldState }) => (
+                          <div>
+                            <Input
+                              label="Số điện thoại"
+                              id="phone"
+                              name="phone"
+                              value={field.value}
+                              onChange={field.onChange}
+                            />
+                            {fieldState.error?.message && (
+                              <p className="text-red-500 text-sm mt-1">
+                                {fieldState.error.message}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -246,24 +286,36 @@ const Profile = () => {
                         className="bg-gray-100 text-gray-500"
                         onChange={() => {}}
                       />
-                      <Input
-                        label="Ngày sinh"
-                        id="dob"
+                      <Controller
+                        control={control}
                         name="date_of_birth"
-                        type="date"
-                        value={formData.date_of_birth}
-                        onChange={handleChange}
+                        render={({ field }) => (
+                          <Input
+                            label="Ngày sinh"
+                            id="dob"
+                            name="date_of_birth"
+                            type="date"
+                            value={field.value}
+                            onChange={field.onChange}
+                          />
+                        )}
                       />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <Input
-                        label="Địa chỉ"
-                        id="address"
+                      <Controller
+                        control={control}
                         name="address"
-                        type="text"
-                        value={formData.address}
-                        onChange={handleChange}
+                        render={({ field }) => (
+                          <Input
+                            label="Địa chỉ"
+                            id="address"
+                            name="address"
+                            type="text"
+                            value={field.value}
+                            onChange={field.onChange}
+                          />
+                        )}
                       />
                     </div>
 
@@ -273,39 +325,62 @@ const Profile = () => {
                       </label>
                       <div className="flex items-center space-x-6">
                         <label className="flex items-center space-x-2 cursor-pointer">
-                          <input
-                            type="radio"
+                          <Controller
+                            control={control}
                             name="gender"
-                            value="male"
-                            checked={formData.gender === "male"}
-                            onChange={handleChange}
-                            className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
+                            render={({ field }) => (
+                              <input
+                                type="radio"
+                                name="gender"
+                                value="male"
+                                checked={field.value === "male"}
+                                onChange={field.onChange}
+                                className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
+                              />
+                            )}
                           />
                           <span>Nam</span>
                         </label>
                         <label className="flex items-center space-x-2 cursor-pointer">
-                          <input
-                            type="radio"
+                          <Controller
+                            control={control}
                             name="gender"
-                            value="female"
-                            checked={formData.gender === "female"}
-                            onChange={handleChange}
-                            className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
+                            render={({ field }) => (
+                              <input
+                                type="radio"
+                                name="gender"
+                                value="female"
+                                checked={field.value === "female"}
+                                onChange={field.onChange}
+                                className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
+                              />
+                            )}
                           />
                           <span>Nữ</span>
                         </label>
                         <label className="flex items-center space-x-2 cursor-pointer">
-                          <input
-                            type="radio"
+                          <Controller
+                            control={control}
                             name="gender"
-                            value="other"
-                            checked={formData.gender === "other"}
-                            onChange={handleChange}
-                            className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
+                            render={({ field }) => (
+                              <input
+                                type="radio"
+                                name="gender"
+                                value="other"
+                                checked={field.value === "other"}
+                                onChange={field.onChange}
+                                className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
+                              />
+                            )}
                           />
                           <span>Khác</span>
                         </label>
                       </div>
+                      {errors.gender?.message && (
+                        <p className="text-red-500 text-sm mt-1">
+                          {errors.gender.message}
+                        </p>
+                      )}
                     </div>
 
                     <div className="pt-4">
