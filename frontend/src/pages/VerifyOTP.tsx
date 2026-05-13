@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Mail, ArrowRight } from "lucide-react";
+import { publicAxios } from "../services/axiosClient";
 
 const VerifyOTP = () => {
   const [searchParams] = useSearchParams();
@@ -60,26 +61,24 @@ const VerifyOTP = () => {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:8080/auth/verify-otp", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, otpCode: fullOtp }),
+      const response = await publicAxios.post("/auth/verify-otp", {
+        email,
+        otpCode: fullOtp,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (response.status === 200) {
         setSuccess(true);
         setTimeout(() => {
           navigate("/auth/login");
         }, 3000);
       } else {
-        setError(data.message || "Xác thực thất bại!");
+        setError(response.data.message || "Xác thực thất bại!");
       }
-    } catch (err) {
-      setError("Không thể kết nối đến server. Vui lòng thử lại sau!");
+    } catch (err: any) {
+      setError(
+        err.response?.data?.message ||
+          "Không thể kết nối đến server. Vui lòng thử lại sau!"
+      );
     } finally {
       setLoading(false);
     }
