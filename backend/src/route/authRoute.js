@@ -16,6 +16,7 @@ const authLimiter = rateLimit({
 });
 
 router.post("/register", verifyRecaptcha, authController.register);
+router.post("/verify-otp", authController.verifyOTP);
 router.post("/login", authLimiter, authController.login);
 router.post("/refresh", authController.refresh);
 router.post("/logout", authController.logout);

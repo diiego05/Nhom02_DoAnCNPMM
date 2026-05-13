@@ -1,15 +1,17 @@
 import bcrypt from "bcryptjs";
 import axios from "axios";
 import { OAuth2Client } from "google-auth-library";
+import crypto from "crypto";
 import { generateAccessToken, generateRefreshToken } from "../utils/jwt.js";
 import db from "../models/index.js";
+import { sendRegistrationOtp } from "../utils/emailService.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const register = (data) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const { email, phone, password, role_id } = data;
+      const { email, phone, password, fullName, role_id } = data;
 
       // Check if user already exists
       const existingUser = await db.User.findOne({
@@ -20,14 +22,13 @@ const register = (data) => {
 
       if (existingUser) {
         return resolve({
-          status: 400,
-          message: "Email or phone already exists",
+          status: 409,
+          message: "User with this email or phone already exists",
         });
       }
 
       // Hash password
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
+      const hashedPassword = await bcrypt.hash(password, 10);
 
       // Create user
       const user = await db.User.create({
@@ -35,21 +36,43 @@ const register = (data) => {
         phone,
         password: hashedPassword,
         role_id: role_id || 2, // Default to user role
-        status: "ACTIVE",
+        status: "PENDING",
       });
 
       // Create profile
       await db.UserProfile.create({
         user_id: user.id,
+        full_name: fullName,
       });
+
+      // Generate OTP for account activation
+      const otpCode = crypto.randomInt(100000, 999999).toString();
+      const expiredAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+      console.log(`Generating OTP for ${email}: ${otpCode}`);
+
+      await db.OtpVerification.create({
+        user_id: user.id,
+        otp_code: otpCode,
+        type: "ACCOUNT_ACTIVATION",
+        expired_at: expiredAt,
+      });
+
+      // Send OTP email
+      console.log(`Sending registration OTP to ${email}...`);
+      sendRegistrationOtp(email, otpCode)
+        .then(() => console.log(`OTP email sent successfully to ${email}`))
+        .catch((err) =>
+          console.error(`Failed to send registration OTP to ${email}:`, err),
+        );
 
       resolve({
         status: 201,
-        message: "User registered successfully",
+        message:
+          "User registered successfully. Please check your email for OTP.",
         data: {
           id: user.id,
           email: user.email,
-          phone: user.phone,
         },
       });
     } catch (error) {
@@ -63,7 +86,7 @@ const login = (data) => {
     try {
       const { email_or_phone, password } = data;
 
-      // Find user by email or phone
+      // Find user
       const user = await db.User.findOne({
         where: {
           [db.Sequelize.Op.or]: [
@@ -163,18 +186,23 @@ const refreshToken = (token) => {
       // Find refresh token in database
       const refreshTokenRecord = await db.RefreshToken.findOne({
         where: {
-          token: token,
+          token,
           is_revoked: false,
-          expires_at: {
-            [db.Sequelize.Op.gt]: new Date(),
-          },
         },
       });
 
       if (!refreshTokenRecord) {
         return resolve({
-          status: 403,
-          message: "Invalid or expired refresh token",
+          status: 401,
+          message: "Invalid refresh token",
+        });
+      }
+
+      // Check if token is expired
+      if (new Date() > new Date(refreshTokenRecord.expires_at)) {
+        return resolve({
+          status: 401,
+          message: "Refresh token expired",
         });
       }
 
@@ -233,7 +261,7 @@ const googleLogin = (accessTokenFromGoogle) => {
         "https://www.googleapis.com/oauth2/v3/userinfo",
         {
           headers: { Authorization: `Bearer ${accessTokenFromGoogle}` },
-        }
+        },
       );
 
       const { email, sub, given_name, family_name, picture } = payload;
@@ -276,8 +304,7 @@ const googleLogin = (accessTokenFromGoogle) => {
 
         await db.UserProfile.create({
           user_id: user.id,
-          first_name: given_name,
-          last_name: family_name,
+          full_name: `${given_name} ${family_name}`.trim(),
           avatar_url: picture,
         });
 
@@ -346,9 +373,52 @@ const googleLogin = (accessTokenFromGoogle) => {
   });
 };
 
+const verifyAccountOtp = (data) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const { email, otpCode } = data;
+
+      const user = await db.User.findOne({ where: { email } });
+      if (!user) {
+        return resolve({ status: 404, message: "User not found" });
+      }
+
+      const otpRecord = await db.OtpVerification.findOne({
+        where: {
+          user_id: user.id,
+          type: "ACCOUNT_ACTIVATION",
+          is_used: false,
+          otp_code: otpCode,
+        },
+        order: [["created_at", "DESC"]],
+      });
+
+      if (!otpRecord) {
+        return resolve({ status: 400, message: "Invalid OTP code" });
+      }
+
+      if (new Date() > new Date(otpRecord.expired_at)) {
+        return resolve({ status: 410, message: "OTP code expired" });
+      }
+
+      // Update user status and OTP record
+      await user.update({ status: "ACTIVE" });
+      await otpRecord.update({ is_used: true });
+
+      resolve({
+        status: 200,
+        message: "Account verified successfully",
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+
 export default {
   register,
   login,
   refreshToken,
   googleLogin,
+  verifyAccountOtp,
 };

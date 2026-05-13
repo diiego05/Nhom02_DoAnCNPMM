@@ -1,10 +1,76 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import ReCAPTCHA from "react-google-recaptcha";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Card } from "../components/ui/Card";
 import { UserPlus, Gift, Crown } from "lucide-react";
+import { publicAxios } from "../services/axiosClient";
 
 const Register = () => {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    password: "",
+    confirm_password: "",
+  });
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.id]: e.target.value,
+    });
+  };
+
+  const handleRecaptchaChange = (token: string | null) => {
+    setRecaptchaToken(token);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (formData.password !== formData.confirm_password) {
+      setError("Mật khẩu nhập lại không khớp!");
+      return;
+    }
+
+    if (!recaptchaToken) {
+      setError("Vui lòng xác thực reCAPTCHA!");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await publicAxios.post("/auth/register", {
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        fullName: formData.fullName,
+        recaptchaToken: recaptchaToken,
+      });
+
+      if (response.status === 201 || response.status === 200) {
+        alert("Đăng ký thành công! Vui lòng kiểm tra email để lấy mã OTP.");
+        navigate(`/auth/verify-otp?email=${formData.email}`);
+      } else {
+        setError(response.data.message || "Đăng ký thất bại!");
+      }
+    } catch (err: any) {
+      setError(
+        err.response?.data?.message ||
+          "Không thể kết nối đến server. Vui lòng thử lại sau!",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#faf9f6]">
       <main className="flex-grow flex flex-col items-center p-6 mt-10">
@@ -50,55 +116,77 @@ const Register = () => {
                 </p>
               </div>
 
-              <form className="space-y-5">
+              {error && (
+                <div className="mb-4 p-3 bg-red-100 border-l-4 border-red-500 text-red-700 text-sm font-bold">
+                  {error}
+                </div>
+              )}
+
+              <form className="space-y-5" onSubmit={handleSubmit}>
                 <Input
                   label="Họ và tên"
-                  id="fullname"
+                  id="fullName"
                   type="text"
                   placeholder="Nguyễn Văn A"
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  required
                 />
 
-                <Input
-                  label="Địa chỉ email"
-                  id="email"
-                  type="email"
-                  placeholder="example@uteshop.vn"
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="Địa chỉ email"
+                    id="email"
+                    type="email"
+                    placeholder="example@uteshop.vn"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                  />
+
+                  <Input
+                    label="Số điện thoại"
+                    id="phone"
+                    type="tel"
+                    placeholder="0123456789"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <Input label="Mật khẩu" id="password" type="password" />
+                  <Input
+                    label="Mật khẩu"
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                  />
                   <Input
                     label="Nhập lại"
                     id="confirm_password"
                     type="password"
+                    value={formData.confirm_password}
+                    onChange={handleChange}
+                    required
                   />
                 </div>
 
                 <div className="mt-4 flex justify-center">
-                  {/* Mockup reCAPTCHA */}
-                  <div className="flex items-center justify-between border border-gray-300 bg-gray-50 p-2 rounded-sm w-full max-w-[300px]">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        className="w-6 h-6 border-2 border-gray-300 rounded-sm bg-white checked:bg-blue-600 checked:border-transparent focus:ring-0 cursor-pointer"
-                      />
-                      <span className="text-sm font-medium text-gray-700">
-                        I'm not a robot
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-center justify-center text-[10px] text-gray-500">
-                      <img
-                        src="https://www.gstatic.com/recaptcha/api2/logo_48.png"
-                        alt="reCAPTCHA"
-                        className="w-8 h-8"
-                      />
-                      <span className="-mt-1">reCAPTCHA</span>
-                    </div>
-                  </div>
+                  <ReCAPTCHA
+                    sitekey="6LfKIuYsAAAAAJz_47Qvah7gjvrtOkgbOm5sjFLT"
+                    onChange={handleRecaptchaChange}
+                  />
                 </div>
 
-                <Button className="w-full mt-6 uppercase tracking-wider">
-                  Tạo tài khoản
+                <Button
+                  className="w-full mt-6 uppercase tracking-wider"
+                  type="submit"
+                  disabled={loading}
+                >
+                  {loading ? "Đang xử lý..." : "Tạo tài khoản"}
                 </Button>
               </form>
 
