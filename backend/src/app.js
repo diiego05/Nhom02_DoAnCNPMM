@@ -10,6 +10,7 @@ import forgotPasswordRoute from "./route/forgotPasswordRoute.js";
 
 let app = express();
 
+// Giữ error handlers từ HEAD cho production safety
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
 });
@@ -18,10 +19,8 @@ process.on("unhandledRejection", (reason) => {
   console.error("Unhandled Rejection:", reason);
 });
 
-app.use(cors({
-  origin: "http://localhost:5173",
-  credentials: true
-}));
+// Dùng origin: true từ nhánh di (cho phép tất cả origin) thay vì chỉ localhost:5173
+app.use(cors({ origin: true, credentials: true }));
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));

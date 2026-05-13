@@ -1,9 +1,13 @@
 import { Link } from "react-router-dom";
-import { ShoppingBag, ShoppingCart } from "lucide-react";
+import { ShoppingBag, ShoppingCart, LogIn } from "lucide-react";
 import { useAppSelector } from "@/stores/hooks";
+import useAuth from "@/hooks/useAuth";
+
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8088";
 const Header = () => {
   const user = useAppSelector((state) => state.auth.user);
+
+  const { isAuthenticated } = useAuth();
 
   return (
     <header className="w-full bg-white border-b-2 border-black sticky top-0 z-50">
@@ -43,29 +47,40 @@ const Header = () => {
         </div>
 
         <div className="flex items-center space-x-6">
-          <button className="relative p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <ShoppingCart size={24} />
-            <span className="absolute top-0 right-0 w-4 h-4 bg-black text-white text-[10px] font-bold flex items-center justify-center rounded-full">
-              0
-            </span>
-          </button>
-
-          <Link
-            to="/profile"
-            className="w-10 h-10 rounded-full border-2 border-black overflow-hidden hover:shadow-brutal transition-all"
-          >
-            <img
-              src={
-                user?.avatarUrl
-                  ? user.avatarUrl.startsWith("http")
-                    ? user.avatarUrl
-                    : `${API_URL}${user.avatarUrl}`
-                  : "https://i.pravatar.cc/150?img=47"
-              }
-              alt={user?.fullName || "User"}
-              className="w-full h-full object-cover"
-            />
-          </Link>
+          {isAuthenticated ? (
+            <>
+              <button className="relative p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <ShoppingCart size={24} />
+                <span className="absolute top-0 right-0 w-4 h-4 bg-black text-white text-[10px] font-bold flex items-center justify-center rounded-full">
+                  0
+                </span>
+              </button>
+              <Link
+                to="/profile"
+                className="w-10 h-10 rounded-full border-2 border-black overflow-hidden hover:shadow-brutal transition-all"
+              >
+                <img
+                  src={
+                    user?.avatarUrl
+                      ? user.avatarUrl.startsWith("http")
+                        ? user.avatarUrl
+                        : `${API_URL}${user.avatarUrl}`
+                      : "https://i.pravatar.cc/150?img=47"
+                  }
+                  alt={user?.fullName || "User"}
+                  className="w-full h-full object-cover"
+                />
+              </Link>
+            </>
+          ) : (
+            <Link
+              to="/auth/login"
+              className="flex items-center gap-2 border-2 border-black px-5 py-2.5 font-bold text-sm uppercase tracking-wider hover:bg-black hover:text-white transition-all duration-200 hover:shadow-brutal"
+            >
+              <LogIn size={18} />
+              Đăng nhập
+            </Link>
+          )}
         </div>
       </div>
     </header>

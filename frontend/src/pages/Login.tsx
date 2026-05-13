@@ -1,36 +1,69 @@
-import { data, Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { Checkbox } from "@/components/ui/Checkbox";
-import { authService, LoginFormData } from "@/services/authService";
+import { loginThunk, googleLoginThunk } from "@/stores/authSlice";
+import type { AppDispatch } from "@/stores/store";
 import useAuth from "@/hooks/useAuth";
-import { useState } from "react";
+import { useGoogleLogin } from "@react-oauth/google";
 
 const Login = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const dispatch = useDispatch<AppDispatch>();
+  const navigate = useNavigate();
+  const { loading, error, isAuthenticated } = useAuth();
 
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value);
+  const [formData, setFormData] = useState({
+    email_or_phone: "",
+    password: "",
+  });
+
+  // Nếu đã đăng nhập → chuyển trang
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [id]: type === "checkbox" ? checked : value,
+    }));
   };
 
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPassword(e.target.value);
-  };
-
-  const { handleLogin } = useAuth();
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.email_or_phone || !formData.password) return;
 
-    // Sử dụng trực tiếp state email và password
-    onSubmit({ email_or_phone: email, password });
+    const result = await dispatch(
+      loginThunk({
+        email_or_phone: formData.email_or_phone,
+        password: formData.password,
+      }),
+    );
+
+    // Sau khi login thành công, navigate theo redirectUrl từ backend
+    if (loginThunk.fulfilled.match(result)) {
+      const redirectUrl = result.payload.redirectUrl || "";
+      navigate(`/${redirectUrl}`, { replace: true });
+    }
   };
 
-  const onSubmit = (data: LoginFormData) => {
-    handleLogin(data);
-  };
+  const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      const result = await dispatch(
+        googleLoginThunk(tokenResponse.access_token),
+      );
+      if (googleLoginThunk.fulfilled.match(result)) {
+        const redirectUrl = result.payload.redirectUrl || "";
+        navigate(`/${redirectUrl}`, { replace: true });
+      }
+    },
+    onError: () => console.log("Google Login Failed"),
+  });
 
   return (
     <div className="min-h-screen flex flex-col bg-[#faf9f6]">
@@ -69,15 +102,22 @@ const Login = () => {
                 </p>
               </div>
 
+              {/* Error Message */}
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border-2 border-red-400 text-red-700 text-sm font-medium">
+                  {error}
+                </div>
+              )}
+
               <form className="space-y-6" onSubmit={handleSubmit}>
                 <Input
                   label="Email hoặc số điện thoại"
-                  id="email"
-                  name="email_or_phone"
+                  id="email_or_phone"
                   type="text"
                   placeholder="example@gmail.com"
-                  value={email}
-                  onChange={handleEmailChange}
+                  value={formData.email_or_phone}
+                  onChange={handleChange}
+                  disabled={loading}
                 />
 
                 <Input
@@ -85,12 +125,12 @@ const Login = () => {
                   id="password"
                   type="password"
                   placeholder="••••••••"
-                  value={password}
-                  onChange={handlePasswordChange}
+                  value={formData.password}
+                  onChange={handleChange}
+                  disabled={loading}
                 />
 
-                <div className="flex items-center justify-between mt-4">
-                  <Checkbox label="Nhớ mật khẩu" id="remember" />
+                <div className="flex items-center justify-end mt-4">
                   <Link
                     to="/auth/forgot-password"
                     className="text-sm font-bold hover:text-primary transition-colors"
@@ -99,8 +139,21 @@ const Login = () => {
                   </Link>
                 </div>
 
-                <Button className="w-full mt-8 flex justify-center items-center gap-2">
-                  Đăng nhập <span className="text-xl leading-none">→</span>
+                <Button
+                  type="submit"
+                  className="w-full mt-8 flex justify-center items-center gap-2"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Đang đăng nhập...
+                    </>
+                  ) : (
+                    <>
+                      Đăng nhập <span className="text-xl leading-none">→</span>
+                    </>
+                  )}
                 </Button>
               </form>
 
@@ -113,7 +166,12 @@ const Login = () => {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mt-6">
-                  <button className="flex items-center justify-center space-x-2 border-2 border-black py-3 px-4 hover:shadow-brutal transition-all bg-white font-bold text-sm">
+                  <button
+                    type="button"
+                    onClick={() => handleGoogleLogin()}
+                    disabled={loading}
+                    className="flex items-center justify-center space-x-2 border-2 border-black py-3 px-4 hover:shadow-brutal transition-all bg-white font-bold text-sm"
+                  >
                     <img
                       src="https://www.svgrepo.com/show/475656/google-color.svg"
                       alt="Google"
@@ -121,7 +179,11 @@ const Login = () => {
                     />
                     <span>Google</span>
                   </button>
-                  <button className="flex items-center justify-center space-x-2 border-2 border-black py-3 px-4 hover:shadow-brutal transition-all bg-white font-bold text-sm">
+                  <button
+                    type="button"
+                    className="flex items-center justify-center space-x-2 border-2 border-black py-3 px-4 hover:shadow-brutal transition-all bg-white font-bold text-sm opacity-50 cursor-not-allowed"
+                    disabled
+                  >
                     <img
                       src="https://www.svgrepo.com/show/475647/facebook-color.svg"
                       alt="Facebook"

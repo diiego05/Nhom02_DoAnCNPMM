@@ -1,6 +1,7 @@
 import { RouteObject } from "react-router-dom";
 import MainLayout from "@/components/layout/MainLayout";
 import AuthLayout from "@/components/layout/AuthLayout";
+import AuthGuard from "@/hocs/AuthGuard";
 import NotFound from "@/pages/NotFound";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
@@ -21,7 +22,11 @@ export const getRoutes = (): RouteObject[] => {
         },
         {
           path: "profile",
-          element: <Profile />,
+          element: (
+            <AuthGuard>
+              <Profile />
+            </AuthGuard>
+          ),
         },
       ],
     },

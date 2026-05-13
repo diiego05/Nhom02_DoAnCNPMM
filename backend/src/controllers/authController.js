@@ -40,6 +40,21 @@ const login = async (req, res) => {
       password,
     });
 
+    // Thêm thông báo tiếng Việt và đếm số lần sai từ nhánh di
+    if (response.status !== 200) {
+      const maxAttempts = req.rateLimit?.limit || 6;
+      const currentAttempts = req.rateLimit?.current || 1;
+
+      let vietnameseMessage = response.message;
+      if (response.message === "User not found")
+        vietnameseMessage = "Không tìm thấy người dùng";
+      if (response.message === "Wrong password")
+        vietnameseMessage = "Sai mật khẩu";
+
+      response.message = `${vietnameseMessage}. Bạn đã nhập sai ${currentAttempts}/${maxAttempts} lần. Quá ${maxAttempts} lần sẽ bị khóa đăng nhập 5 phút.`;
+    }
+
+    // Lưu refreshToken vào cookie httpOnly từ HEAD
     if (response.status === 200 && response.data?.refreshToken) {
       res.cookie("refreshToken", response.data.refreshToken, {
         httpOnly: true,
@@ -59,25 +74,13 @@ const login = async (req, res) => {
 // REFRESH TOKEN
 const refresh = async (req, res) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
+    const { refreshToken } = req.body;
 
     if (!refreshToken) {
-      return res
-        .status(401)
-        .json({ message: "Refresh token is missing from cookies" });
+      return res.status(400).json({ message: "Refresh token is required" });
     }
 
     const response = await authService.refreshToken(refreshToken);
-
-    if (response.status === 200 && response.data?.refreshToken) {
-      res.cookie("refreshToken", response.data.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
-      delete response.data.refreshToken;
-    }
 
     return res.status(response.status).json(response);
   } catch (error) {
@@ -88,13 +91,26 @@ const refresh = async (req, res) => {
 // LOGOUT
 const logout = async (req, res) => {
   try {
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
-    return res.status(200).json({ message: "Logout successful" });
+    res.clearCookie("refreshToken");
+    return res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// GOOGLE LOGIN (từ nhánh di)
+const googleLogin = async (req, res) => {
+  try {
+    const { googleAccessToken } = req.body;
+
+    if (!googleAccessToken) {
+      return res.status(400).json({ message: "Missing Google Access Token" });
+    }
+
+    const response = await authService.googleLogin(googleAccessToken);
+    return res.status(response.status).json(response);
+  } catch (error) {
+    console.error("Google Login Controller Error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -104,4 +120,5 @@ export default {
   login,
   refresh,
   logout,
+  googleLogin,
 };

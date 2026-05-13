@@ -48,7 +48,12 @@ const Profile = () => {
     gender: yup.string().required("Giới tính không được để trống"),
   });
 
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<IUpdateProfileData>({
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<IUpdateProfileData>({
     defaultValues: {
       full_name: user?.fullName || "",
       phone: user?.phone || "",
