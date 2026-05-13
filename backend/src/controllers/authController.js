@@ -67,6 +67,7 @@ const login = async (req, res) => {
 
     return res.status(response.status).json(response);
   } catch (error) {
+    console.error("Login Error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -84,6 +85,7 @@ const refresh = async (req, res) => {
 
     return res.status(response.status).json(response);
   } catch (error) {
+    console.error("Refresh Token Error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -94,6 +96,7 @@ const logout = async (req, res) => {
     res.clearCookie("refreshToken");
     return res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
+    console.error("Logout Error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -108,6 +111,18 @@ const googleLogin = async (req, res) => {
     }
 
     const response = await authService.googleLogin(googleAccessToken);
+
+    // Lưu refreshToken vào cookie httpOnly tương tự như login thường
+    if (response.status === 200 && response.data?.refreshToken) {
+      res.cookie("refreshToken", response.data.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+      delete response.data.refreshToken;
+    }
+
     return res.status(response.status).json(response);
   } catch (error) {
     console.error("Google Login Controller Error:", error);

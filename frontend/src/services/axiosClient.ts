@@ -1,9 +1,5 @@
 import axios from "axios";
 
-import { store } from "@/stores/store";
-
-import { logout, setToken } from "@/stores/slices/authSlice";
-
 export const publicAxios = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
   headers: {
@@ -28,6 +24,9 @@ const refreshToken = async () => {
   if (response.data.data) {
     const { accessToken } = response.data.data;
 
+    const { store } = await import("@/stores/store");
+    const { setToken } = await import("@/stores/slices/authSlice");
+
     store.dispatch(
       setToken({
         accessToken,
@@ -40,7 +39,8 @@ const refreshToken = async () => {
   throw new Error("Refresh token failed");
 };
 
-axiosClient.interceptors.request.use((config) => {
+axiosClient.interceptors.request.use(async (config) => {
+  const { store } = await import("@/stores/store");
   const accessToken = store.getState().auth.accessToken;
 
   if (accessToken) {
@@ -83,6 +83,9 @@ axiosClient.interceptors.response.use(
 
         return axiosClient(originalRequest);
       } catch (error) {
+        const { store } = await import("@/stores/store");
+        const { logout } = await import("@/stores/slices/authSlice");
+
         await publicAxios.post("/auth/logout").catch(() => {});
         store.dispatch(logout());
 

@@ -4,7 +4,7 @@ import { useDispatch } from "react-redux";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { loginThunk, googleLoginThunk } from "@/stores/authSlice";
+import { loginThunk, googleLoginThunk } from "@/stores/slices/authSlice";
 import type { AppDispatch } from "@/stores/store";
 import useAuth from "@/hooks/useAuth";
 import { useGoogleLogin } from "@react-oauth/google";

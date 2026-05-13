@@ -119,7 +119,7 @@ const login = (data) => {
       });
 
       // Save refresh token to database
-      const expiresAt = new Date(Date.now() + 60 * 1000); // 1 minute
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
       await db.RefreshToken.create({
         user_id: user.id,
         token: refreshToken,
@@ -203,7 +203,7 @@ const refreshToken = (token) => {
       });
 
       // Save new refresh token
-      const expiresAt = new Date(Date.now() + 60 * 1000); // 1 minute
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
       await db.RefreshToken.create({
         user_id: user.id,
         token: newRefreshToken,

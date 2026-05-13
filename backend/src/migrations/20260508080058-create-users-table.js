@@ -16,12 +16,21 @@ export default {
       },
       phone: {
         type: Sequelize.STRING(20),
-        allowNull: false,
+        allowNull: true, // Cho phép null để hỗ trợ Google Login
         unique: true,
       },
       password: {
         type: Sequelize.STRING(255),
-        allowNull: false,
+        allowNull: true, // Cho phép null để hỗ trợ Google Login
+      },
+      auth_provider: {
+        type: Sequelize.STRING(50),
+        allowNull: true,
+        defaultValue: "local",
+      },
+      auth_provider_id: {
+        type: Sequelize.STRING(255),
+        allowNull: true,
       },
       role_id: {
         type: Sequelize.INTEGER,

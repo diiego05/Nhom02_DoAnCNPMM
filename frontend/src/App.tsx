@@ -2,20 +2,22 @@ import { useEffect } from "react";
 import { useRoutes } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { getRoutes } from "./routes";
-import { initAuthThunk } from "@/stores/authSlice";
+import { initAuthThunk } from "@/stores/slices/authSlice";
 import type { AppDispatch, RootState } from "@/stores/store";
 
 function App() {
   const dispatch = useDispatch<AppDispatch>();
-  const { initialized } = useSelector((state: RootState) => state.auth);
+  const { initialized, isAuthenticated, accessToken } = useSelector(
+    (state: RootState) => state.auth,
+  );
   const routing = useRoutes(getRoutes());
 
   useEffect(() => {
-    const hasToken = localStorage.getItem("accessToken");
-    if (hasToken) {
+    // Nếu có accessToken trong store (từ redux-persist) nhưng chưa verify → verify
+    if (accessToken && !isAuthenticated) {
       dispatch(initAuthThunk());
     }
-  }, [dispatch]);
+  }, [dispatch, accessToken, isAuthenticated]);
 
   // Đang verify token → hiện loading
   if (!initialized) {
