@@ -17,6 +17,7 @@ export type User = {
   gender?: string;
   avatarUrl?: string;
   coverPhotoUrl?: string;
+  isVendor?: boolean;
 };
 
 export type AuthState = {

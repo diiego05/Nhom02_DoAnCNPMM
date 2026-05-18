@@ -3,11 +3,23 @@ import MainLayout from "@/components/layout/MainLayout";
 import AuthLayout from "@/components/layout/AuthLayout";
 import AuthGuard from "@/hocs/AuthGuard";
 import NotFound from "@/pages/NotFound";
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
-import VerifyOTP from "@/pages/VerifyOTP";
-import ForgotPassword from "@/pages/ForgotPassword";
-import Profile from "@/pages/Profile";
+import Login from "@/pages/auth/Login";
+import Register from "@/pages/auth/Register";
+import VerifyOTP from "@/pages/auth/VerifyOTP";
+import ForgotPassword from "@/pages/auth/ForgotPassword";
+import Profile from "@/pages/user/Profile";
+
+import HomePage from "@/pages/shop/HomePage";
+import ProductListPage from "@/pages/shop/ProductListPage";
+import ProductDetailPage from "@/pages/shop/ProductDetailPage";
+import CartPage from "@/pages/shop/CartPage";
+import CheckoutPage from "@/pages/shop/CheckoutPage";
+import OrderHistoryPage from "@/pages/user/OrderHistoryPage";
+import ReviewPage from "@/pages/user/ReviewPage";
+import VendorDashboard from "@/pages/vendor/VendorDashboard";
+import ManagerDashboard from "@/pages/manager/ManagerDashboard";
+import AdminDashboard from "@/pages/admin/AdminDashboard";
+import VendorShopPage from "@/pages/shop/VendorShopPage";
 
 export const getRoutes = (): RouteObject[] => {
   const role = "ADMIN";
@@ -19,13 +31,53 @@ export const getRoutes = (): RouteObject[] => {
       children: [
         {
           index: true,
-          element: <div>Home</div>,
+          element: <HomePage />,
+        },
+        {
+          path: "products",
+          element: <ProductListPage />,
+        },
+        {
+          path: "products/:id",
+          element: <ProductDetailPage />,
+        },
+        {
+          path: "shop/:id",
+          element: <VendorShopPage />,
         },
         {
           path: "profile",
           element: (
             <AuthGuard>
               <Profile />
+            </AuthGuard>
+          ),
+        },
+        {
+          path: "cart",
+          element: <CartPage />,
+        },
+        {
+          path: "checkout",
+          element: (
+            <AuthGuard>
+              <CheckoutPage />
+            </AuthGuard>
+          ),
+        },
+        {
+          path: "orders",
+          element: (
+            <AuthGuard>
+              <OrderHistoryPage />
+            </AuthGuard>
+          ),
+        },
+        {
+          path: "reviews",
+          element: (
+            <AuthGuard>
+              <ReviewPage />
             </AuthGuard>
           ),
         },
@@ -55,6 +107,30 @@ export const getRoutes = (): RouteObject[] => {
           path: "logout",
         },
       ],
+    },
+    {
+      path: "vendor",
+      element: (
+        <AuthGuard>
+          <VendorDashboard />
+        </AuthGuard>
+      ),
+    },
+    {
+      path: "manager",
+      element: (
+        <AuthGuard>
+          <ManagerDashboard />
+        </AuthGuard>
+      ),
+    },
+    {
+      path: "admin",
+      element: (
+        <AuthGuard>
+          <AdminDashboard />
+        </AuthGuard>
+      ),
     },
     {
       path: "*",

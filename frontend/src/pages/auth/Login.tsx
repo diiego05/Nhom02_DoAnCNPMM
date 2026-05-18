@@ -91,7 +91,7 @@ const Login = () => {
 
           {/* Right Side - Form */}
           <div className="w-full md:w-[450px]">
-            <Card className="p-10">
+            <Card className="p-10 rounded-xl">
               <div className="mb-10 text-center">
                 <h1 className="font-serif text-4xl font-bold mb-3">
                   Đăng nhập UTEShop
@@ -141,7 +141,7 @@ const Login = () => {
 
                 <Button
                   type="submit"
-                  className="w-full mt-8 flex justify-center items-center gap-2"
+                  className="w-full mt-8 flex justify-center items-center gap-2 rounded-lg active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
                   disabled={loading}
                 >
                   {loading ? (
@@ -170,7 +170,7 @@ const Login = () => {
                     type="button"
                     onClick={() => handleGoogleLogin()}
                     disabled={loading}
-                    className="flex items-center justify-center space-x-2 border-2 border-black py-3 px-4 hover:shadow-brutal transition-all bg-white font-bold text-sm"
+                    className="flex items-center justify-center space-x-2 border-2 border-black py-3 px-4 hover:bg-primary hover:text-white transition-all bg-white font-bold text-sm rounded-lg active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
                   >
                     <img
                       src="https://www.svgrepo.com/show/475656/google-color.svg"
@@ -181,7 +181,7 @@ const Login = () => {
                   </button>
                   <button
                     type="button"
-                    className="flex items-center justify-center space-x-2 border-2 border-black py-3 px-4 hover:shadow-brutal transition-all bg-white font-bold text-sm opacity-50 cursor-not-allowed"
+                    className="flex items-center justify-center space-x-2 border-2 border-black py-3 px-4 hover:shadow-brutal transition-all bg-white font-bold text-sm rounded-lg opacity-50 cursor-not-allowed"
                     disabled
                   >
                     <img

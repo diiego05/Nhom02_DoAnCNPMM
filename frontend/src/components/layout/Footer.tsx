@@ -1,102 +1,98 @@
-import { Share2, Globe, MessageCircle, ShoppingBag } from "lucide-react";
+import { ShoppingBag, Send } from "lucide-react";
+import { Link } from "react-router-dom";
+
+// Custom Social Icons
+const FacebookIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+);
+
+const InstagramIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+);
+
+const XIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4l11.733 16h4.267l-11.733 -16z"/><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"/></svg>
+);
 
 const Footer = () => {
   return (
-    <footer className="w-full bg-white border-t border-black mt-20">
-      <div className="max-w-7xl mx-auto px-6 py-12 md:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
-          <div className="col-span-1 md:col-span-1">
-            <div className="flex items-center space-x-2 mb-4 text-primary">
-              <ShoppingBag className="w-6 h-6" />
-              <span className="font-serif text-2xl font-bold">UTEShop</span>
-            </div>
-            <p className="text-sm text-gray-600 mt-4 leading-relaxed">
-              Phong cách Minimalism & Modern Retro cho giới trẻ hiện đại.
+    <footer className="w-full bg-white border-t-2 border-black mt-32">
+      <div className="max-w-7xl mx-auto px-6 py-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16">
+          {/* Brand Info */}
+          <div className="space-y-8">
+            <Link to="/" className="flex items-center space-x-3 group">
+              <div className="w-10 h-10 bg-primary text-white border-2 border-black rounded-xl flex items-center justify-center group-hover:bg-black transition-all shadow-subtle">
+                <ShoppingBag size={24} strokeWidth={2.5} />
+              </div>
+              <span className="font-serif text-2xl font-black text-primary uppercase group-hover:text-black transition-colors">UTEShop</span>
+            </Link>
+            <p className="text-sm font-bold text-gray-500 leading-relaxed max-w-xs">
+              Nâng tầm phong cách cá nhân với những thiết kế tối giản và hiện đại từ UTEShop.
             </p>
-          </div>
-
-          <div>
-            <h4 className="font-serif font-bold text-lg mb-6 tracking-wide uppercase">
-              HỖ TRỢ
-            </h4>
-            <ul className="space-y-4 text-sm text-gray-700">
-              <li>
-                <a href="#" className="hover:text-primary transition-colors">
-                  Chính sách vận chuyển
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-primary transition-colors">
-                  Hướng dẫn chọn size
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-primary transition-colors">
-                  Chính sách đổi trả
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-serif font-bold text-lg mb-6 tracking-wide uppercase">
-              CÔNG TY
-            </h4>
-            <ul className="space-y-4 text-sm text-gray-700">
-              <li>
-                <a href="#" className="hover:text-primary transition-colors">
-                  Về chúng tôi
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-primary transition-colors">
-                  Liên hệ
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-primary transition-colors">
-                  Tuyển dụng
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-serif font-bold text-lg mb-6 tracking-wide uppercase">
-              THEO DÕI CHÚNG TỐI
-            </h4>
             <div className="flex space-x-4">
-              <a
-                href="#"
-                className="w-10 h-10 border border-black flex items-center justify-center hover:bg-black hover:text-white transition-all"
-              >
-                <Share2 size={18} />
-              </a>
-              <a
-                href="#"
-                className="w-10 h-10 border border-black flex items-center justify-center hover:bg-black hover:text-white transition-all"
-              >
-                <Globe size={18} />
-              </a>
-              <a
-                href="#"
-                className="w-10 h-10 border border-black flex items-center justify-center hover:bg-black hover:text-white transition-all"
-              >
-                <MessageCircle size={18} />
-              </a>
+              {[
+                { icon: <FacebookIcon />, href: "#" },
+                { icon: <InstagramIcon />, href: "#" },
+                { icon: <XIcon />, href: "#" }
+              ].map((social, i) => (
+                <a key={i} href={social.href} className="w-11 h-11 bg-white border-2 border-black rounded-xl flex items-center justify-center text-black hover:bg-primary hover:text-white transition-all hover:shadow-subtle hover:translate-x-[-2px] hover:translate-y-[-2px]">
+                  {social.icon}
+                </a>
+              ))}
             </div>
+          </div>
+
+          {/* Quick Links */}
+          <div>
+            <h4 className="font-black text-xs uppercase tracking-widest mb-8 pb-2 border-b-2 border-black w-fit">Mua sắm</h4>
+            <ul className="space-y-4">
+              {["Thời trang Nam", "Thời trang Nữ", "Phụ kiện", "Bộ sưu tập"].map((link) => (
+                <li key={link}>
+                  <Link to="/products" className="text-sm font-bold text-gray-500 hover:text-primary transition-colors">{link}</Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Support */}
+          <div>
+            <h4 className="font-black text-xs uppercase tracking-widest mb-8 pb-2 border-b-2 border-black w-fit">Hỗ trợ</h4>
+            <ul className="space-y-4">
+              {["Chính sách đổi trả", "Hướng dẫn chọn size", "Câu hỏi thường gặp", "Liên hệ"].map((link) => (
+                <li key={link}>
+                  <Link to="#" className="text-sm font-bold text-gray-500 hover:text-primary transition-colors">{link}</Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Newsletter */}
+          <div className="space-y-8">
+            <h4 className="font-black text-xs uppercase tracking-widest mb-8 pb-2 border-b-2 border-black w-fit">Bản tin</h4>
+            <form className="relative">
+              <input
+                type="email"
+                placeholder="Email của bạn"
+                className="input-brutal h-14 pr-16"
+              />
+              <button
+                type="submit"
+                className="absolute right-1.5 top-1.5 bottom-1.5 w-11 bg-black text-white rounded-xl flex items-center justify-center border-2 border-black hover:bg-primary transition-all"
+              >
+                <Send size={18} strokeWidth={2.5} />
+              </button>
+            </form>
           </div>
         </div>
 
-        <div className="border-t border-gray-200 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500">
-          <p>© 2024 UTEShop. All rights reserved.</p>
-          <div className="flex space-x-6 mt-4 md:mt-0">
-            <a href="#" className="hover:text-black transition-colors">
-              Chính sách bảo mật
-            </a>
-            <a href="#" className="hover:text-black transition-colors">
-              Điều khoản dịch vụ
-            </a>
+        <div className="border-t-2 border-black mt-20 pt-10 flex flex-col md:flex-row justify-between items-center gap-6">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+            © 2024 UTEShop. ALL RIGHTS RESERVED.
+          </p>
+          <div className="flex gap-8">
+             <span className="text-[10px] font-black uppercase tracking-widest text-black cursor-pointer hover:text-primary transition-colors">Privacy Policy</span>
+             <span className="text-[10px] font-black uppercase tracking-widest text-black cursor-pointer hover:text-primary transition-colors">Terms of Service</span>
           </div>
         </div>
       </div>

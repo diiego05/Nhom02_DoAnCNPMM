@@ -12,12 +12,14 @@ import {
   Star,
   Ticket,
   Map,
+  Store,
 } from "lucide-react";
 import useAuth from "@/hooks/useAuth";
 import { userService } from "@/services/userService";
 import { useAppDispatch } from "@/stores/hooks";
 import { setUser } from "@/stores/slices/authSlice";
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
+import { Link } from "react-router-dom";
 import { Controller, useForm } from "react-hook-form";
 import * as yup from "yup";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -36,6 +38,10 @@ const Profile = () => {
   const { handleLogout } = useAuth();
   const user = useAppSelector((state) => state.auth.user);
   const dispatch = useAppDispatch();
+  const hasShop =
+    (typeof user?.role === "string"
+      ? user.role === "VENDOR"
+      : user?.role?.role_name === "VENDOR") || user?.isVendor; // Giả lập kiểm tra quyền
 
   const schema = yup.object({
     full_name: yup.string().required("Tên không được để trống"),
@@ -181,24 +187,32 @@ const Profile = () => {
                 >
                   <User size={18} /> Thông tin tài khoản
                 </a>
-                <a
-                  href="#"
+                <Link
+                  to="/orders"
                   className="flex items-center gap-3 px-6 py-4 hover:bg-gray-50 border-b border-black text-gray-700 font-medium transition-colors"
                 >
                   <Package size={18} /> Đơn hàng của tôi
-                </a>
+                </Link>
                 <a
                   href="#"
                   className="flex items-center gap-3 px-6 py-4 hover:bg-gray-50 border-b border-black text-gray-700 font-medium transition-colors"
                 >
                   <MapPin size={18} /> Địa chỉ giao hàng
                 </a>
-                <a
-                  href="#"
+                <Link
+                  to="/reviews"
                   className="flex items-center gap-3 px-6 py-4 hover:bg-gray-50 border-b border-black text-gray-700 font-medium transition-colors"
                 >
-                  <Heart size={18} /> Sản phẩm yêu thích
-                </a>
+                  <Heart size={18} /> Đánh giá & Yêu thích
+                </Link>
+                <Link
+                  to="/vendor"
+                  className="flex items-center gap-3 px-6 py-4 hover:bg-primary hover:text-white border-b border-black text-primary font-black transition-all group"
+                >
+                  <Store size={18} className="group-hover:scale-110 transition-transform" /> 
+                  {hasShop ? "Kênh Người Bán" : "Đăng ký mở shop"}
+                </Link>
+
                 <a
                   href="#"
                   onClick={(e) => {

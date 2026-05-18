@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Button } from "../components/ui/Button";
-import { Input } from "../components/ui/Input";
-import { Card } from "../components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Card } from "@/components/ui/Card";
 import { ShieldCheck, AlertCircle, CheckCircle2 } from "lucide-react";
 import usePasswordRecovery from "@/hooks/usePasswordRecovery";
 
@@ -61,7 +61,7 @@ const ForgotPassword = () => {
   return (
     <div className="min-h-screen flex flex-col bg-[#faf9f6]">
       <main className="flex-grow flex items-center justify-center p-6">
-        <Card className="max-w-md w-full p-10 mt-10">
+        <Card className="max-w-md w-full p-10 mt-10 rounded-xl">
           <div className="flex justify-center mb-8">
             <div className="w-16 h-16 bg-black text-white flex items-center justify-center">
               <ShieldCheck size={32} />
@@ -100,7 +100,7 @@ const ForgotPassword = () => {
                 />
 
                 <Button
-                  className="w-full uppercase tracking-wider"
+                  className="w-full uppercase tracking-wider rounded-lg active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
                   disabled={recovery.loading || !emailInput.trim()}
                 >
                   {recovery.loading ? "Đang gửi..." : "Gửi liên kết"}
@@ -148,7 +148,7 @@ const ForgotPassword = () => {
                 />
 
                 <Button
-                  className="w-full uppercase tracking-wider"
+                  className="w-full uppercase tracking-wider rounded-lg active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
                   disabled={recovery.loading || otpInput.length !== 6}
                 >
                   {recovery.loading ? "Đang xác thực..." : "Xác thực OTP"}
@@ -210,7 +210,7 @@ const ForgotPassword = () => {
                 />
 
                 <Button
-                  className="w-full uppercase tracking-wider"
+                  className="w-full uppercase tracking-wider rounded-lg active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
                   disabled={recovery.loading || !newPassword || !confirmPassword}
                 >
                   {recovery.loading ? "Đang cập nhật..." : "Đặt lại mật khẩu"}

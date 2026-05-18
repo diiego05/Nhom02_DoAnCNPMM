@@ -1,13 +1,10 @@
-import { ReactNode } from 'react';
+import { ComponentPropsWithoutRef } from 'react';
 
-export interface CardProps {
-  children: ReactNode;
-  className?: string;
-}
+interface CardProps extends ComponentPropsWithoutRef<'div'> {}
 
-export function Card({ children, className = '' }: CardProps) {
+export function Card({ children, className = '', ...props }: CardProps) {
   return (
-    <div className={`card-brutal ${className}`}>
+    <div className={`bg-white border-2 border-black shadow-brutal transition-all ${className}`} {...props}>
       {children}
     </div>
   );

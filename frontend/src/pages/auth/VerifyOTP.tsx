@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Button } from "../components/ui/Button";
-import { Card } from "../components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { Mail, ArrowRight } from "lucide-react";
-import { publicAxios } from "../services/axiosClient";
+import { publicAxios } from "@/services/axiosClient";
 
 const VerifyOTP = () => {
   const [searchParams] = useSearchParams();
@@ -88,7 +88,7 @@ const VerifyOTP = () => {
     <div className="min-h-screen flex flex-col bg-[#faf9f6]">
       <main className="flex-grow flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full">
-          <Card className="p-10 border-[3px] shadow-brutal">
+          <Card className="p-10 border-[3px] shadow-brutal rounded-xl">
             <div className="mb-8 text-center">
               <div className="w-16 h-16 bg-black text-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-brutal">
                 <Mail size={32} />
@@ -126,7 +126,7 @@ const VerifyOTP = () => {
                   {otpValues.map((value, index) => (
                     <input
                       key={index}
-                      ref={(el) => (inputRefs.current[index] = el)}
+                      ref={(el) => { inputRefs.current[index] = el; }}
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
@@ -134,14 +134,14 @@ const VerifyOTP = () => {
                       value={value}
                       onChange={(e) => handleInputChange(index, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(index, e)}
-                      className="w-12 h-16 text-center text-2xl font-black bg-white border-[3px] border-black rounded-none focus:outline-none focus:bg-yellow-200 transition-colors shadow-brutal active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+                      className="w-12 h-16 text-center text-2xl font-black bg-white border-[3px] border-black rounded-lg focus:outline-none focus:bg-primary/20 transition-colors shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
                       required
                     />
                   ))}
                 </div>
 
                 <Button
-                  className="w-full uppercase tracking-widest py-5 text-lg font-black border-[3px] border-black transition-all"
+                  className="w-full uppercase tracking-widest py-5 text-lg font-black border-[3px] border-black transition-all rounded-lg active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
                   type="submit"
                   disabled={loading || fullOtp.length !== 6}
                 >

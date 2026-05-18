@@ -2,46 +2,63 @@
 
 @theme {
   --color-primary: #d97736;
-  --color-secondary: #f5f5f5;
-  --font-serif: "Playfair Display", serif;
-  --font-sans: "Inter", sans-serif;
-  --shadow-brutal: 4px 4px 0px 0px rgba(0, 0, 0, 1);
-  --shadow-brutal-lg: 8px 8px 0px 0px rgba(0, 0, 0, 1);
+  --color-primary-dark: #b85e2a;
+  --color-secondary: #4a5d50;
+  --color-accent: #1a1a1a;
+  
+  --shadow-subtle: 3px 3px 0px 0px rgba(0, 0, 0, 1);
+  --shadow-brutal: 5px 5px 0px 0px rgba(0, 0, 0, 1);
 }
 
-@layer base {
-  body {
-    @apply font-sans text-gray-900 bg-white antialiased;
-  }
+:root {
+  --color-bg-main: #faf9f6;
+}
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    @apply font-serif;
-  }
+body {
+  background-color: var(--color-bg-main);
+  color: #1a1a1a;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .font-serif {
+  font-family: 'Playfair Display', serif;
 }
 
 @layer components {
-  /* Minimalist Retro Form Input */
+  /* Input & Search: Hiệu ứng focus cam nhẹ */
   .input-brutal {
-    @apply border-2 border-black px-4 py-2 w-full focus:outline-none focus:ring-0 transition-all duration-200 focus:shadow-brutal;
+    @apply border-2 border-black px-4 py-2.5 w-full focus:outline-none focus:ring-4 focus:ring-primary/20 focus:border-primary transition-all duration-300 rounded-xl bg-white font-medium;
   }
 
-  /* Minimalist Retro Button */
   .btn-brutal {
-    @apply bg-primary text-white font-bold py-3 px-6 border-2 border-transparent transition-all duration-200 hover:shadow-brutal hover:border-black active:translate-y-1 active:translate-x-1 active:shadow-none;
+    @apply bg-black text-white font-bold py-3.5 px-8 border-2 border-black transition-all duration-300 rounded-2xl inline-flex items-center justify-center hover:bg-primary hover:shadow-subtle hover:translate-x-[-2px] hover:translate-y-[-2px] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none;
   }
 
   .btn-brutal-secondary {
-    @apply bg-white text-black font-bold py-3 px-6 border-2 border-black transition-all duration-200 hover:shadow-brutal active:translate-y-1 active:translate-x-1 active:shadow-none;
+    @apply bg-white text-black font-bold py-3.5 px-8 border-2 border-black transition-all duration-300 rounded-2xl inline-flex items-center justify-center hover:bg-primary hover:text-white hover:shadow-subtle hover:translate-x-[-2px] hover:translate-y-[-2px] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none;
   }
 
-  /* Card brutalism */
+  .btn-auth {
+    @apply w-full bg-black text-white font-bold h-14 border-2 border-black transition-all duration-300 rounded-lg inline-flex items-center justify-center hover:bg-primary hover:shadow-subtle hover:translate-x-[-2px] hover:translate-y-[-2px] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none uppercase tracking-widest text-xs;
+  }
+
+  /* Card & Containers */
   .card-brutal {
-    @apply border-[3px] border-black shadow-brutal-lg bg-white p-6 md:p-8;
+    @apply border-[3px] border-black shadow-brutal bg-white p-6 rounded-2xl transition-all duration-300;
+  }
+
+  /* Badge */
+  .badge-brutal {
+    @apply border-2 border-black px-3 py-1 text-[10px] font-black uppercase tracking-wider bg-white rounded-lg shadow-subtle;
+  }
+
+  /* Mega Menu */
+  .mega-menu {
+    @apply absolute top-full left-0 w-full bg-white border-2 border-black shadow-brutal opacity-0 invisible translate-y-2 transition-all duration-300 z-50 rounded-b-2xl;
+  }
+  
+  .group:hover .mega-menu {
+    @apply opacity-100 visible translate-y-0;
   }
 }
-  

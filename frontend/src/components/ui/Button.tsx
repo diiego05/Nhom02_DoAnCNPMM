@@ -11,8 +11,13 @@ export function Button({
   ...props 
 }: ButtonProps) {
   const baseClass = variant === 'primary' ? 'btn-brutal' : 'btn-brutal-secondary';
+  // Loại bỏ class rounded-2xl mặc định nếu có class rounded-* khác truyền vào
+  const finalClass = className.includes('rounded-') 
+    ? `${baseClass.replace(/rounded-\w+/, '')} ${className}`
+    : `${baseClass} ${className}`;
+    
   return (
-    <button className={`${baseClass} ${className}`} {...props}>
+    <button className={finalClass} {...props}>
       {children}
     </button>
   );

@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import ReCAPTCHA from "react-google-recaptcha";
-import { Button } from "../components/ui/Button";
-import { Input } from "../components/ui/Input";
-import { Card } from "../components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Card } from "@/components/ui/Card";
 import { UserPlus, Gift, Crown } from "lucide-react";
-import { publicAxios } from "../services/axiosClient";
+import { publicAxios } from "@/services/axiosClient";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -105,7 +105,7 @@ const Register = () => {
 
           {/* Right Side - Form */}
           <div className="w-full md:w-1/2 flex flex-col justify-center">
-            <Card className="p-10 mb-8">
+            <Card className="p-10 mb-8 rounded-xl">
               <div className="mb-8">
                 <h1 className="font-serif text-4xl font-bold mb-3">
                   Tạo tài khoản
@@ -182,7 +182,7 @@ const Register = () => {
                 </div>
 
                 <Button
-                  className="w-full mt-6 uppercase tracking-wider"
+                  className="w-full mt-6 uppercase tracking-wider rounded-lg active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
                   type="submit"
                   disabled={loading}
                 >
