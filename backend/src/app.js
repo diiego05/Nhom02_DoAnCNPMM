@@ -7,6 +7,8 @@ import "dotenv/config";
 import userRouter from "./route/userRoute.js";
 import authRouter from "./route/authRoute.js";
 import forgotPasswordRoute from "./route/forgotPasswordRoute.js";
+import productRouter from "./route/productRoute.js";
+import categoryRouter from "./route/categoryRoute.js";
 
 let app = express();
 
@@ -32,6 +34,8 @@ app.use("/public", express.static("src/public"));
 app.use("/user", userRouter);
 app.use("/auth", authRouter);
 app.use("/auth/forgot-password", forgotPasswordRoute);
+app.use("/products", productRouter);
+app.use("/categories", categoryRouter);
 
 let port = process.env.PORT || 8080;
 

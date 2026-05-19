@@ -1,0 +1,74 @@
+import { Category } from "./category.types";
+
+export interface Brand {
+  id: number;
+  name: string;
+  slug: string;
+  logo_url?: string;
+}
+
+export interface ProductImage {
+  id: number;
+  image_url: string;
+  is_primary: boolean;
+}
+
+export interface ProductVariant {
+  id: number;
+  sku: string;
+  color: string;
+  color_hex?: string;
+  size: string;
+  price: number | null;
+  stock_quantity: number;
+}
+
+export interface ProductAttribute {
+  id: number;
+  attr_name: string;
+  attr_value: string;
+}
+
+export interface Product {
+  id: number;
+  name: string;
+  slug: string;
+  price: number;
+  sale_price: number | null;
+  stock_quantity: number;
+  sold_count: number;
+  is_new: boolean;
+  is_featured: boolean;
+  material?: string;
+  description?: string;
+  gender: "MALE" | "FEMALE" | "UNISEX";
+  category: Category;
+  brand?: Brand;
+  images?: ProductImage[];
+  variants?: ProductVariant[];
+  attributes?: ProductAttribute[];
+  totalStock?: number; // Được Backend tính toán trả về trong chi tiết
+  view_count: number;
+  created_at: string;
+}
+
+export interface ProductListResponse {
+  total: number;
+  totalPages: number;
+  currentPage: number;
+  products: Product[];
+}
+
+export interface ProductFilters {
+  keyword?: string;
+  categorySlug?: string;
+  brandId?: number;
+  gender?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  isNew?: boolean;
+  isFeatured?: boolean;
+  sortBy?: "newest" | "price_asc" | "price_desc" | "best_sellers";
+  page?: number;
+  limit?: number;
+}

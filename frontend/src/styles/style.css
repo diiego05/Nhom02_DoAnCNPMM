@@ -62,3 +62,40 @@ h1, h2, h3, .font-serif {
     @apply opacity-100 visible translate-y-0;
   }
 }
+
+/* Swiper Custom Brutalist Styling */
+.home-swiper .swiper-button-next,
+.home-swiper .swiper-button-prev {
+  background: white !important;
+  color: black !important;
+  border: 2px solid black !important;
+  width: 44px !important;
+  height: 44px !important;
+  box-shadow: 2px 2px 0px 0px rgba(0, 0, 0, 1) !important;
+  transition: all 0.2s ease !important;
+  border-radius: 12px !important;
+}
+
+.home-swiper .swiper-button-next:hover,
+.home-swiper .swiper-button-prev:hover {
+  background: #d97736 !important;
+  color: white !important;
+  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1) !important;
+}
+
+.home-swiper .swiper-button-next::after,
+.home-swiper .swiper-button-prev::after {
+  font-size: 16px !important;
+  font-weight: 900 !important;
+}
+
+.home-swiper .swiper-pagination-bullet {
+  border-radius: 4px !important;
+  background: black !important;
+  border: 1px solid black !important;
+}
+
+.home-swiper .swiper-pagination-bullet-active {
+  background: #d97736 !important;
+  width: 12px !important;
+}
