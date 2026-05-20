@@ -22,6 +22,16 @@ export default (sequelize, DataTypes) => {
         foreignKey: "user_id",
         as: "refreshTokens",
       });
+
+      User.hasOne(models.Cart, {
+        foreignKey: "user_id",
+        as: "cart",
+      });
+
+      User.hasMany(models.Order, {
+        foreignKey: "user_id",
+        as: "orders",
+      });
     }
   }
 
