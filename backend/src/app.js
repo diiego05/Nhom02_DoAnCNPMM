@@ -9,6 +9,8 @@ import authRouter from "./route/authRoute.js";
 import forgotPasswordRoute from "./route/forgotPasswordRoute.js";
 import productRouter from "./route/productRoute.js";
 import categoryRouter from "./route/categoryRoute.js";
+import cartRouter from "./route/cartRoute.js";
+import orderRouter from "./route/orderRoute.js";
 
 let app = express();
 
@@ -36,6 +38,8 @@ app.use("/auth", authRouter);
 app.use("/auth/forgot-password", forgotPasswordRoute);
 app.use("/products", productRouter);
 app.use("/categories", categoryRouter);
+app.use("/cart", cartRouter);
+app.use("/orders", orderRouter);
 
 let port = process.env.PORT || 8080;
 
