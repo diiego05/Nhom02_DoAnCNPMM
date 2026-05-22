@@ -1,5 +1,6 @@
 import { MapPin, Truck, CreditCard, Wallet, ShieldCheck, ChevronLeft, Package, Loader2 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useAppSelector } from '@/stores/hooks';
 import { useCart } from '@/hooks/useCart';
 import { useAddresses, useCreateAddress } from '@/hooks/useAddresses';
 import { useCreateOrder } from '@/hooks/useOrders';
@@ -19,6 +20,14 @@ const addressSchema = yup.object().shape({
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const isAuthenticated = useAppSelector((state) => !!state.auth.accessToken);
+  
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/auth/login?redirect=/checkout');
+    }
+  }, [isAuthenticated, navigate]);
+
   const buyNowItem = location.state?.buyNowItem;
   const { data: cart, isLoading: isCartLoading } = useCart();
   const { data: addresses, isLoading: isAddressesLoading } = useAddresses();

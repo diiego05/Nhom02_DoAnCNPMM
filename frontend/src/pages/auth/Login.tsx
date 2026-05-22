@@ -8,10 +8,16 @@ import { loginThunk, googleLoginThunk } from "@/stores/slices/authSlice";
 import type { AppDispatch } from "@/stores/store";
 import useAuth from "@/hooks/useAuth";
 import { useGoogleLogin } from "@react-oauth/google";
+import { cartService } from "@/services/cartService";
+import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "react-router-dom";
+import { store } from "@/stores/store";
 
 const Login = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
   const { loading, error, isAuthenticated } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -19,12 +25,13 @@ const Login = () => {
     password: "",
   });
 
-  // Nếu đã đăng nhập → chuyển trang
+  // Nếu đã đăng nhập từ trước → chuyển trang
   useEffect(() => {
-    if (isAuthenticated) {
+    const isAuth = store.getState().auth.isAuthenticated;
+    if (isAuth) {
       navigate("/", { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value, type, checked } = e.target;
@@ -47,8 +54,15 @@ const Login = () => {
 
     // Sau khi login thành công, navigate theo redirectUrl từ backend
     if (loginThunk.fulfilled.match(result)) {
-      const redirectUrl = result.payload.redirectUrl || "";
-      navigate(`/${redirectUrl}`, { replace: true });
+      const token = result.payload.accessToken;
+      await cartService.syncGuestCart(token);
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
+
+      // Lấy param redirect nếu có
+      const params = new URLSearchParams(location.search);
+      const redirectUrl = params.get("redirect") || result.payload.redirectUrl || "";
+      
+      navigate(redirectUrl.startsWith("/") ? redirectUrl : `/${redirectUrl}`, { replace: true });
     }
   };
 
@@ -58,8 +72,14 @@ const Login = () => {
         googleLoginThunk(tokenResponse.access_token),
       );
       if (googleLoginThunk.fulfilled.match(result)) {
-        const redirectUrl = result.payload.redirectUrl || "";
-        navigate(`/${redirectUrl}`, { replace: true });
+        const token = result.payload.accessToken;
+        await cartService.syncGuestCart(token);
+        queryClient.invalidateQueries({ queryKey: ["cart"] });
+
+        const params = new URLSearchParams(location.search);
+        const redirectUrl = params.get("redirect") || result.payload.redirectUrl || "";
+        
+        navigate(redirectUrl.startsWith("/") ? redirectUrl : `/${redirectUrl}`, { replace: true });
       }
     },
     onError: () => console.log("Google Login Failed"),

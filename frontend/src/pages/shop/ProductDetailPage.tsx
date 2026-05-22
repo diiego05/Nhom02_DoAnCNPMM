@@ -19,8 +19,9 @@ import {
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { useProductDetail, useSimilarProducts } from "@/hooks/useProducts";
-import { formatViewCount } from "@/utils/format";
+import { formatViewCount, formatPrice } from "@/utils/format";
 import { useAddToCart } from "@/hooks/useCart";
+import { useAppSelector } from "@/stores/hooks";
 
 const ProductDetailPage = () => {
   const { id: slug } = useParams<{ id: string }>();
@@ -31,6 +32,8 @@ const ProductDetailPage = () => {
   const [selectedSize, setSelectedSize] = useState("");
   const [activeTab, setActiveTab] = useState("description");
   const [addMessage, setAddMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const isAuthenticated = useAppSelector((state) => !!state.auth.accessToken);
   const addToCartMutation = useAddToCart();
 
   // Scroll to top when page loads
@@ -251,11 +254,11 @@ const ProductDetailPage = () => {
 
             <div className="flex items-center gap-6 pt-2">
               <span className="text-3xl lg:text-4xl font-black text-primary">
-                {displayPrice.toLocaleString()}₫
+                {formatPrice(displayPrice)}
               </span>
               {isSale && (
                 <span className="text-xl text-gray-300 line-through decoration-black/10 font-bold">
-                  {basePrice.toLocaleString()}₫
+                  {formatPrice(basePrice)}
                 </span>
               )}
             </div>
@@ -389,6 +392,8 @@ const ProductDetailPage = () => {
                           productId: product.id,
                           variantId: activeVariant?.id,
                           quantity,
+                          product: product,
+                          variant: activeVariant
                         },
                         {
                           onSuccess: () => {
@@ -409,10 +414,25 @@ const ProductDetailPage = () => {
                     disabled={currentStock === 0}
                     type="button"
                     onClick={() => {
+                      if (!isAuthenticated) {
+                        // Lưu thông tin Buy Now vào sessionStorage để sau khi login xong có thể tự load lại
+                        sessionStorage.setItem("buyNowItem", JSON.stringify({
+                          id: -1,
+                          product_id: product.id,
+                          product_variant_id: activeVariant?.id || null,
+                          quantity,
+                          unit_price: displayPrice,
+                          product: product,
+                          variant: activeVariant
+                        }));
+                        navigate("/auth/login?redirect=/checkout&buyNow=1");
+                        return;
+                      }
+                      
                       navigate("/checkout", {
                         state: {
                           buyNowItem: {
-                            id: -1, // placeholder for cart item id
+                            id: -1,
                             product_id: product.id,
                             product_variant_id: activeVariant?.id || null,
                             quantity,

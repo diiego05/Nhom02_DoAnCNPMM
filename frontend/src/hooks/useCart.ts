@@ -11,9 +11,8 @@ export const useCart = () => {
   const dispatch = useAppDispatch();
   const isAuthenticated = useAppSelector((state) => !!state.auth.accessToken);
   const queryInfo = useQuery({
-    queryKey: ["cart"],
+    queryKey: ["cart", isAuthenticated],
     queryFn: cartService.getCart,
-    enabled: isAuthenticated,
   });
 
   useEffect(() => {

@@ -1,13 +1,17 @@
 import { Trash2, Plus, Minus, Ticket, ArrowRight, ShoppingBag, Loader2, ChevronDown } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCart, useRemoveCartItem, useUpdateCartItem } from '@/hooks/useCart';
 import { useState } from 'react';
+import { useAppSelector } from '@/stores/hooks';
 
 const CartPage = () => {
   const { data: cart, isLoading } = useCart();
   const updateItemMutation = useUpdateCartItem();
   const removeItemMutation = useRemoveCartItem();
   const [editingItem, setEditingItem] = useState<{ id: number; color: string; size: string } | null>(null);
+  
+  const navigate = useNavigate();
+  const isAuthenticated = useAppSelector((state) => !!state.auth.accessToken);
 
   const cartItems = cart?.items || [];
   const subtotal = cart?.totalAmount || 0;
@@ -23,6 +27,15 @@ const CartPage = () => {
   const handleRemove = (itemId: number) => {
     if (window.confirm("Bạn có chắc muốn xóa sản phẩm này khỏi giỏ hàng?")) {
       removeItemMutation.mutate(itemId);
+    }
+  };
+
+  const handleCheckout = () => {
+    if (cartItems.length === 0) return;
+    if (isAuthenticated) {
+      navigate("/checkout");
+    } else {
+      navigate("/auth/login?redirect=/checkout");
     }
   };
 
@@ -247,9 +260,13 @@ const CartPage = () => {
                 </div>
               </div>
 
-              <Link to="/checkout" className="btn-brutal w-full mt-4 py-5 rounded-2xl flex items-center justify-center gap-2 text-[11px] font-black tracking-widest shadow-brutal active:shadow-none active:translate-x-[4px] active:translate-y-[4px] whitespace-nowrap">
+              <button 
+                onClick={handleCheckout} 
+                disabled={cartItems.length === 0}
+                className="btn-brutal w-full mt-4 py-5 rounded-2xl flex items-center justify-center gap-2 text-[11px] font-black tracking-widest shadow-brutal active:shadow-none active:translate-x-[4px] active:translate-y-[4px] whitespace-nowrap disabled:opacity-50 disabled:pointer-events-none"
+              >
                 THANH TOÁN NGAY <ArrowRight size={16} />
-              </Link>
+              </button>
               
               <p className="text-[10px] text-center text-gray-400 font-bold uppercase tracking-widest leading-relaxed">
                 Thanh toán an toàn 100% với bảo mật SSL <br />

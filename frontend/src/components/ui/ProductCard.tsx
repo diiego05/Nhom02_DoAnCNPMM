@@ -194,6 +194,8 @@ const AddToCartModal = ({
         productId: product.id,
         variantId: activeVariant?.id,
         quantity,
+        product: product,
+        variant: activeVariant
       },
       {
         onSuccess: () => {
