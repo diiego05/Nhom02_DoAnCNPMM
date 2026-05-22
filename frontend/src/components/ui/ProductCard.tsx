@@ -4,6 +4,7 @@ import { formatPrice } from "@/utils/format";
 import { useState, useEffect } from "react";
 import { useProductDetail } from "@/hooks/useProducts";
 import { useAddToCart } from "@/hooks/useCart";
+import { createPortal } from "react-dom";
 
 interface ProductCardProps {
   id: string;
@@ -209,7 +210,7 @@ const AddToCartModal = ({
     );
   };
 
-  return (
+  return createPortal(
     <div 
       className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
       onClick={onClose}
@@ -417,7 +418,8 @@ const AddToCartModal = ({
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
-    </div>
+    </div>,
+    document.body
   );
 };
 

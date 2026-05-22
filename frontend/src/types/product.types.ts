@@ -67,8 +67,8 @@ export interface ProductFilters {
   minPrice?: number;
   maxPrice?: number;
   isNew?: boolean;
-  isFeatured?: boolean;
-  sortBy?: "newest" | "price_asc" | "price_desc" | "best_sellers";
+  isFeatured?: boolean | string;
+  sortBy?: "newest" | "price_asc" | "price_desc" | "best_sellers" | "most_viewed";
   page?: number;
   limit?: number;
 }

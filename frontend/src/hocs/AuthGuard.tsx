@@ -7,7 +7,7 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
   const { isAuthenticated } = useAuth();
 
   if (!isAuthenticated) {
-    return <Navigate to="/auth/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <div>{children}</div>;

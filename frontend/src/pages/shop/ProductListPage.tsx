@@ -16,6 +16,8 @@ const ProductListPage = () => {
   const gender = searchParams.get("gender") || "";
   const minPrice = searchParams.get("minPrice") ? Number(searchParams.get("minPrice")) : undefined;
   const maxPrice = searchParams.get("maxPrice") ? Number(searchParams.get("maxPrice")) : undefined;
+  const isFeatured = searchParams.get("isFeatured");
+  const isNew = searchParams.get("isNew");
   const sortBy = searchParams.get("sort") || "newest";
 
   // Trạng thái local cho các ô nhập liệu (tránh giật lag khi gõ)
@@ -48,6 +50,8 @@ const ProductListPage = () => {
     gender: gender || undefined,
     minPrice,
     maxPrice,
+    isFeatured: isFeatured || undefined,
+    isNew: isNew || undefined,
     sortBy: sortBy as any,
     limit: 9, // Hiển thị 9 sản phẩm mỗi trang cho khớp lưới 3 cột
   });
@@ -294,6 +298,38 @@ const ProductListPage = () => {
               </div>
             </div>
 
+            {/* 5. Bộ sưu tập */}
+            <div>
+              <h3 className="font-black text-xs uppercase tracking-widest mb-6 border-b-2 border-black pb-2">Bộ sưu tập</h3>
+              <div className="space-y-4">
+                {[
+                  { id: "featured", name: "Nổi bật", param: "isFeatured", value: "true" },
+                  { id: "new", name: "Hàng mới về", param: "isNew", value: "true" },
+                  { id: "most_viewed", name: "Được quan tâm nhất", param: "sort", value: "most_viewed" }
+                ].map((item) => {
+                  let isChecked = false;
+                  if (item.param === "isFeatured") isChecked = isFeatured === "true";
+                  if (item.param === "isNew") isChecked = isNew === "true";
+                  if (item.param === "sort") isChecked = sortBy === "most_viewed";
+
+                  return (
+                    <div 
+                      key={item.id} 
+                      onClick={() => updateFilters({ [item.param]: isChecked ? "" : item.value })}
+                      className="flex items-center gap-3 cursor-pointer group"
+                    >
+                      <div className="w-5 h-5 rounded-md border-2 border-black flex items-center justify-center transition-all bg-white group-hover:border-primary">
+                        <div className={"w-2.5 h-2.5 bg-primary rounded-sm transition-all " + (isChecked ? "opacity-100 scale-100" : "opacity-0 scale-50")}></div>
+                      </div>
+                      <span className={"text-sm font-bold transition-colors " + (isChecked ? "text-primary font-black" : "group-hover:text-primary")}>
+                        {item.name}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <button 
               onClick={handleClearFilters} 
               className="btn-brutal-secondary w-full mt-4 text-xs uppercase tracking-widest h-14 shadow-subtle hover:bg-red-500 hover:text-white transition-all"
@@ -354,6 +390,7 @@ const ProductListPage = () => {
                   <option value="price_asc">GIÁ TĂNG DẦN</option>
                   <option value="price_desc">GIÁ GIẢM DẦN</option>
                   <option value="best_sellers">BÁN CHẠY NHẤT</option>
+                  <option value="most_viewed">ĐƯỢC QUAN TÂM</option>
                 </select>
                 <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>

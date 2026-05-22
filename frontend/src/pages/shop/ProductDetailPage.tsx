@@ -33,6 +33,11 @@ const ProductDetailPage = () => {
   const [addMessage, setAddMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const addToCartMutation = useAddToCart();
 
+  // Scroll to top when page loads
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [slug]);
+
   // Gọi API lấy thông tin chi tiết sản phẩm và sản phẩm tương tự
   const { data: product, isLoading, error } = useProductDetail(slug || "");
   const { data: similarProducts, isLoading: isLoadingSimilar } =

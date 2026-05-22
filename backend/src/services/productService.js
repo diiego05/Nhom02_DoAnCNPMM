@@ -97,6 +97,7 @@ const getProducts = async (filters) => {
     price_desc: [["price", "DESC"]],
     newest: [["created_at", "DESC"]],
     best_sellers: [["sold_count", "DESC"]],
+    most_viewed: [["view_count", "DESC"]],
   };
 
   const order = orderMap[sortBy] || [["created_at", "DESC"]];

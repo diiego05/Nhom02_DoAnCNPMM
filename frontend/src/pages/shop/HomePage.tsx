@@ -275,7 +275,7 @@ const HomePage = () => {
             <div className="h-1.5 w-24 bg-primary border-2 border-black rounded-full shadow-subtle mt-4"></div>
           </div>
           <Link
-            to="/products"
+            to="/products?isFeatured=true"
             className="btn-brutal-secondary h-14 px-10 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none"
           >
             Xem tất cả
@@ -341,7 +341,7 @@ const HomePage = () => {
             <div className="h-1.5 w-24 bg-primary border-2 border-black rounded-full shadow-subtle mt-4"></div>
           </div>
           <Link
-            to="/products"
+            to="/products?sort=most_viewed"
             className="btn-brutal-secondary h-14 px-10 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none"
           >
             Xem tất cả
@@ -405,10 +405,10 @@ const HomePage = () => {
               <div className="h-1.5 w-24 bg-primary border-2 border-black rounded-full shadow-subtle"></div>
             </div>
             <div className="flex gap-2">
-              <button className="w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">
+              <button className="best-seller-prev w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">
                 <ChevronLeft size={20} />
               </button>
-              <button className="w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">
+              <button className="best-seller-next w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">
                 <ChevronRight size={20} />
               </button>
             </div>
@@ -424,22 +424,40 @@ const HomePage = () => {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
+            <Swiper
+              modules={[Navigation, Pagination]}
+              spaceBetween={30}
+              slidesPerView={1}
+              navigation={{
+                prevEl: ".best-seller-prev",
+                nextEl: ".best-seller-next",
+              }}
+              pagination={{ clickable: true }}
+              breakpoints={{
+                640: { slidesPerView: 2 },
+                768: { slidesPerView: 2 },
+                1024: { slidesPerView: 3 },
+              }}
+              className="pb-16 px-2 home-swiper"
+            >
               {bestSellers?.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  id={product.slug}
-                  name={product.name}
-                  price={product.sale_price || product.price}
-                  originalPrice={product.sale_price ? product.price : undefined}
-                  image={product.images?.[0]?.image_url || "/placeholder.jpg"}
-                  category={product.category?.name || "Danh mục"}
-                  rating={5}
-                  sales={product.sold_count}
-                  badge={product.sold_count > 15 ? "Hot" : undefined}
-                />
+                <SwiperSlide key={product.id}>
+                  <div className="pb-4">
+                    <ProductCard
+                      id={product.slug}
+                      name={product.name}
+                      price={product.sale_price || product.price}
+                      originalPrice={product.sale_price ? product.price : undefined}
+                      image={product.images?.[0]?.image_url || "/placeholder.jpg"}
+                      category={product.category?.name || "Danh mục"}
+                      rating={5}
+                      sales={product.sold_count}
+                      badge={product.sold_count > 15 ? "Hot" : undefined}
+                    />
+                  </div>
+                </SwiperSlide>
               ))}
-            </div>
+            </Swiper>
           )}
         </div>
 
