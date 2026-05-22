@@ -17,17 +17,21 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { useProductDetail, useSimilarProducts } from "@/hooks/useProducts";
 import { formatViewCount } from "@/utils/format";
+import { useAddToCart } from "@/hooks/useCart";
 
 const ProductDetailPage = () => {
   const { id: slug } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [activeImgIndex, setActiveImgIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [activeTab, setActiveTab] = useState("description");
+  const [addMessage, setAddMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const addToCartMutation = useAddToCart();
 
   // Gọi API lấy thông tin chi tiết sản phẩm và sản phẩm tương tự
   const { data: product, isLoading, error } = useProductDetail(slug || "");
@@ -365,23 +369,55 @@ const ProductDetailPage = () => {
                   </div>
                 </div>
 
+                {addMessage && (
+                  <div className={`p-3 rounded-xl border-2 border-black text-xs font-black uppercase tracking-widest text-center ${addMessage.type === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                    {addMessage.text}
+                  </div>
+                )}
+
                 <div className="flex gap-4">
                   <button
-                    disabled={currentStock === 0}
-                    onClick={() =>
-                      alert(
-                        `Thêm thành công ${quantity} sản phẩm màu ${selectedColor}, size ${selectedSize} vào giỏ hàng!`,
-                      )
-                    }
+                    disabled={currentStock === 0 || addToCartMutation.isPending}
+                    onClick={() => {
+                      addToCartMutation.mutate(
+                        {
+                          productId: product.id,
+                          variantId: activeVariant?.id,
+                          quantity,
+                        },
+                        {
+                          onSuccess: () => {
+                            navigate("/cart");
+                          },
+                          onError: (err: any) => {
+                            setAddMessage({ type: "error", text: err?.response?.data?.message || "Thêm vào giỏ hàng thất bại!" });
+                            setTimeout(() => setAddMessage(null), 3000);
+                          },
+                        }
+                      );
+                    }}
                     className="flex-1 h-16 border-2 border-black rounded-2xl font-black text-xs uppercase tracking-widest bg-white hover:bg-primary hover:text-white transition-all active:translate-x-[2px] active:translate-y-[2px] flex items-center justify-center disabled:opacity-50 disabled:pointer-events-none"
                   >
-                    Thêm vào giỏ
+                    {addToCartMutation.isPending ? "Đang thêm..." : "Thêm vào giỏ"}
                   </button>
                   <button
                     disabled={currentStock === 0}
-                    onClick={() =>
-                      alert(`Bắt đầu thanh toán mua ngay ${quantity} sản phẩm!`)
-                    }
+                    type="button"
+                    onClick={() => {
+                      navigate("/checkout", {
+                        state: {
+                          buyNowItem: {
+                            id: -1, // placeholder for cart item id
+                            product_id: product.id,
+                            product_variant_id: activeVariant?.id || null,
+                            quantity,
+                            unit_price: displayPrice,
+                            product: product,
+                            variant: activeVariant
+                          }
+                        }
+                      });
+                    }}
                     className="flex-1 h-16 bg-black text-white border-2 border-black rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary transition-all active:translate-x-[2px] active:translate-y-[2px] flex items-center justify-center disabled:opacity-50 disabled:pointer-events-none"
                   >
                     Mua ngay

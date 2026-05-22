@@ -30,6 +30,11 @@ const getCartByUserId = async (userId) => {
                 required: false,
                 attributes: ["image_url"],
               },
+              {
+                model: db.ProductVariant,
+                as: "variants",
+                attributes: ["id", "color", "size", "stock_quantity", "price"],
+              },
             ],
           },
           {
@@ -116,7 +121,7 @@ const addItemToCart = async (userId, { productId, variantId, quantity }) => {
 };
 
 // Cập nhật số lượng item
-const updateCartItem = async (userId, itemId, quantity) => {
+const updateCartItem = async (userId, itemId, quantity, newVariantId) => {
   const cart = await db.Cart.findOne({ where: { user_id: userId } });
   if (!cart) throw new Error("Không tìm thấy giỏ hàng");
 
@@ -125,12 +130,50 @@ const updateCartItem = async (userId, itemId, quantity) => {
   });
   if (!item) throw new Error("Sản phẩm không có trong giỏ hàng");
 
-  if (quantity <= 0) {
+  if (quantity !== undefined && quantity <= 0) {
     await item.destroy();
     return { removed: true };
   }
 
-  await item.update({ quantity });
+  const updates = {};
+  if (quantity !== undefined) updates.quantity = quantity;
+
+  if (newVariantId !== undefined && newVariantId !== item.product_variant_id) {
+    const variant = await db.ProductVariant.findByPk(newVariantId);
+    if (!variant || variant.product_id !== item.product_id) {
+      throw new Error("Biến thể sản phẩm không hợp lệ");
+    }
+
+    const { Op } = db.Sequelize;
+    // Kiểm tra xem giỏ hàng đã có item với variant này chưa
+    const existingItem = await db.CartItem.findOne({
+      where: {
+        cart_id: cart.id,
+        product_id: item.product_id,
+        product_variant_id: newVariantId,
+        id: { [Op.ne]: item.id },
+      },
+    });
+
+    if (existingItem) {
+      // Gộp số lượng
+      const newQty = existingItem.quantity + (quantity !== undefined ? quantity : item.quantity);
+      if (newQty > variant.stock_quantity) {
+        throw new Error(`Tổng số lượng vượt quá tồn kho (${variant.stock_quantity})`);
+      }
+      await existingItem.update({ quantity: newQty });
+      await item.destroy();
+      return existingItem;
+    } else {
+      // Cập nhật phân loại
+      updates.product_variant_id = newVariantId;
+      updates.unit_price = Number(variant.price || item.unit_price);
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await item.update(updates);
+  }
   return item;
 };
 

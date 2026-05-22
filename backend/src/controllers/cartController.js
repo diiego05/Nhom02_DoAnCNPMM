@@ -30,11 +30,12 @@ const addItem = async (req, res) => {
 
 const updateItem = async (req, res) => {
   try {
-    const { quantity } = req.body;
+    const { quantity, product_variant_id } = req.body;
     const result = await cartService.updateCartItem(
       req.user.id,
       req.params.itemId,
       quantity,
+      product_variant_id
     );
     return res
       .status(200)

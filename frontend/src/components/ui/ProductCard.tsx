@@ -1,5 +1,9 @@
-import { Star, Plus } from "lucide-react";
+import { Star, Plus, Minus, X, ShoppingCart, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { formatPrice } from "@/utils/format";
+import { useState, useEffect } from "react";
+import { useProductDetail } from "@/hooks/useProducts";
+import { useAddToCart } from "@/hooks/useCart";
 
 interface ProductCardProps {
   id: string;
@@ -24,73 +28,395 @@ const ProductCard = ({
   sales,
   badge,
 }: ProductCardProps) => {
+  const [showModal, setShowModal] = useState(false);
+
   return (
-    <div className="group relative flex flex-col bg-white border-2 border-black shadow-subtle rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-brutal hover:translate-x-[-1px] hover:translate-y-[-1px]">
-      {/* Image Container */}
-      <div className="relative aspect-[3/4] overflow-hidden bg-gray-100 border-b-2 border-black">
-        <Link to={`/products/${id}`}>
-          <img
-            src={image}
-            alt={name}
-            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-          />
-        </Link>
+    <>
+      <div className="group relative flex flex-col bg-white border-2 border-black shadow-subtle rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-brutal hover:translate-x-[-1px] hover:translate-y-[-1px]">
+        {/* Image Container */}
+        <div className="relative aspect-[3/4] overflow-hidden bg-gray-100 border-b-2 border-black">
+          <Link to={`/products/${id}`}>
+            <img
+              src={image}
+              alt={name}
+              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+          </Link>
 
-        {/* Badges */}
-        {badge && (
-          <div className="absolute top-4 left-4">
-            <span className={`badge-brutal ${
-              badge === "Hot" ? "bg-red-500 text-white" : badge === "Sale" ? "bg-orange-500 text-white" : "bg-white text-black"
-            }`}>
-              {badge}
-            </span>
-          </div>
-        )}
+          {/* Badges */}
+          {badge && (
+            <div className="absolute top-4 left-4">
+              <span className={`badge-brutal ${
+                badge === "Hot" ? "bg-red-500 text-white" : badge === "Sale" ? "bg-orange-500 text-white" : "bg-white text-black"
+              }`}>
+                {badge}
+              </span>
+            </div>
+          )}
 
-        {/* Quick Add Button */}
-        <button className="absolute bottom-4 right-4 w-11 h-11 bg-white text-black border-2 border-black rounded-xl flex items-center justify-center opacity-0 translate-y-4 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 hover:bg-primary hover:text-white hover:shadow-subtle active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">
-          <Plus size={22} strokeWidth={2.5} />
-        </button>
-      </div>
-
-      {/* Info Container */}
-      <div className="p-5 flex flex-col space-y-2">
-        <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
-          {category}
-        </p>
-        
-        <Link to={`/products/${id}`} className="text-sm font-bold text-black line-clamp-1 hover:text-primary transition-colors">
-          {name}
-        </Link>
-
-        {/* Rating & Sales */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center">
-            {[...Array(5)].map((_, i) => (
-              <Star
-                key={i}
-                size={12}
-                className={i < Math.floor(rating) ? "fill-yellow-400 text-yellow-400" : "text-gray-200"}
-              />
-            ))}
-          </div>
-          <span className="text-[11px] text-gray-400 font-bold border-l border-gray-200 pl-3">
-            Đã bán {sales > 1000 ? `${(sales / 1000).toFixed(1)}k` : sales}
-          </span>
+          {/* Quick Add Button - Opens Modal */}
+          <button 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowModal(true);
+            }}
+            className="absolute bottom-4 right-4 w-11 h-11 bg-white text-black border-2 border-black rounded-xl flex items-center justify-center opacity-0 translate-y-4 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 hover:bg-primary hover:text-white hover:shadow-subtle active:translate-x-[3px] active:translate-y-[3px] active:shadow-none"
+          >
+            <Plus size={22} strokeWidth={2.5} />
+          </button>
         </div>
 
-        {/* Price */}
-        <div className="flex items-center gap-3 pt-1">
-          <span className="text-base font-black text-primary">
-            {price.toLocaleString()}₫
-          </span>
-          {originalPrice && (
-            <span className="text-xs text-gray-300 line-through decoration-black/10">
-              {originalPrice.toLocaleString()}₫
+        {/* Info Container */}
+        <div className="p-5 flex flex-col space-y-2">
+          <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
+            {category}
+          </p>
+          
+          <Link to={`/products/${id}`} className="text-sm font-bold text-black line-clamp-1 hover:text-primary transition-colors">
+            {name}
+          </Link>
+
+          {/* Rating & Sales */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center">
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  key={i}
+                  size={12}
+                  className={i < Math.floor(rating) ? "fill-yellow-400 text-yellow-400" : "text-gray-200"}
+                />
+              ))}
+            </div>
+            <span className="text-[11px] text-gray-400 font-bold border-l border-gray-200 pl-3">
+              Đã bán {sales > 1000 ? `${(sales / 1000).toFixed(1)}k` : sales}
             </span>
+          </div>
+
+          {/* Price */}
+          <div className="flex items-center gap-3 pt-1">
+            <span className="text-base font-black text-primary">
+              {formatPrice(price)}
+            </span>
+            {originalPrice && (
+              <span className="text-xs text-gray-300 line-through decoration-black/10">
+                {formatPrice(originalPrice)}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Variant Selection Modal */}
+      {showModal && (
+        <AddToCartModal
+          productSlug={id}
+          productName={name}
+          productImage={image}
+          productPrice={price}
+          originalPrice={originalPrice}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+    </>
+  );
+};
+
+// ==================== ADD TO CART MODAL ====================
+interface AddToCartModalProps {
+  productSlug: string;
+  productName: string;
+  productImage: string;
+  productPrice: number;
+  originalPrice?: number;
+  onClose: () => void;
+}
+
+const AddToCartModal = ({
+  productSlug,
+  productName,
+  productImage,
+  productPrice,
+  originalPrice,
+  onClose,
+}: AddToCartModalProps) => {
+  const { data: product, isLoading } = useProductDetail(productSlug);
+  const addToCartMutation = useAddToCart();
+
+  const [selectedColor, setSelectedColor] = useState("");
+  const [selectedSize, setSelectedSize] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Auto-select first variant when product loads
+  useEffect(() => {
+    if (product?.variants && product.variants.length > 0) {
+      const firstVariant = product.variants[0];
+      if (firstVariant.color) setSelectedColor(firstVariant.color);
+      if (firstVariant.size) setSelectedSize(firstVariant.size);
+    }
+  }, [product]);
+
+  // Compute variant data
+  const colorsData = product?.variants
+    ? Array.from(
+        new Map(
+          product.variants.map((v) => [v.color, v.color_hex || "#888888"]),
+        ).entries(),
+      ).map(([name, hex]) => ({ name, hex }))
+    : [];
+
+  const sizes = Array.from(
+    new Set(product?.variants?.map((v) => v.size).filter(Boolean)),
+  );
+
+  const activeVariant = product?.variants?.find(
+    (v) => v.color === selectedColor && v.size === selectedSize,
+  );
+
+  const currentStock = activeVariant
+    ? activeVariant.stock_quantity
+    : product?.totalStock || product?.stock_quantity || 0;
+
+  const hasVariants = colorsData.length > 0 || sizes.length > 0;
+
+  const handleQuantityChange = (newQty: number) => {
+    if (newQty < 1) return;
+    if (newQty > currentStock) return;
+    setQuantity(newQty);
+  };
+
+  const handleAddToCart = () => {
+    if (!product) return;
+    addToCartMutation.mutate(
+      {
+        productId: product.id,
+        variantId: activeVariant?.id,
+        quantity,
+      },
+      {
+        onSuccess: () => {
+          setMessage({ type: "success", text: "Đã thêm vào giỏ hàng!" });
+          setTimeout(() => {
+            onClose();
+          }, 1000);
+        },
+        onError: (err: any) => {
+          setMessage({ type: "error", text: err?.response?.data?.message || "Thêm vào giỏ hàng thất bại!" });
+          setTimeout(() => setMessage(null), 3000);
+        },
+      }
+    );
+  };
+
+  return (
+    <div 
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" />
+
+      {/* Modal Content */}
+      <div
+        className="relative bg-white border-2 border-black rounded-[2rem] shadow-brutal w-full max-w-lg overflow-hidden animate-[slideUp_0.3s_ease-out]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 z-10 w-10 h-10 bg-white border-2 border-black rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white hover:border-red-500 transition-all active:scale-95 shadow-subtle"
+        >
+          <X size={18} strokeWidth={2.5} />
+        </button>
+
+        {/* Product Info Header */}
+        <div className="flex gap-5 p-6 pb-0">
+          <div className="w-24 h-28 rounded-2xl overflow-hidden border-2 border-black shadow-subtle shrink-0">
+            <img
+              src={productImage}
+              alt={productName}
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="flex flex-col justify-center min-w-0 pr-10">
+            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">
+              THÊM VÀO GIỎ HÀNG
+            </p>
+            <h3 className="text-lg font-serif font-black uppercase tracking-tight leading-tight line-clamp-2">
+              {productName}
+            </h3>
+            <div className="flex items-center gap-3 mt-2">
+              <span className="text-lg font-black text-primary">
+                {formatPrice(productPrice)}
+              </span>
+              {originalPrice && (
+                <span className="text-xs text-gray-300 line-through">
+                  {formatPrice(originalPrice)}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="mx-6 mt-5 border-t-2 border-black/10" />
+
+        {/* Body */}
+        <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
+              <Loader2 size={32} className="animate-spin text-primary" />
+              <p className="text-xs font-black uppercase tracking-widest text-gray-400">
+                Đang tải thông tin...
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Color Selection */}
+              {colorsData.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-black mb-4">
+                    MÀU SẮC:{" "}
+                    <span className="text-gray-400 ml-1 font-bold">
+                      {selectedColor}
+                    </span>
+                  </h4>
+                  <div className="flex flex-wrap gap-3">
+                    {colorsData.map((colorObj) => {
+                      if (!colorObj.name) return null;
+                      const isSelected = colorObj.name === selectedColor;
+                      return (
+                        <button
+                          key={colorObj.name}
+                          onClick={() => {
+                            setSelectedColor(colorObj.name);
+                            setQuantity(1);
+                          }}
+                          className={
+                            "w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center " +
+                            (isSelected
+                              ? "border-black p-1 scale-110"
+                              : "border-transparent hover:border-gray-300")
+                          }
+                          title={colorObj.name}
+                        >
+                          <div
+                            className="w-full h-full rounded-full border border-black/10"
+                            style={{ backgroundColor: colorObj.hex }}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Size Selection */}
+              {sizes.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-black mb-4">
+                    KÍCH THƯỚC:
+                  </h4>
+                  <div className="flex flex-wrap gap-3">
+                    {sizes.map((size) => {
+                      if (!size) return null;
+                      const isSelected = size === selectedSize;
+                      return (
+                        <button
+                          key={size}
+                          onClick={() => {
+                            setSelectedSize(size);
+                            setQuantity(1);
+                          }}
+                          className={
+                            "h-11 px-5 rounded-xl font-black text-sm transition-all border-2 border-black active:scale-95 " +
+                            (isSelected
+                              ? "bg-black text-white"
+                              : "bg-white text-black hover:bg-gray-50")
+                          }
+                        >
+                          {size}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Quantity */}
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-widest text-black mb-4">
+                  SỐ LƯỢNG:
+                </h4>
+                <div className="flex items-center gap-5">
+                  <div className="flex items-center bg-white border-2 border-black rounded-xl h-11 overflow-hidden">
+                    <button
+                      onClick={() => handleQuantityChange(quantity - 1)}
+                      disabled={currentStock === 0}
+                      className="w-11 h-full flex items-center justify-center hover:bg-gray-100 transition-all border-r-2 border-black disabled:opacity-50"
+                    >
+                      <Minus size={16} strokeWidth={2.5} />
+                    </button>
+                    <span className="w-12 text-center font-black text-sm">
+                      {currentStock === 0 ? 0 : quantity}
+                    </span>
+                    <button
+                      onClick={() => handleQuantityChange(quantity + 1)}
+                      disabled={currentStock === 0}
+                      className="w-11 h-full flex items-center justify-center hover:bg-gray-100 transition-all border-l-2 border-black disabled:opacity-50"
+                    >
+                      <Plus size={16} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                  {currentStock > 0 ? (
+                    <span className="text-[10px] font-black text-green-600 uppercase flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-600" />
+                      Còn hàng ({currentStock})
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-black text-red-500 uppercase flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                      Hết hàng
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Message */}
+              {message && (
+                <div className={`p-3 rounded-xl border-2 border-black text-xs font-black uppercase tracking-widest text-center ${message.type === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                  {message.text}
+                </div>
+              )}
+            </>
           )}
         </div>
+
+        {/* Footer - Add to Cart Button */}
+        <div className="p-6 pt-0">
+          <button
+            disabled={currentStock === 0 || addToCartMutation.isPending || isLoading}
+            onClick={handleAddToCart}
+            className="w-full h-14 bg-black text-white border-2 border-black rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary transition-all active:translate-x-[2px] active:translate-y-[2px] flex items-center justify-center gap-3 disabled:opacity-50 disabled:pointer-events-none shadow-subtle hover:shadow-none"
+          >
+            <ShoppingCart size={18} />
+            {addToCartMutation.isPending ? "Đang thêm..." : "Thêm vào giỏ hàng"}
+          </button>
+        </div>
       </div>
+
+      {/* Animations */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px) scale(0.97); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
     </div>
   );
 };

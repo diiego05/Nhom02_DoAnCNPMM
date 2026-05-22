@@ -4,13 +4,16 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import { connectDB } from "./config/DBConfig.js";
 import "dotenv/config";
-import userRouter from "./route/userRoute.js";
-import authRouter from "./route/authRoute.js";
-import forgotPasswordRoute from "./route/forgotPasswordRoute.js";
-import productRouter from "./route/productRoute.js";
-import categoryRouter from "./route/categoryRoute.js";
-import cartRouter from "./route/cartRoute.js";
-import orderRouter from "./route/orderRoute.js";
+import userRouter from "./routes/userRoute.js";
+import authRouter from "./routes/authRoute.js";
+import forgotPasswordRoute from "./routes/forgotPasswordRoute.js";
+import productRouter from "./routes/productRoute.js";
+import categoryRouter from "./routes/categoryRoute.js";
+import cartRouter from "./routes/cartRoute.js";
+import orderRouter from "./routes/orderRoute.js";
+import addressRouter from "./routes/addressRoute.js";
+import cron from "node-cron";
+import orderService from "./services/orderService.js";
 
 let app = express();
 
@@ -40,6 +43,7 @@ app.use("/products", productRouter);
 app.use("/categories", categoryRouter);
 app.use("/cart", cartRouter);
 app.use("/orders", orderRouter);
+app.use("/addresses", addressRouter);
 
 let port = process.env.PORT || 8080;
 
@@ -47,6 +51,18 @@ connectDB()
   .then(() => {
     app.listen(port, () => {
       console.log("Backend nodejs is running on the port: " + port);
+      
+      // Khởi động Cron Job kiểm tra đơn hàng tự động xác nhận sau 30 phút
+      cron.schedule("* * * * *", async () => {
+        try {
+          const updatedCount = await orderService.autoConfirmOrders();
+          if (updatedCount > 0) {
+            console.log(`[CRON] Tự động xác nhận ${updatedCount} đơn hàng thành công.`);
+          }
+        } catch (error) {
+          console.error("[CRON] Lỗi khi chạy auto confirm orders:", error);
+        }
+      });
     });
   })
   .catch((error) => {

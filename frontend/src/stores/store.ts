@@ -34,9 +34,19 @@ const authPersistConfig = {
 
 const persistedAuthReducer = persistReducer(authPersistConfig, authReducer);
 
+import cartReducer from "./slices/cartSlice";
+
+const cartPersistConfig = {
+  key: "cart",
+  storage: customStorage,
+};
+
+const persistedCartReducer = persistReducer(cartPersistConfig, cartReducer);
+
 export const store = configureStore({
   reducer: {
     auth: persistedAuthReducer,
+    cart: persistedCartReducer,
   },
 
   middleware: (getDefaultMiddleware) =>

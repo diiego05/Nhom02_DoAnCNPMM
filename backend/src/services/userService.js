@@ -31,7 +31,6 @@ const updateUserProfile = (data) => {
         await userProfile.update({
           full_name: data.full_name,
           date_of_birth: data.date_of_birth,
-          address: data.address,
           gender: data.gender,
           id_card: data.id_card,
           avatar_url: data.avatar_url,

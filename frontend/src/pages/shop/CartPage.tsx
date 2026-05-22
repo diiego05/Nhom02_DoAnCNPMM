@@ -1,33 +1,38 @@
-import { Trash2, Plus, Minus, Ticket, ArrowRight, ShoppingBag } from 'lucide-react';
+import { Trash2, Plus, Minus, Ticket, ArrowRight, ShoppingBag, Loader2, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useCart, useRemoveCartItem, useUpdateCartItem } from '@/hooks/useCart';
+import { useState } from 'react';
 
 const CartPage = () => {
-  const cartItems = [
-    {
-      id: 1,
-      name: "Áo Khoác Heritage Jacket",
-      category: "Nam",
-      price: 1250000,
-      image: "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=500&auto=format&fit=crop",
-      size: "L",
-      color: "Đen Carbon",
-      quantity: 1
-    },
-    {
-      id: 2,
-      name: "Quần Jeans Slim Fit",
-      category: "Nữ",
-      price: 850000,
-      image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=500&auto=format&fit=crop",
-      size: "M",
-      color: "Xanh Indigo",
-      quantity: 2
-    }
-  ];
+  const { data: cart, isLoading } = useCart();
+  const updateItemMutation = useUpdateCartItem();
+  const removeItemMutation = useRemoveCartItem();
+  const [editingItem, setEditingItem] = useState<{ id: number; color: string; size: string } | null>(null);
 
-  const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const cartItems = cart?.items || [];
+  const subtotal = cart?.totalAmount || 0;
   const shipping = subtotal > 2000000 ? 0 : 30000;
-  const total = subtotal + shipping;
+  const total = subtotal + (cartItems.length > 0 ? shipping : 0);
+
+  const handleUpdateQuantity = (itemId: number, currentQty: number, change: number) => {
+    const newQty = currentQty + change;
+    if (newQty < 1) return;
+    updateItemMutation.mutate({ itemId, payload: { quantity: newQty } });
+  };
+
+  const handleRemove = (itemId: number) => {
+    if (window.confirm("Bạn có chắc muốn xóa sản phẩm này khỏi giỏ hàng?")) {
+      removeItemMutation.mutate(itemId);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#F4F4F0] flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F4F4F0] pt-24 pb-32 px-6">
@@ -50,21 +55,88 @@ const CartPage = () => {
           <div className="lg:col-span-7 space-y-6">
             <div className="bg-white border-2 border-black rounded-[2.5rem] p-8 shadow-sm overflow-hidden">
               <div className="space-y-8">
-                {cartItems.map((item) => (
+                {cartItems.map((item) => {
+                  const product = item.product;
+                  const variant = item.variant;
+                  const imageUrl = product?.images?.find(img => img.is_primary)?.image_url || product?.images?.[0]?.image_url || '';
+                  
+                  return (
                   <div key={item.id} className="flex items-center gap-8 py-6 first:pt-0 last:pb-0 border-b border-gray-100 last:border-0 group">
                     {/* Thumbnail */}
                     <div className="w-32 h-40 bg-gray-50 rounded-2xl overflow-hidden border-2 border-black flex-shrink-0 relative group-hover:shadow-subtle transition-all">
-                      <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                      <img src={imageUrl.startsWith('http') ? imageUrl : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${imageUrl}`} alt={product?.name} className="w-full h-full object-cover" />
                     </div>
 
                     {/* Details */}
                     <div className="flex-grow space-y-2">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h3 className="text-xl font-black tracking-tight uppercase group-hover:text-primary transition-colors">{item.name}</h3>
-                          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Phân loại: <span className="text-black">{item.size} / {item.color}</span></p>
+                          <h3 className="text-xl font-black tracking-tight uppercase group-hover:text-primary transition-colors">
+                            <Link to={`/products/${product?.slug}`}>{product?.name}</Link>
+                          </h3>
+                          {variant && (
+                            <div className="mt-2">
+                              {editingItem?.id === item.id ? (
+                                <div className="bg-gray-50 border-2 border-black rounded-xl p-4 mt-2">
+                                  <div className="flex flex-col gap-3">
+                                    <div className="flex gap-2 items-center">
+                                      <span className="text-xs font-black uppercase tracking-widest text-gray-500 w-12">Màu:</span>
+                                      {Array.from(new Set(product?.variants?.map((v: any) => v.color).filter(Boolean))).map((color: any) => (
+                                        <button 
+                                          key={color}
+                                          onClick={() => setEditingItem({ ...editingItem, color })}
+                                          className={`px-3 py-1 rounded-lg border-2 text-xs font-bold transition-all ${editingItem.color === color ? 'border-black bg-black text-white' : 'border-gray-200 bg-white hover:border-black'}`}
+                                        >
+                                          {color}
+                                        </button>
+                                      ))}
+                                    </div>
+                                    <div className="flex gap-2 items-center">
+                                      <span className="text-xs font-black uppercase tracking-widest text-gray-500 w-12">Size:</span>
+                                      {Array.from(new Set(product?.variants?.map((v: any) => v.size).filter(Boolean))).map((size: any) => (
+                                        <button 
+                                          key={size}
+                                          onClick={() => setEditingItem({ ...editingItem, size })}
+                                          className={`px-3 py-1 rounded-lg border-2 text-xs font-bold transition-all ${editingItem.size === size ? 'border-black bg-black text-white' : 'border-gray-200 bg-white hover:border-black'}`}
+                                        >
+                                          {size}
+                                        </button>
+                                      ))}
+                                    </div>
+                                    <div className="flex gap-2 mt-2">
+                                      <button 
+                                        onClick={() => {
+                                          const matchedVariant = product?.variants?.find((v: any) => v.color === editingItem.color && v.size === editingItem.size);
+                                          if (matchedVariant && matchedVariant.id !== variant.id) {
+                                            updateItemMutation.mutate({ itemId: item.id, payload: { product_variant_id: matchedVariant.id } });
+                                          }
+                                          setEditingItem(null);
+                                        }}
+                                        className="bg-black text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-primary"
+                                      >Xác nhận</button>
+                                      <button 
+                                        onClick={() => setEditingItem(null)}
+                                        className="bg-white border-2 border-black text-black px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50"
+                                      >Hủy</button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button 
+                                  onClick={() => setEditingItem({ id: item.id, color: variant.color || '', size: variant.size || '' })}
+                                  className="flex items-center gap-1 text-xs font-bold text-gray-500 uppercase tracking-widest hover:text-black transition-colors bg-gray-50 px-3 py-1.5 rounded-lg border border-transparent hover:border-gray-200"
+                                >
+                                  Phân loại: <span className="text-black ml-1">{variant.size} / {variant.color}</span> <ChevronDown size={14} />
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <button className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-xl transition-all">
+                        <button 
+                          onClick={() => handleRemove(item.id)}
+                          disabled={removeItemMutation.isPending}
+                          className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-xl transition-all h-fit"
+                        >
                           <Trash2 size={20} />
                         </button>
                       </div>
@@ -72,24 +144,34 @@ const CartPage = () => {
                       <div className="flex items-center justify-between mt-6">
                         {/* Quantity Selector */}
                         <div className="flex items-center bg-gray-50 border-2 border-black rounded-xl h-12 overflow-hidden">
-                          <button className="w-12 h-full flex items-center justify-center hover:bg-white transition-all font-bold text-lg border-r-2 border-black">
+                          <button 
+                            onClick={() => handleUpdateQuantity(item.id, item.quantity, -1)}
+                            disabled={updateItemMutation.isPending}
+                            className="w-12 h-full flex items-center justify-center hover:bg-white transition-all font-bold text-lg border-r-2 border-black disabled:opacity-50"
+                          >
                             <Minus size={16} />
                           </button>
                           <span className="w-14 text-center font-black text-base">{item.quantity}</span>
-                          <button className="w-12 h-full flex items-center justify-center hover:bg-white transition-all font-bold text-lg border-l-2 border-black">
+                          <button 
+                            onClick={() => handleUpdateQuantity(item.id, item.quantity, 1)}
+                            disabled={updateItemMutation.isPending}
+                            className="w-12 h-full flex items-center justify-center hover:bg-white transition-all font-bold text-lg border-l-2 border-black disabled:opacity-50"
+                          >
                             <Plus size={16} />
                           </button>
                         </div>
 
                         {/* Price */}
                         <div className="text-right">
-                          <p className="text-sm font-bold text-gray-400 line-through">{(item.price * 1.2).toLocaleString()}₫</p>
-                          <p className="text-xl font-black text-black">{item.price.toLocaleString()}₫</p>
+                          {product?.sale_price && (
+                            <p className="text-sm font-bold text-gray-400 line-through">{(Number(product.price)).toLocaleString()}₫</p>
+                          )}
+                          <p className="text-xl font-black text-black">{(Number(item.unit_price)).toLocaleString()}₫</p>
                         </div>
                       </div>
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
             </div>
 

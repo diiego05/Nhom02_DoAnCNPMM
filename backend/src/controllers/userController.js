@@ -13,7 +13,6 @@ const getUserProfile = async (req, res) => {
       data: {
         fullName: user.full_name,
         dateOfBirth: user.date_of_birth,
-        address: user.address,
         gender: user.gender,
         avatarUrl: user.avatar_url,
         coverPhotoUrl: user.cover_photo_url,
@@ -39,7 +38,6 @@ const updateUserProfile = async (req, res) => {
       data: {
         fullName: user.full_name,
         dateOfBirth: user.date_of_birth,
-        address: user.address,
         gender: user.gender,
         avatarUrl: user.avatar_url,
         coverPhotoUrl: user.cover_photo_url,

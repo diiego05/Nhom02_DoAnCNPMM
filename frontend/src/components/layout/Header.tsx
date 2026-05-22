@@ -2,12 +2,18 @@ import { Link } from "react-router-dom";
 import { ShoppingBag, ShoppingCart, Search, ChevronDown, User } from "lucide-react";
 import { useAppSelector } from "@/stores/hooks";
 import useAuth from "@/hooks/useAuth";
+import { useCart } from "@/hooks/useCart";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8088";
 
 const Header = () => {
   const user = useAppSelector((state) => state.auth.user);
+  const itemCount = useAppSelector((state) => state.cart.itemCount);
   const { isAuthenticated } = useAuth();
+  
+  // Gọi useCart để fetch data (enabled: isAuthenticated được set trong hook nếu cần)
+  // Vì không thể call hook trong điều kiện if, ta có thể dùng useEffect hoặc enabled prop trong react query
+  const cartQuery = useCart();
 
   const categories = [
     { name: "Áo", items: ["Áo thun", "Áo sơ mi", "Áo khoác", "Áo len", "Áo hoodie"] },
@@ -79,9 +85,11 @@ const Header = () => {
             className="relative w-11 h-11 bg-white border-2 border-black rounded-2xl flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-subtle hover:shadow-none active:translate-x-[3px] active:translate-y-[3px] active:shadow-none"
           >
             <ShoppingCart size={22} strokeWidth={2.5} />
-            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-primary text-white text-[10px] font-black flex items-center justify-center rounded-lg border-2 border-black shadow-subtle">
-              3
-            </span>
+            {itemCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[20px] px-1 h-5 bg-primary text-white text-[10px] font-black flex items-center justify-center rounded-lg border-2 border-black shadow-subtle">
+                {itemCount > 99 ? "99+" : itemCount}
+              </span>
+            )}
           </Link>
           
           {isAuthenticated ? (

@@ -1,6 +1,5 @@
 import db from "../models/index.js";
 import cartService from "./cartService.js";
-
 // Tạo mã đơn hàng duy nhất
 const generateOrderCode = () => {
   const date = new Date();
@@ -9,7 +8,7 @@ const generateOrderCode = () => {
   return `ORD-${dateStr}-${random}`;
 };
 
-// Tạo đơn hàng từ giỏ hàng
+// Tạo đơn hàng từ giỏ hàng hoặc từ danh sách items cụ thể
 const createOrder = async (
   userId,
   {
@@ -18,35 +17,85 @@ const createOrder = async (
     recipientName,
     recipientPhone,
     note,
+    items,
   },
 ) => {
-  // 1. Lấy giỏ hàng
-  const cartData = await cartService.getCartByUserId(userId);
-  if (!cartData.items || cartData.items.length === 0) {
-    throw new Error("Giỏ hàng trống, không thể đặt hàng");
-  }
+  let orderItemsData = [];
+  let isCartCheckout = false;
 
-  // 2. Validate tồn kho lần cuối
-  for (const item of cartData.items) {
-    const stock = item.variant
-      ? item.variant.stock_quantity
-      : item.product?.stock_quantity || 0;
-    if (item.quantity > stock) {
-      throw new Error(
-        `Sản phẩm "${item.product?.name}" chỉ còn ${stock} trong kho`,
-      );
+  // 1. Chuẩn bị dữ liệu Order Items
+  if (items && items.length > 0) {
+    // Thanh toán Mua ngay (hoặc các item được chọn)
+    for (const item of items) {
+      const product = await db.Product.findByPk(item.product_id, {
+        include: [{ model: db.ProductImage, as: "images", where: { is_primary: true }, required: false }]
+      });
+      if (!product || product.status !== "ACTIVE") {
+        throw new Error(`Sản phẩm không hợp lệ: ${item.product_id}`);
+      }
+
+      let variant = null;
+      let stock = product.stock_quantity;
+      let price = product.sale_price || product.price;
+
+      if (item.product_variant_id) {
+        variant = await db.ProductVariant.findByPk(item.product_variant_id);
+        if (!variant || variant.product_id !== product.id) {
+          throw new Error("Biến thể không hợp lệ");
+        }
+        stock = variant.stock_quantity;
+        price = variant.price || price;
+      }
+
+      if (item.quantity > stock) {
+        throw new Error(`Sản phẩm "${product.name}" chỉ còn ${stock} trong kho`);
+      }
+
+      orderItemsData.push({
+        product_id: product.id,
+        product_variant_id: variant?.id || null,
+        product_name: product.name,
+        variant_color: variant?.color || null,
+        variant_size: variant?.size || null,
+        product_image_url: product.images?.[0]?.image_url || null,
+        quantity: item.quantity,
+        unit_price: Number(price),
+        total_price: item.quantity * Number(price),
+      });
+    }
+  } else {
+    // Thanh toán toàn bộ giỏ hàng
+    isCartCheckout = true;
+    const cartData = await cartService.getCartByUserId(userId);
+    if (!cartData.items || cartData.items.length === 0) {
+      throw new Error("Giỏ hàng trống, không thể đặt hàng");
+    }
+
+    for (const item of cartData.items) {
+      const stock = item.variant ? item.variant.stock_quantity : item.product?.stock_quantity || 0;
+      if (item.quantity > stock) {
+        throw new Error(`Sản phẩm "${item.product?.name}" chỉ còn ${stock} trong kho`);
+      }
+      orderItemsData.push({
+        product_id: item.product_id,
+        product_variant_id: item.product_variant_id,
+        product_name: item.product?.name || "Sản phẩm",
+        variant_color: item.variant?.color || null,
+        variant_size: item.variant?.size || null,
+        product_image_url: item.product?.images?.[0]?.image_url || null,
+        quantity: item.quantity,
+        unit_price: Number(item.unit_price),
+        total_price: item.quantity * Number(item.unit_price),
+      });
     }
   }
 
-  // 3. Tính toán giá
-  const subtotal = cartData.items.reduce(
-    (sum, item) => sum + item.quantity * Number(item.unit_price),
-    0,
-  );
+  // 2. Tính toán giá
+  const subtotal = orderItemsData.reduce((sum, item) => sum + item.total_price, 0);
   const shippingFee = subtotal >= 500000 ? 0 : 30000; // Miễn ship đơn >= 500k
   const totalAmount = subtotal + shippingFee; // Tổng tiền
 
-  // 4. Tạo đơn hàng (dùng Transaction để đảm bảo toàn vẹn dữ liệu)
+  // 3. Tạo đơn hàng (dùng Transaction để đảm bảo toàn vẹn dữ liệu)
   const transaction = await db.sequelize.transaction();
   try {
     const order = await db.Order.create(
@@ -68,22 +117,11 @@ const createOrder = async (
       { transaction },
     );
 
-    // 5. Tạo order_items từ cart_items (snapshot)
-    const orderItems = cartData.items.map((item) => ({
-      order_id: order.id,
-      product_id: item.product_id,
-      product_variant_id: item.product_variant_id,
-      product_name: item.product?.name || "Sản phẩm",
-      variant_color: item.variant?.color || null,
-      variant_size: item.variant?.size || null,
-      product_image_url: item.product?.images?.[0]?.image_url || null,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      total_price: item.quantity * Number(item.unit_price),
-    }));
+    // 4. Tạo order_items
+    const orderItems = orderItemsData.map((item) => ({ ...item, order_id: order.id }));
     await db.OrderItem.bulkCreate(orderItems, { transaction });
 
-    // 6. Ghi log trạng thái đầu tiên
+    // 5. Ghi log trạng thái đầu tiên
     await db.OrderStatusLog.create(
       {
         order_id: order.id,
@@ -95,8 +133,8 @@ const createOrder = async (
       { transaction },
     );
 
-    // 7. Trừ tồn kho
-    for (const item of cartData.items) {
+    // 6. Trừ tồn kho
+    for (const item of orderItemsData) {
       if (item.product_variant_id) {
         await db.ProductVariant.decrement("stock_quantity", {
           by: item.quantity,
@@ -118,11 +156,13 @@ const createOrder = async (
       });
     }
 
-    // 8. Commit transaction
+    // 7. Commit transaction
     await transaction.commit();
 
-    // 9. Xóa giỏ hàng sau khi đặt thành công
-    await cartService.clearCart(userId);
+    // 8. Xóa giỏ hàng nếu là đặt từ giỏ hàng
+    if (isCartCheckout) {
+      await cartService.clearCart(userId);
+    }
 
     return order;
   } catch (error) {
@@ -130,6 +170,7 @@ const createOrder = async (
     throw error;
   }
 };
+
 
 // Lấy danh sách đơn hàng của user
 const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
@@ -184,16 +225,18 @@ const cancelOrder = async (userId, orderId, reason) => {
     throw new Error("Đơn hàng không thể hủy ở trạng thái hiện tại");
   }
 
-  // Đặt hàng > 30 phút và đang ở trạng thái PREPARING → gửi yêu cầu hủy
   const minutesSinceOrder =
     (Date.now() - new Date(order.created_at)) / 1000 / 60;
-  const isPreparing = order.status === "PREPARING";
-  const isOverDeadline = minutesSinceOrder > 30;
+  
+  if (minutesSinceOrder > 30) {
+    throw new Error("Đã quá 30 phút kể từ lúc đặt hàng, bạn không thể hủy đơn.");
+  }
 
+  const isPreparing = order.status === "PREPARING";
   let newStatus;
   let logNote;
 
-  if (isPreparing || isOverDeadline) {
+  if (isPreparing) {
     newStatus = "CANCEL_REQUESTED";
     logNote = `Người dùng gửi yêu cầu hủy đơn: ${reason || "Không có lý do"}`;
   } else {
@@ -215,4 +258,55 @@ const cancelOrder = async (userId, orderId, reason) => {
   return { order, newStatus };
 };
 
-export default { createOrder, getUserOrders, getOrderDetail, cancelOrder };
+// Xác nhận đơn hàng (thủ công cho Admin/Vendor)
+const confirmOrder = async (orderId, adminId = null) => {
+  const order = await db.Order.findByPk(orderId);
+  if (!order) throw new Error("Không tìm thấy đơn hàng");
+  
+  if (order.status !== "PENDING") {
+    throw new Error("Chỉ đơn hàng PENDING mới có thể xác nhận");
+  }
+
+  await order.update({ status: "CONFIRMED", confirmed_at: new Date() });
+
+  await db.OrderStatusLog.create({
+    order_id: orderId,
+    from_status: "PENDING",
+    to_status: "CONFIRMED",
+    changed_by: adminId,
+    note: "Đơn hàng được xác nhận",
+  });
+
+  return order;
+};
+
+// Auto-confirm orders > 30 mins
+const autoConfirmOrders = async () => {
+  const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
+  
+  const pendingOrders = await db.Order.findAll({
+    where: {
+      status: "PENDING",
+      created_at: {
+        [db.Sequelize.Op.lt]: thirtyMinsAgo
+      }
+    }
+  });
+
+  if (pendingOrders.length === 0) return 0;
+
+  for (const order of pendingOrders) {
+    await order.update({ status: "CONFIRMED", confirmed_at: new Date() });
+    await db.OrderStatusLog.create({
+      order_id: order.id,
+      from_status: "PENDING",
+      to_status: "CONFIRMED",
+      changed_by: null,
+      note: "Đơn hàng được xác nhận tự động sau 30 phút",
+    });
+  }
+
+  return pendingOrders.length;
+};
+
+export default { createOrder, getUserOrders, getOrderDetail, cancelOrder, confirmOrder, autoConfirmOrders };

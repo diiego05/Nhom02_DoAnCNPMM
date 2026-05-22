@@ -13,7 +13,6 @@ export type User = {
   updated_at?: string;
   fullName?: string;
   dateOfBirth?: string;
-  address?: string;
   gender?: string;
   avatarUrl?: string;
   coverPhotoUrl?: string;

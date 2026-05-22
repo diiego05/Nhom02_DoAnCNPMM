@@ -8,6 +8,7 @@ const createOrder = async (req, res) => {
       recipientName,
       recipientPhone,
       note,
+      items,
     } = req.body;
 
     if (!shippingAddress || !recipientName || !recipientPhone) {
@@ -20,6 +21,7 @@ const createOrder = async (req, res) => {
       recipientName,
       recipientPhone,
       note,
+      items,
     });
 
     return res
@@ -68,4 +70,13 @@ const cancelOrder = async (req, res) => {
   }
 };
 
-export default { createOrder, getMyOrders, getOrderDetail, cancelOrder };
+const confirmOrder = async (req, res) => {
+  try {
+    const order = await orderService.confirmOrder(req.params.orderId, req.user?.id);
+    return res.status(200).json({ message: "Xác nhận đơn hàng thành công", data: order });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+export default { createOrder, getMyOrders, getOrderDetail, cancelOrder, confirmOrder };

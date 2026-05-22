@@ -1,7 +1,129 @@
-import { MapPin, Truck, CreditCard, Wallet, ShieldCheck, ChevronLeft, Package } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { MapPin, Truck, CreditCard, Wallet, ShieldCheck, ChevronLeft, Package, Loader2 } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useCart } from '@/hooks/useCart';
+import { useAddresses, useCreateAddress } from '@/hooks/useAddresses';
+import { useCreateOrder } from '@/hooks/useOrders';
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import * as yup from 'yup';
+import { yupResolver } from '@hookform/resolvers/yup';
+import { CreateOrderPayload } from '@/types/order.types';
+
+const addressSchema = yup.object().shape({
+  recipient_name: yup.string().required('Vui lòng nhập tên người nhận'),
+  phone_number: yup.string().required('Vui lòng nhập số điện thoại'),
+  address_line: yup.string().required('Vui lòng nhập địa chỉ giao hàng'),
+  note: yup.string().optional(),
+});
 
 const CheckoutPage = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const buyNowItem = location.state?.buyNowItem;
+  const { data: cart, isLoading: isCartLoading } = useCart();
+  const { data: addresses, isLoading: isAddressesLoading } = useAddresses();
+  const createOrderMutation = useCreateOrder();
+  const createAddressMutation = useCreateAddress();
+
+  const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
+  const [isAddingNewAddress, setIsAddingNewAddress] = useState(false);
+  const [shippingFee] = useState(30000);
+  const [paymentMethod, setPaymentMethod] = useState<"COD" | "VNPAY">("COD");
+
+  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm({
+    resolver: yupResolver(addressSchema),
+  });
+
+  // Khi danh sách địa chỉ thay đổi, chọn địa chỉ mặc định
+  useEffect(() => {
+    if (addresses && addresses.length > 0 && !selectedAddressId && !isAddingNewAddress) {
+      const defaultAddr = addresses.find(a => a.is_default) || addresses[0];
+      setSelectedAddressId(defaultAddr.id);
+      setValue('recipient_name', defaultAddr.recipient_name);
+      setValue('phone_number', defaultAddr.phone_number);
+      setValue('address_line', defaultAddr.address_line);
+    } else if (addresses && addresses.length === 0) {
+      setIsAddingNewAddress(true);
+    }
+  }, [addresses, selectedAddressId, isAddingNewAddress, setValue]);
+
+  const handleSelectAddress = (id: number) => {
+    setSelectedAddressId(id);
+    setIsAddingNewAddress(false);
+    const addr = addresses?.find(a => a.id === id);
+    if (addr) {
+      setValue('recipient_name', addr.recipient_name);
+      setValue('phone_number', addr.phone_number);
+      setValue('address_line', addr.address_line);
+    }
+  };
+
+  const handleAddNewAddress = () => {
+    setSelectedAddressId(null);
+    setIsAddingNewAddress(true);
+    reset({ recipient_name: '', phone_number: '', address_line: '', note: '' });
+  };
+
+  const onSubmit = async (data: any) => {
+    const checkoutItems = buyNowItem ? [buyNowItem] : (cart?.items || []);
+    
+    if (checkoutItems.length === 0) {
+      alert("Đơn hàng của bạn đang trống!");
+      return;
+    }
+
+    // Nếu người dùng đang thêm địa chỉ mới, hãy lưu nó vào DB trước
+    if (isAddingNewAddress) {
+      try {
+        await createAddressMutation.mutateAsync({
+          recipient_name: data.recipient_name,
+          phone_number: data.phone_number,
+          address_line: data.address_line,
+          is_default: addresses?.length === 0, // Set default if it's the first address
+        });
+      } catch (error) {
+        console.error("Lỗi khi lưu địa chỉ mới", error);
+      }
+    }
+
+    const payload: CreateOrderPayload = {
+      recipientName: data.recipient_name,
+      recipientPhone: data.phone_number,
+      shippingAddress: data.address_line,
+      note: data.note,
+      paymentMethod: paymentMethod,
+      items: checkoutItems.map(item => ({
+        product_id: item.product_id,
+        product_variant_id: item.product_variant_id || undefined,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+      })),
+    };
+
+    console.log(payload);
+    createOrderMutation.mutate(payload, {
+      onSuccess: () => {
+        navigate("/orders"); // Chuyển đến trang lịch sử đơn hàng
+      },
+      onError: (error) => {
+        console.error("Lỗi khi đặt hàng", error);
+        alert("Đã xảy ra lỗi khi đặt hàng. Vui lòng thử lại!");
+      }
+    });
+  };
+
+  if (isCartLoading || isAddressesLoading) {
+    return (
+      <div className="min-h-screen bg-[#F4F4F0] flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
+
+  const cartItems = buyNowItem ? [buyNowItem] : (cart?.items || []);
+  const subtotal = buyNowItem ? (buyNowItem.unit_price * buyNowItem.quantity) : (cart?.totalAmount || 0);
+  const total = subtotal + (cartItems.length > 0 ? shippingFee : 0);
+
   return (
     <div className="min-h-screen bg-[#F4F4F0] pt-24 pb-32 px-6">
       <div className="max-w-7xl mx-auto">
@@ -19,46 +141,72 @@ const CheckoutPage = () => {
           </div>
         </div>
 
-        {/* Bento Grid Layout - 3:4:3 */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* Column 1: Shipping Info (3/12) */}
+          {/* Column 1: Shipping Info (4/12) */}
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-white border-2 border-black rounded-[2.5rem] p-8 shadow-sm">
               <div className="flex justify-between items-center mb-8">
                 <h3 className="text-xl font-black uppercase tracking-tighter flex items-center gap-3">
                   <MapPin className="text-primary" /> Địa chỉ nhận hàng
                 </h3>
-                <button className="text-[10px] font-black text-primary hover:underline uppercase tracking-tighter">+ Thêm địa chỉ mới</button>
+                <button 
+                  type="button" 
+                  onClick={handleAddNewAddress}
+                  className="text-[10px] font-black text-primary hover:underline uppercase tracking-tighter"
+                >
+                  + Thêm mới
+                </button>
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-4 mb-6">
                 {/* Saved Addresses List */}
-                <div className="p-5 border-2 border-primary bg-primary/5 rounded-2xl relative cursor-pointer group">
-                  <div className="absolute top-4 right-4 w-5 h-5 rounded-full border-2 border-primary flex items-center justify-center bg-white">
-                    <div className="w-2 h-2 rounded-full bg-primary"></div>
+                {addresses?.map(addr => (
+                  <div 
+                    key={addr.id} 
+                    onClick={() => handleSelectAddress(addr.id)}
+                    className={`p-5 rounded-2xl relative cursor-pointer group transition-all border-2 ${selectedAddressId === addr.id ? 'border-primary bg-primary/5' : 'border-black/10 hover:border-black'}`}
+                  >
+                    <div className={`absolute top-4 right-4 w-5 h-5 rounded-full flex items-center justify-center bg-white border-2 ${selectedAddressId === addr.id ? 'border-primary' : 'border-gray-300'}`}>
+                      {selectedAddressId === addr.id && <div className="w-2 h-2 rounded-full bg-primary"></div>}
+                    </div>
+                    <p className="text-xs font-black uppercase mb-1">
+                      {addr.recipient_name}
+                      {addr.is_default && <span className="ml-2 text-[10px] text-primary bg-white px-2 py-0.5 border border-primary rounded font-bold">Mặc định</span>}
+                    </p>
+                    <p className="text-xs font-bold text-gray-500">{addr.phone_number}</p>
+                    <p className="text-xs font-medium text-gray-600 mt-2 leading-relaxed">{addr.address_line}</p>
                   </div>
-                  <p className="text-xs font-black uppercase mb-1">Nguyễn Văn A <span className="ml-2 text-[10px] text-primary bg-white px-2 py-0.5 border border-primary rounded font-bold">Mặc định</span></p>
-                  <p className="text-xs font-bold text-gray-500">0123 456 789</p>
-                  <p className="text-xs font-medium text-gray-600 mt-2 leading-relaxed">Số 123 Đường Võ Văn Ngân, Phường Linh Chiểu, TP. Thủ Đức, TP. Hồ Chí Minh</p>
-                </div>
-
-                <div className="p-5 border-2 border-black/10 hover:border-black rounded-2xl cursor-pointer transition-all">
-                  <p className="text-xs font-black uppercase mb-1">Trần Thị B</p>
-                  <p className="text-xs font-bold text-gray-500">0987 654 321</p>
-                  <p className="text-xs font-medium text-gray-600 mt-2 leading-relaxed">456 Lê Lợi, Quận 1, TP. Hồ Chí Minh</p>
-                </div>
+                ))}
               </div>
+
+              {(isAddingNewAddress || (addresses && addresses.length === 0)) && (
+                <div className="space-y-4 pt-4 border-t border-dashed border-gray-200">
+                  <p className="text-sm font-black uppercase">Thêm địa chỉ mới</p>
+                  <div>
+                    <input {...register('recipient_name')} placeholder="Họ và tên" className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-3 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                    {errors.recipient_name && <p className="text-red-500 text-xs mt-1 font-bold">{errors.recipient_name.message}</p>}
+                  </div>
+                  <div>
+                    <input {...register('phone_number')} placeholder="Số điện thoại" className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-3 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                    {errors.phone_number && <p className="text-red-500 text-xs mt-1 font-bold">{errors.phone_number.message}</p>}
+                  </div>
+                  <div>
+                    <input {...register('address_line')} placeholder="Địa chỉ chi tiết" className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-3 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                    {errors.address_line && <p className="text-red-500 text-xs mt-1 font-bold">{errors.address_line.message}</p>}
+                  </div>
+                </div>
+              )}
 
               <div className="mt-8 pt-8 border-t border-dashed border-gray-200">
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Ghi chú cho đơn hàng</p>
-                <textarea rows={2} placeholder="Ví dụ: Giao giờ hành chính..." className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-4 font-medium focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all resize-none text-sm"></textarea>
+                <textarea {...register('note')} rows={2} placeholder="Ví dụ: Giao giờ hành chính..." className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-4 font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none text-sm"></textarea>
               </div>
             </div>
           </div>
 
           {/* Column 2: Shipping & Payment Methods (4/12) */}
-          <div className="lg:col-span-5 space-y-8">
+          <div className="lg:col-span-4 space-y-8">
             {/* Shipping Methods */}
             <div className="bg-white border-2 border-black rounded-[2.5rem] p-8 shadow-sm">
               <h3 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
@@ -66,31 +214,17 @@ const CheckoutPage = () => {
               </h3>
               
               <div className="grid grid-cols-1 gap-4">
-                <label className="relative flex items-center justify-between p-6 bg-primary/5 border-2 border-primary rounded-2xl cursor-pointer transition-all active:scale-[0.98]">
+                <label className="relative flex items-center justify-between p-6 bg-primary/5 border-2 border-primary rounded-2xl cursor-pointer transition-all">
                   <div className="flex items-center gap-4">
                     <div className="w-6 h-6 rounded-full border-2 border-primary flex items-center justify-center bg-white">
                       <div className="w-2.5 h-2.5 rounded-full bg-primary"></div>
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-black uppercase">Giao hàng nhanh</p>
-                        <span className="text-[8px] font-black bg-green-500 text-white px-1.5 py-0.5 rounded italic">VOUCHER ÁP DỤNG</span>
-                      </div>
-                      <p className="text-xs text-gray-500 font-bold">Dự kiến giao: 1-2 ngày</p>
+                      <p className="text-sm font-black uppercase">Giao hàng tiêu chuẩn</p>
+                      <p className="text-xs text-gray-500 font-bold">Dự kiến giao: 2-3 ngày</p>
                     </div>
                   </div>
-                  <span className="text-sm font-black">30.000₫</span>
-                </label>
-                
-                <label className="relative flex items-center justify-between p-6 bg-white border-2 border-black/10 rounded-2xl cursor-pointer hover:border-black transition-all active:scale-[0.98]">
-                  <div className="flex items-center gap-4">
-                    <div className="w-6 h-6 rounded-full border-2 border-gray-300 bg-white"></div>
-                    <div>
-                      <p className="text-sm font-black uppercase">Tiêu chuẩn</p>
-                      <p className="text-xs text-gray-500 font-bold">Dự kiến giao: 3-5 ngày</p>
-                    </div>
-                  </div>
-                  <span className="text-sm font-black">15.000₫</span>
+                  <span className="text-sm font-black">{shippingFee.toLocaleString()}₫</span>
                 </label>
               </div>
             </div>
@@ -102,77 +236,95 @@ const CheckoutPage = () => {
               </h3>
               
               <div className="space-y-4">
-                <button className="w-full flex items-center justify-between p-6 bg-primary/5 border-2 border-primary rounded-2xl cursor-pointer transition-all active:scale-[0.98]">
+                <button 
+                  type="button"
+                  onClick={() => setPaymentMethod("COD")}
+                  className={`w-full flex items-center justify-between p-6 border-2 rounded-2xl cursor-pointer transition-all ${paymentMethod === 'COD' ? 'bg-primary/5 border-primary' : 'bg-white border-black/10 hover:border-black'}`}
+                >
                   <div className="flex items-center gap-4">
-                    <Wallet size={24} className="text-primary" />
+                    <Wallet size={24} className={paymentMethod === 'COD' ? 'text-primary' : 'text-gray-400'} />
                     <p className="text-sm font-black uppercase">Thanh toán khi nhận hàng (COD)</p>
                   </div>
-                  <div className="w-5 h-5 rounded-full border-2 border-primary flex items-center justify-center bg-white">
-                    <div className="w-2 h-2 rounded-full bg-primary"></div>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center bg-white ${paymentMethod === 'COD' ? 'border-primary' : 'border-gray-300'}`}>
+                    {paymentMethod === 'COD' && <div className="w-2 h-2 rounded-full bg-primary"></div>}
                   </div>
                 </button>
                 
-                <button className="w-full flex items-center justify-between p-6 bg-white border-2 border-black rounded-2xl hover:bg-primary transition-all group active:translate-y-1">
+                <button 
+                  type="button"
+                  onClick={() => setPaymentMethod("VNPAY")}
+                  className={`w-full flex items-center justify-between p-6 border-2 rounded-2xl transition-all group ${paymentMethod === 'VNPAY' ? 'bg-primary/5 border-primary' : 'bg-white border-black/10 hover:border-black'}`}
+                >
                   <div className="flex items-center gap-4">
                     <img src="https://vnpay.vn/wp-content/uploads/2020/07/icon-vnpay.png" alt="VNPAY" className="h-8 object-contain" />
-                    <p className="text-sm font-black uppercase group-hover:text-white">Thanh toán qua VNPAY</p>
+                    <p className="text-sm font-black uppercase group-hover:text-primary">Thanh toán qua VNPAY</p>
                   </div>
-                  <div className="bg-primary text-white text-[10px] font-black px-2 py-1 rounded border border-black shadow-subtle group-hover:bg-black group-hover:shadow-none uppercase">KHUYÊN DÙNG</div>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center bg-white ${paymentMethod === 'VNPAY' ? 'border-primary' : 'border-gray-300'}`}>
+                    {paymentMethod === 'VNPAY' && <div className="w-2 h-2 rounded-full bg-primary"></div>}
+                  </div>
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Column 3: Order Summary (3/12) */}
-          <div className="lg:col-span-3 space-y-6">
+          {/* Column 3: Order Summary (4/12) */}
+          <div className="lg:col-span-4 space-y-6">
             <div className="bg-black text-white border-2 border-black rounded-[2.5rem] p-8 shadow-brutal flex flex-col gap-8">
               <h3 className="text-xl font-black uppercase tracking-tighter border-b border-white/20 pb-4 flex items-center gap-3">
                 <Package className="text-primary" /> Đơn hàng
               </h3>
 
               <div className="space-y-6">
-                {[1, 2].map(i => (
-                  <div key={i} className="flex gap-4 items-center">
+                {cartItems.map(item => {
+                  const imageUrl = item.product?.images?.find(img => img.is_primary)?.image_url || item.product?.images?.[0]?.image_url || '';
+                  return (
+                  <div key={item.id} className="flex gap-4 items-center">
                     <div className="w-16 h-20 bg-white/10 rounded-xl overflow-hidden border border-white/20 flex-shrink-0">
-                       <img src={`https://images.unsplash.com/photo-${i === 1 ? '1591047139829-d91aecb6caea' : '1541099649105-f69ad21f3246'}?q=80&w=200`} alt="Product" className="w-full h-full object-cover" />
+                       <img src={imageUrl.startsWith('http') ? imageUrl : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${imageUrl}`} alt={item.product?.name} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-grow">
-                       <p className="text-xs font-black uppercase truncate max-w-[120px]">{i === 1 ? 'Heritage Jacket' : 'Slim Fit Jeans'}</p>
-                       <p className="text-[10px] font-bold text-gray-400">Size L / 1x</p>
-                       <p className="text-xs font-black mt-1 text-primary">{i === 1 ? '1.250.000₫' : '850.000₫'}</p>
+                       <p className="text-xs font-black uppercase truncate max-w-[120px]">{item.product?.name}</p>
+                       <p className="text-[10px] font-bold text-gray-400">
+                         {item.variant ? `Size ${item.variant.size} / ${item.variant.color}` : 'Mặc định'}
+                       </p>
+                       <div className="flex justify-between items-center mt-1">
+                         <p className="text-xs font-black text-primary">{(Number(item.unit_price)).toLocaleString()}₫</p>
+                         <p className="text-[10px] font-black text-gray-400">x{item.quantity}</p>
+                       </div>
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
 
               <div className="space-y-4 pt-6 border-t border-white/10">
                 <div className="flex justify-between text-xs font-bold text-gray-400">
                   <span>TẠM TÍNH</span>
-                  <span className="text-white">2.100.000₫</span>
+                  <span className="text-white">{subtotal.toLocaleString()}₫</span>
                 </div>
                 <div className="flex justify-between text-xs font-bold text-gray-400">
                   <span>VẬN CHUYỂN</span>
-                  <span className="text-green-400">30.000₫</span>
+                  <span className="text-green-400">{shippingFee === 0 ? 'Miễn phí' : `${shippingFee.toLocaleString()}₫`}</span>
                 </div>
                 <div className="flex justify-between items-end pt-4">
                   <span className="text-xs font-black uppercase tracking-widest">TỔNG CỘNG</span>
-                  <span className="text-3xl font-black text-primary tracking-tighter">2.130.000₫</span>
+                  <span className="text-3xl font-black text-primary tracking-tighter">{total.toLocaleString()}₫</span>
                 </div>
               </div>
 
-              <Link
-                to="/orders"
-                className="w-full bg-primary text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all active:scale-95 flex items-center justify-center"
+              <button
+                type="submit"
+                disabled={createOrderMutation.isPending || cartItems.length === 0}
+                className="w-full bg-primary text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all active:scale-95 flex items-center justify-center disabled:opacity-50"
               >
-                 ĐẶT HÀNG NGAY
-              </Link>
+                {createOrderMutation.isPending ? <Loader2 className="animate-spin" size={24} /> : 'ĐẶT HÀNG NGAY'}
+              </button>
 
               <div className="flex items-center gap-3 text-[9px] font-bold text-gray-500 uppercase tracking-widest justify-center">
                 <ShieldCheck size={14} className="text-green-500" /> Thanh toán được bảo mật
               </div>
             </div>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );

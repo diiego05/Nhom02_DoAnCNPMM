@@ -23,6 +23,7 @@ import { Link } from "react-router-dom";
 import { Controller, useForm } from "react-hook-form";
 import * as yup from "yup";
 import { yupResolver } from "@hookform/resolvers/yup";
+import { useAddresses, useCreateAddress, useUpdateAddress, useDeleteAddress } from "@/hooks/useAddresses";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8088";
 
@@ -30,9 +31,14 @@ interface IUpdateProfileData {
   full_name: string;
   phone: string;
   date_of_birth: string;
-  address: string;
   gender: string;
 }
+
+const addressSchema = yup.object().shape({
+  recipient_name: yup.string().required("Vui lòng nhập tên người nhận"),
+  phone_number: yup.string().required("Vui lòng nhập số điện thoại"),
+  address_line: yup.string().required("Vui lòng nhập địa chỉ chi tiết"),
+});
 
 const Profile = () => {
   const { handleLogout } = useAuth();
@@ -50,7 +56,6 @@ const Profile = () => {
       .matches(/^[0-9]{10}$/, "Số điện thoại phải có đúng 10 chữ số")
       .required("Số điện thoại không được để trống"),
     date_of_birth: yup.string().required("Ngày sinh không được để trống"),
-    address: yup.string().required("Địa chỉ không được để trống"),
     gender: yup.string().required("Giới tính không được để trống"),
   });
 
@@ -64,7 +69,6 @@ const Profile = () => {
       full_name: user?.fullName || "",
       phone: user?.phone || "",
       date_of_birth: user?.dateOfBirth ? user.dateOfBirth.split("T")[0] : "",
-      address: user?.address || "",
       gender: user?.gender || "male",
     },
     resolver: yupResolver(schema),
@@ -74,6 +78,85 @@ const Profile = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Address logic
+  const { data: addresses, isLoading: isAddressesLoading } = useAddresses();
+  const createAddressMutation = useCreateAddress();
+  const updateAddressMutation = useUpdateAddress();
+  const deleteAddressMutation = useDeleteAddress();
+  const [isAddingAddress, setIsAddingAddress] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
+
+  const {
+    register: registerAddress,
+    handleSubmit: handleAddressSubmit,
+    reset: resetAddress,
+    formState: { errors: addressErrors },
+  } = useForm({
+    resolver: yupResolver(addressSchema),
+  });
+
+  const onSubmitAddress = async (data: any) => {
+    try {
+      if (editingAddressId) {
+        await updateAddressMutation.mutateAsync({
+          id: editingAddressId,
+          payload: {
+            recipient_name: data.recipient_name,
+            phone_number: data.phone_number,
+            address_line: data.address_line,
+          }
+        });
+        alert("Cập nhật địa chỉ thành công!");
+      } else {
+        await createAddressMutation.mutateAsync({
+          recipient_name: data.recipient_name,
+          phone_number: data.phone_number,
+          address_line: data.address_line,
+          is_default: addresses?.length === 0,
+        });
+        alert("Thêm địa chỉ thành công!");
+      }
+      setIsAddingAddress(false);
+      setEditingAddressId(null);
+      resetAddress();
+    } catch (error) {
+      alert(editingAddressId ? "Cập nhật địa chỉ thất bại!" : "Thêm địa chỉ thất bại!");
+    }
+  };
+
+  const handleEditAddress = (addr: any) => {
+    setEditingAddressId(addr.id);
+    resetAddress({
+      recipient_name: addr.recipient_name,
+      phone_number: addr.phone_number,
+      address_line: addr.address_line,
+    });
+    setIsAddingAddress(true);
+  };
+
+  const handleDeleteAddress = async (id: number) => {
+    if (window.confirm("Bạn có chắc chắn muốn xóa địa chỉ này?")) {
+      try {
+        await deleteAddressMutation.mutateAsync(id);
+        alert("Xóa địa chỉ thành công!");
+      } catch (error) {
+        alert("Xóa địa chỉ thất bại!");
+      }
+    }
+  };
+
+  const handleSetDefaultAddress = async (id: number) => {
+    try {
+      await updateAddressMutation.mutateAsync({
+        id,
+        payload: { is_default: true }
+      });
+      alert("Đã đặt làm địa chỉ mặc định!");
+    } catch (error) {
+      alert("Cập nhật thất bại!");
+    }
+  };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -96,7 +179,6 @@ const Profile = () => {
     formData.append("full_name", data.full_name);
     formData.append("phone", data.phone);
     formData.append("date_of_birth", data.date_of_birth);
-    formData.append("address", data.address);
     formData.append("gender", data.gender);
 
     if (selectedFile) {
@@ -111,7 +193,6 @@ const Profile = () => {
             ...user!,
             fullName: updatedProfile.fullName,
             dateOfBirth: updatedProfile.dateOfBirth,
-            address: updatedProfile.address,
             gender: updatedProfile.gender,
             avatarUrl: updatedProfile.avatarUrl,
           }),
@@ -120,7 +201,6 @@ const Profile = () => {
           full_name: updatedProfile.fullName,
           phone: updatedProfile.phone,
           date_of_birth: updatedProfile.dateOfBirth?.split("T")[0] || "",
-          address: updatedProfile.address,
           gender: updatedProfile.gender,
         });
         // Xóa preview để hiển thị ảnh thật từ Cloudinary
@@ -209,7 +289,10 @@ const Profile = () => {
                   to="/vendor"
                   className="flex items-center gap-3 px-6 py-4 hover:bg-primary hover:text-white border-b border-black text-primary font-black transition-all group"
                 >
-                  <Store size={18} className="group-hover:scale-110 transition-transform" /> 
+                  <Store
+                    size={18}
+                    className="group-hover:scale-110 transition-transform"
+                  />
                   {hasShop ? "Kênh Người Bán" : "Đăng ký mở shop"}
                 </Link>
 
@@ -321,22 +404,7 @@ const Profile = () => {
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <Controller
-                        control={control}
-                        name="address"
-                        render={({ field }) => (
-                          <Input
-                            label="Địa chỉ"
-                            id="address"
-                            name="address"
-                            type="text"
-                            value={field.value}
-                            onChange={field.onChange}
-                          />
-                        )}
-                      />
-                    </div>
+
 
                     <div>
                       <label className="text-xs font-bold uppercase tracking-wider mb-3 block">
@@ -496,36 +564,101 @@ const Profile = () => {
               </div>
             </div>
 
-            {/* Default Address */}
+            {/* Address Book */}
             <Card className="p-0 mt-2 flex flex-col">
               <div className="p-6 border-b-2 border-black flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <MapPin size={20} />
                   <h3 className="font-serif text-xl font-bold">
-                    Địa chỉ nhận hàng mặc định
+                    Sổ địa chỉ nhận hàng
                   </h3>
                 </div>
-                <button className="border-2 border-black px-4 py-1 text-sm font-bold hover:bg-black hover:text-white transition-colors">
-                  Thay đổi
-                </button>
+                {!isAddingAddress && (
+                  <button 
+                    onClick={() => {
+                      setIsAddingAddress(true);
+                      setEditingAddressId(null);
+                      resetAddress({ recipient_name: "", phone_number: "", address_line: "" });
+                    }}
+                    className="border-2 border-black px-4 py-1 text-sm font-bold hover:bg-black hover:text-white transition-colors"
+                  >
+                    + Thêm địa chỉ mới
+                  </button>
+                )}
               </div>
-              <div className="p-6 md:p-8 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="font-bold text-lg">Minh Anh</span>
-                    <span className="text-gray-300">|</span>
-                    <span className="text-gray-600">0901 234 567</span>
-                    <span className="bg-gray-200 text-[10px] font-bold px-2 py-1 uppercase tracking-wider">
-                      Mặc định
-                    </span>
+              
+              <div className="p-6 md:p-8 flex flex-col gap-4">
+                {isAddressesLoading ? (
+                  <p>Đang tải...</p>
+                ) : addresses && addresses.length > 0 ? (
+                  addresses.map(addr => (
+                    <div key={addr.id} className="border-2 border-black/10 rounded-2xl p-5 relative transition-all hover:border-black">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="font-bold text-lg">{addr.recipient_name}</span>
+                        <span className="text-gray-300">|</span>
+                        <span className="text-gray-600">{addr.phone_number}</span>
+                        {addr.is_default && (
+                          <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-1 uppercase tracking-wider border border-primary rounded">
+                            Mặc định
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-gray-700 mb-4">{addr.address_line}</p>
+                      
+                      {!addr.is_default && (
+                        <button 
+                          onClick={() => handleSetDefaultAddress(addr.id)}
+                          className="text-xs font-bold text-primary hover:underline mt-2 inline-block"
+                        >
+                          Đặt làm mặc định
+                        </button>
+                      )}
+
+                      <div className="absolute top-4 right-4 flex items-center gap-3">
+                        <button 
+                          onClick={() => handleEditAddress(addr)}
+                          className="text-gray-500 hover:text-black text-xs font-bold transition-colors"
+                        >
+                          Sửa
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteAddress(addr.id)}
+                          className="text-red-400 hover:text-red-600 text-xs font-bold transition-colors"
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 italic">Bạn chưa có địa chỉ giao hàng nào.</p>
+                )}
+
+                {isAddingAddress && (
+                  <div className="mt-4 pt-6 border-t-2 border-dashed border-gray-200">
+                    <h4 className="font-bold mb-4">{editingAddressId ? "Cập nhật địa chỉ" : "Thêm địa chỉ mới"}</h4>
+                    <form onSubmit={handleAddressSubmit(onSubmitAddress)} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <input {...registerAddress("recipient_name")} placeholder="Họ và tên người nhận" className="w-full border-2 border-black/20 p-3 rounded-lg focus:border-primary outline-none" />
+                          {addressErrors.recipient_name && <p className="text-red-500 text-xs mt-1">{String(addressErrors.recipient_name.message)}</p>}
+                        </div>
+                        <div>
+                          <input {...registerAddress("phone_number")} placeholder="Số điện thoại" className="w-full border-2 border-black/20 p-3 rounded-lg focus:border-primary outline-none" />
+                          {addressErrors.phone_number && <p className="text-red-500 text-xs mt-1">{String(addressErrors.phone_number.message)}</p>}
+                        </div>
+                      </div>
+                      <div>
+                        <input {...registerAddress("address_line")} placeholder="Địa chỉ chi tiết" className="w-full border-2 border-black/20 p-3 rounded-lg focus:border-primary outline-none" />
+                        {addressErrors.address_line && <p className="text-red-500 text-xs mt-1">{String(addressErrors.address_line.message)}</p>}
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); resetAddress(); }} className="px-6 py-2 border-2 border-black font-bold hover:bg-gray-100 transition-colors rounded-lg">Hủy</button>
+                        <button type="submit" className="px-6 py-2 bg-primary text-white font-bold border-2 border-primary hover:bg-primary/90 transition-colors rounded-lg">{editingAddressId ? "Cập nhật" : "Lưu địa chỉ"}</button>
+                      </div>
+                    </form>
                   </div>
-                  <p className="text-gray-700">
-                    {user?.address || "Đang cập nhật"}
-                  </p>
-                </div>
-                <div className="hidden md:flex w-16 h-16 border-2 border-black items-center justify-center">
-                  <Map size={24} className="text-gray-400" />
-                </div>
+                )}
               </div>
             </Card>
           </div>

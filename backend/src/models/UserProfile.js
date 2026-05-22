@@ -25,10 +25,6 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.DATE,
       },
 
-      address: {
-        type: DataTypes.STRING(200),
-      },
-
       gender: {
         type: DataTypes.ENUM("male", "female", "other"),
       },

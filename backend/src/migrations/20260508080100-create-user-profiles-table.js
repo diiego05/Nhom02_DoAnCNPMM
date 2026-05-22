@@ -21,9 +21,6 @@ export default {
       date_of_birth: {
         type: Sequelize.DATE,
       },
-      address: {
-        type: Sequelize.STRING(200),
-      },
       gender: {
         type: Sequelize.ENUM("male", "female", "other"),
       },
