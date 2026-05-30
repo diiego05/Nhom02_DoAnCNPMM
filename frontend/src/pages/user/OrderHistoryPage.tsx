@@ -1,9 +1,11 @@
 import { Package, Truck, CheckCircle, XCircle, Search, RefreshCcw, Star, ChevronRight, Calendar, Hash, Loader2 } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMyOrders, useCancelOrder } from '@/hooks/useOrders';
 import { OrderStatus } from '@/types/order.types';
 
 const OrderHistoryPage = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("all");
   const [currentTime, setCurrentTime] = useState(Date.now());
 
@@ -225,7 +227,10 @@ const OrderHistoryPage = () => {
                       <Star size={14} className="text-yellow-400 fill-yellow-400" /> Đánh giá sản phẩm
                     </button>
                   ) : (
-                    <button className="flex items-center gap-2 px-6 py-3 bg-white text-black border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:text-white transition-all active:translate-y-1">
+                    <button 
+                      onClick={() => navigate(`/orders/${order.id}`)}
+                      className="flex items-center gap-2 px-6 py-3 bg-white text-black border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:text-white transition-all active:translate-y-1"
+                    >
                       Xem chi tiết đơn
                     </button>
                   )}

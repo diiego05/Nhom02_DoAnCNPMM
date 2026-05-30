@@ -14,8 +14,10 @@ import orderRouter from "./routes/orderRoute.js";
 import addressRouter from "./routes/addressRoute.js";
 import cron from "node-cron";
 import orderService from "./services/orderService.js";
+import morgan from "morgan";
 
 let app = express();
+app.use(morgan("dev"));
 
 // Giữ error handlers từ HEAD cho production safety
 process.on("uncaughtException", (error) => {
@@ -51,13 +53,15 @@ connectDB()
   .then(() => {
     app.listen(port, () => {
       console.log("Backend nodejs is running on the port: " + port);
-      
+
       // Khởi động Cron Job kiểm tra đơn hàng tự động xác nhận sau 30 phút
       cron.schedule("* * * * *", async () => {
         try {
           const updatedCount = await orderService.autoConfirmOrders();
           if (updatedCount > 0) {
-            console.log(`[CRON] Tự động xác nhận ${updatedCount} đơn hàng thành công.`);
+            console.log(
+              `[CRON] Tự động xác nhận ${updatedCount} đơn hàng thành công.`,
+            );
           }
         } catch (error) {
           console.error("[CRON] Lỗi khi chạy auto confirm orders:", error);

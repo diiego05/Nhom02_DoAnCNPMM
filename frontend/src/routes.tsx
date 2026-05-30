@@ -15,6 +15,7 @@ import ProductDetailPage from "@/pages/shop/ProductDetailPage";
 import CartPage from "@/pages/shop/CartPage";
 import CheckoutPage from "@/pages/shop/CheckoutPage";
 import OrderHistoryPage from "@/pages/user/OrderHistoryPage";
+import OrderDetailPage from "@/pages/user/OrderDetailPage";
 import ReviewPage from "@/pages/user/ReviewPage";
 import VendorDashboard from "@/pages/vendor/VendorDashboard";
 import ManagerDashboard from "@/pages/manager/ManagerDashboard";
@@ -70,6 +71,14 @@ export const getRoutes = (): RouteObject[] => {
           element: (
             <AuthGuard>
               <OrderHistoryPage />
+            </AuthGuard>
+          ),
+        },
+        {
+          path: "orders/:id",
+          element: (
+            <AuthGuard>
+              <OrderDetailPage />
             </AuthGuard>
           ),
         },
