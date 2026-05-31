@@ -23,6 +23,18 @@ export default (sequelize, DataTypes) => {
         foreignKey: "product_id",
         as: "attributes",
       });
+      Product.hasMany(models.ProductReview, {
+        foreignKey: "product_id",
+        as: "reviews",
+      });
+      Product.hasMany(models.Wishlist, {
+        foreignKey: "product_id",
+        as: "wishlistedBy",
+      });
+      Product.hasMany(models.UserViewedProduct, {
+        foreignKey: "product_id",
+        as: "viewedBy",
+      });
     }
   }
 
@@ -96,6 +108,16 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 0,
+      },
+      review_count: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      rating_average: {
+        type: DataTypes.DECIMAL(3, 2),
+        allowNull: false,
+        defaultValue: 0.00,
       },
     },
     {

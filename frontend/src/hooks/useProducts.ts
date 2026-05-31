@@ -74,3 +74,25 @@ export const useCategories = () => {
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 };
+
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+export const useToggleFavorite = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (productId: number) => productService.toggleFavorite(productId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["favorites"] });
+    },
+  });
+};
+
+export const useRecordView = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (productId: number) => productService.recordView(productId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["viewed-products"] });
+    },
+  });
+};

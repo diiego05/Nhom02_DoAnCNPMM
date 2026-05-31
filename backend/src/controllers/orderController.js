@@ -1,4 +1,5 @@
 import orderService from "../services/orderService.js";
+import orderStatusService from "../services/orderStatusService.js";
 
 const createOrder = async (req, res) => {
   try {
@@ -9,6 +10,9 @@ const createOrder = async (req, res) => {
       recipientPhone,
       note,
       items,
+      coupon_code,
+      use_points,
+      is_cart_checkout
     } = req.body;
 
     if (!shippingAddress || !recipientName || !recipientPhone) {
@@ -22,6 +26,9 @@ const createOrder = async (req, res) => {
       recipientPhone,
       note,
       items,
+      couponCode: coupon_code,
+      usePoints: use_points,
+      isCartCheckout: is_cart_checkout
     });
 
     return res
@@ -79,4 +86,29 @@ const confirmOrder = async (req, res) => {
   }
 };
 
-export default { createOrder, getMyOrders, getOrderDetail, cancelOrder, confirmOrder };
+const calculateCheckout = async (req, res) => {
+  try {
+    const { items, couponCode, usePoints } = req.body;
+    const result = await orderService.calculateCheckout(req.user.id, {
+      items,
+      couponCode,
+      usePoints,
+    });
+    return res.status(200).json({ message: "Success", data: result });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+const updateOrderStatus = async (req, res) => {
+  try {
+    const { status, note } = req.body;
+    const { orderId } = req.params;
+    const order = await orderStatusService.updateOrderStatus(orderId, status, req.user?.id, note);
+    return res.status(200).json({ message: "Cập nhật trạng thái thành công", data: order });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+export default { createOrder, getMyOrders, getOrderDetail, cancelOrder, confirmOrder, calculateCheckout, updateOrderStatus };

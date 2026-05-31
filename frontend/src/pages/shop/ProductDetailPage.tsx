@@ -18,10 +18,12 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { useProductDetail, useSimilarProducts } from "@/hooks/useProducts";
+import { useProductDetail, useSimilarProducts, useToggleFavorite, useRecordView } from "@/hooks/useProducts";
 import { formatViewCount, formatPrice } from "@/utils/format";
 import { useAddToCart } from "@/hooks/useCart";
 import { useAppSelector } from "@/stores/hooks";
+import { useFavorites } from "@/hooks/useUser";
+import { useProductReviews } from "@/hooks/useReviews";
 
 const ProductDetailPage = () => {
   const { id: slug } = useParams<{ id: string }>();
@@ -45,6 +47,34 @@ const ProductDetailPage = () => {
   const { data: product, isLoading, error } = useProductDetail(slug || "");
   const { data: similarProducts, isLoading: isLoadingSimilar } =
     useSimilarProducts(slug || "");
+
+  // Khởi tạo các hook API mới
+  const recordViewMutation = useRecordView();
+  const toggleFavoriteMutation = useToggleFavorite();
+  const { data: favorites } = useFavorites();
+  
+  // Tab reviews
+  const [reviewPage, setReviewPage] = useState(1);
+  const { data: reviewsData } = useProductReviews(product?.id || 0, reviewPage, 5);
+
+  // Ghi nhận lượt xem 1 lần khi load product thành công
+  useEffect(() => {
+    if (product?.id) {
+      recordViewMutation.mutate(product.id);
+    }
+  }, [product?.id]);
+
+  const isFavorite = favorites?.some((f: any) => f.product_id === product?.id);
+
+  const handleToggleFavorite = () => {
+    if (!isAuthenticated) {
+      navigate("/auth/login?redirect=" + window.location.pathname);
+      return;
+    }
+    if (product?.id) {
+      toggleFavoriteMutation.mutate(product.id);
+    }
+  };
 
   // Tự động chọn biến thể đầu tiên khi load xong sản phẩm
   useEffect(() => {
@@ -130,7 +160,11 @@ const ProductDetailPage = () => {
 
   const imgs =
     product.images && product.images.length > 0
-      ? product.images.map((img) => img.image_url)
+      ? product.images.map((img) => 
+          img.image_url.startsWith('http') || img.image_url.startsWith('data:') 
+            ? img.image_url 
+            : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${img.image_url.startsWith('/') ? '' : '/'}${img.image_url}`
+        )
       : ["/placeholder.jpg"];
 
   const handlePrevImg = () => {
@@ -219,8 +253,11 @@ const ProductDetailPage = () => {
                     : "Sản Phẩm"}
               </span>
               <div className="flex gap-4">
-                <button className="w-14 h-14 bg-white border-2 border-black rounded-2xl shadow-subtle flex items-center justify-center hover:bg-primary hover:text-white hover:shadow-none transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">
-                  <Heart size={24} />
+                <button 
+                  onClick={handleToggleFavorite}
+                  className={`w-14 h-14 bg-white border-2 border-black rounded-2xl shadow-subtle flex items-center justify-center transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none ${isFavorite ? "text-red-500 border-red-500 shadow-[4px_4px_0px_0px_rgba(239,68,68,1)] hover:bg-red-50" : "hover:bg-primary hover:text-white"}`}
+                >
+                  <Heart size={24} fill={isFavorite ? "currentColor" : "none"} />
                 </button>
                 <button className="w-14 h-14 bg-white border-2 border-black rounded-2xl shadow-subtle flex items-center justify-center hover:bg-primary hover:text-white hover:shadow-none transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">
                   <Share2 size={24} />
@@ -234,19 +271,17 @@ const ProductDetailPage = () => {
 
             <div className="flex items-center gap-10">
               <div className="flex items-center gap-4">
-                <div className="flex">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      size={20}
-                      className="fill-yellow-400 text-yellow-400"
-                    />
-                  ))}
+                <div className="flex items-center gap-1 bg-yellow-100 px-2 py-1 rounded-lg border border-yellow-300">
+                  <Star size={16} className="fill-yellow-500 text-yellow-500" />
+                  <span className="font-black text-sm">{Number(product.rating_average || 0).toFixed(1)}</span>
                 </div>
-                <span className="text-sm font-black text-black underline tracking-tighter">
-                  {formatViewCount(product.view_count * 2)} LƯỢT QUAN TÂM
+                <span className="text-sm font-black text-gray-500 underline tracking-tighter cursor-pointer hover:text-primary" onClick={() => setActiveTab("reviews")}>
+                  {product.review_count || 0} ĐÁNH GIÁ
                 </span>
               </div>
+              <span className="text-sm font-black text-black underline tracking-tighter">
+                {formatViewCount(product.view_count)} LƯỢT XEM
+              </span>
               <span className="text-sm font-black text-gray-400 uppercase tracking-widest border-l-2 border-black pl-10">
                 ĐÃ BÁN: <span className="text-black">{product.sold_count}</span>
               </span>
@@ -551,6 +586,7 @@ const ProductDetailPage = () => {
           {[
             { id: "description", label: "Mô tả sản phẩm" },
             { id: "specs", label: "Thông số kỹ thuật" },
+            { id: "reviews", label: "Đánh giá sản phẩm" },
             { id: "returns", label: "Chính sách đổi trả" },
           ].map((tab) => (
             <button
@@ -667,6 +703,90 @@ const ProductDetailPage = () => {
               </div>
             </div>
             <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-primary/5 -skew-x-12 translate-x-20 pointer-events-none"></div>
+          </div>
+        )}
+
+        {activeTab === "reviews" && (
+          <div className="bg-white border-2 border-black rounded-[3rem] p-12 md:p-20 shadow-brutal">
+            <div className="max-w-4xl space-y-12">
+              <div className="flex items-center justify-between">
+                <h3 className="text-4xl font-serif font-black uppercase tracking-tighter">
+                  Đánh giá sản phẩm
+                </h3>
+                <div className="flex items-center gap-4 bg-yellow-100 px-6 py-4 rounded-2xl border-2 border-yellow-300">
+                  <span className="text-5xl font-black text-yellow-600">{Number(product.rating_average || 0).toFixed(1)}</span>
+                  <div className="flex flex-col">
+                    <div className="flex gap-1">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} size={20} className={i < Math.round(product.rating_average || 0) ? "fill-yellow-500 text-yellow-500" : "fill-gray-200 text-gray-200"} />
+                      ))}
+                    </div>
+                    <span className="text-sm font-bold text-gray-500">{product.review_count || 0} lượt đánh giá</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-8">
+                {reviewsData?.reviews && reviewsData.reviews.length > 0 ? (
+                  reviewsData.reviews.map((review: any) => (
+                    <div key={review.id} className="border-2 border-black/10 rounded-3xl p-8 hover:border-black transition-colors">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-full border-2 border-black overflow-hidden bg-gray-100">
+                            {review.user?.profile?.avatar_url ? (
+                              <img src={review.user.profile.avatar_url.startsWith('http') ? review.user.profile.avatar_url : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${review.user.profile.avatar_url}`} alt="Avatar" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center font-black text-xl text-gray-400">
+                                {review.user?.email?.[0].toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-black text-lg">{review.user?.profile?.full_name || review.user?.email.split('@')[0]}</p>
+                            <p className="text-xs font-bold text-gray-400">{new Date(review.created_at).toLocaleDateString("vi-VN")}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-1 bg-gray-50 px-3 py-1.5 rounded-lg border border-black/10">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} size={14} className={i < review.rating ? "fill-yellow-500 text-yellow-500" : "fill-gray-200 text-gray-200"} />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-gray-700 font-medium leading-relaxed">{review.comment}</p>
+                      
+                      {review.images && JSON.parse(review.images).length > 0 && (
+                        <div className="flex gap-4 mt-6">
+                          {JSON.parse(review.images).map((imgUrl: string, idx: number) => (
+                            <div key={idx} className="w-24 h-24 rounded-xl border border-black/20 overflow-hidden cursor-pointer hover:border-primary">
+                              <img src={imgUrl.startsWith('http') ? imgUrl : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${imgUrl}`} alt="Review img" className="w-full h-full object-cover" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-300">
+                    <p className="font-bold text-gray-400">Chưa có đánh giá nào cho sản phẩm này.</p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Phân trang Reviews */}
+              {reviewsData && reviewsData.totalPages > 1 && (
+                <div className="flex justify-center gap-2 pt-8">
+                  {[...Array(reviewsData.totalPages)].map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setReviewPage(i + 1)}
+                      className={`w-10 h-10 rounded-xl font-black text-sm border-2 flex items-center justify-center transition-all ${reviewPage === i + 1 ? "bg-black text-white border-black" : "bg-white text-gray-500 border-gray-200 hover:border-black"}`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

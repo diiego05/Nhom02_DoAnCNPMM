@@ -31,6 +31,10 @@ const ProductCard = ({
 }: ProductCardProps) => {
   const [showModal, setShowModal] = useState(false);
 
+  const finalImage = image.startsWith('http') || image.startsWith('data:') || image.startsWith('/placeholder') 
+    ? image 
+    : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${image.startsWith('/') ? '' : '/'}${image}`;
+
   return (
     <>
       <div className="group relative flex flex-col bg-white border-2 border-black shadow-subtle rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-brutal hover:translate-x-[-1px] hover:translate-y-[-1px]">
@@ -38,7 +42,7 @@ const ProductCard = ({
         <div className="relative aspect-[3/4] overflow-hidden bg-gray-100 border-b-2 border-black">
           <Link to={`/products/${id}`}>
             <img
-              src={image}
+              src={finalImage}
               alt={name}
               className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
@@ -144,6 +148,10 @@ const AddToCartModal = ({
   const { data: product, isLoading } = useProductDetail(productSlug);
   const addToCartMutation = useAddToCart();
 
+  const finalProductImage = productImage.startsWith('http') || productImage.startsWith('data:') || productImage.startsWith('/placeholder') 
+    ? productImage 
+    : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${productImage.startsWith('/') ? '' : '/'}${productImage}`;
+
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -237,7 +245,7 @@ const AddToCartModal = ({
         <div className="flex gap-5 p-6 pb-0">
           <div className="w-24 h-28 rounded-2xl overflow-hidden border-2 border-black shadow-subtle shrink-0">
             <img
-              src={productImage}
+              src={finalProductImage}
               alt={productName}
               className="w-full h-full object-cover"
             />

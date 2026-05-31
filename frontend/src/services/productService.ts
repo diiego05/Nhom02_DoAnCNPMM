@@ -3,7 +3,7 @@ import {
   ProductFilters,
   ProductListResponse,
 } from "@/types/product.types";
-import { publicAxios } from "./axiosClient";
+import { axiosClient, publicAxios } from "./axiosClient";
 
 const productService = {
   // Lấy danh sách sản phẩm với bộ lọc
@@ -60,6 +60,24 @@ const productService = {
   getSimilarProducts: async (slug: string) => {
     const response = await publicAxios.get(`/products/${slug}/similar`);
     return response.data.data as Product[];
+  },
+
+  // Toggle Favorite
+  toggleFavorite: async (productId: number) => {
+    const response = await axiosClient.post(`/products/${productId}/favorite`);
+    return response.data;
+  },
+
+  // Record View
+  recordView: async (productId: number) => {
+    try {
+      const response = await axiosClient.post(`/products/${productId}/view`);
+      return response.data;
+    } catch (e) {
+      // Fallback for not logged in
+      const response = await publicAxios.post(`/products/${productId}/view`);
+      return response.data;
+    }
   },
 };
 

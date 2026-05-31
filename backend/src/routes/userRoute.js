@@ -37,4 +37,7 @@ router.put(
   userController.updateUserProfile,
 );
 
+router.get("/me/favorites", verifyToken, userController.getFavorites);
+router.get("/me/viewed", verifyToken, userController.getViewedProducts);
+
 export default router;

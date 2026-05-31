@@ -1,14 +1,59 @@
 import { useParams, Link } from 'react-router-dom';
+import { useState } from 'react';
 import { 
   ChevronLeft, Package, MapPin, CreditCard, 
-  CheckCircle, Calendar, Hash, Truck, Loader2, DollarSign
+  CheckCircle, Calendar, Hash, Truck, Loader2, DollarSign,
+  Star, X
 } from 'lucide-react';
 import { useOrderDetail } from '@/hooks/useOrders';
+import { useCreateReview } from '@/hooks/useReviews';
 import { OrderStatus } from '@/types/order.types';
 
 const OrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const { data: order, isLoading, isError } = useOrderDetail(Number(id));
+
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [selectedProductToReview, setSelectedProductToReview] = useState<any>(null);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  
+  const createReviewMutation = useCreateReview();
+
+  const handleOpenReviewModal = (item: any) => {
+    setSelectedProductToReview(item);
+    setRating(5);
+    setComment('');
+    setReviewModalOpen(true);
+  };
+
+  const handleSubmitReview = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProductToReview) return;
+    createReviewMutation.mutate(
+      {
+        productId: selectedProductToReview.product_id,
+        payload: {
+          order_id: order?.id,
+          variant_id: selectedProductToReview.product_variant_id,
+          rating,
+          comment
+        }
+      },
+      {
+        onSuccess: () => {
+          setReviewModalOpen(false);
+          setComment('');
+          setRating(5);
+          alert('Đánh giá thành công! Bạn đã được tặng 100 điểm thưởng.');
+        },
+        onError: (error: any) => {
+          const errMsg = error?.response?.data?.message || 'Có lỗi xảy ra khi gửi đánh giá';
+          alert(errMsg);
+        }
+      }
+    );
+  };
 
   const orderStatuses = [
     { key: 'PENDING', label: 'Đơn mới' },
@@ -110,7 +155,7 @@ const OrderDetailPage = () => {
                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
                     <Hash size={12} /> Mã đơn hàng
                   </span>
-                  <span className="font-mono font-black text-lg text-black">UTE-{order.id.toString().padStart(5, '0')}</span>
+                  <span className="font-mono font-black text-lg text-black">{order.order_code}</span>
                 </div>
                 <div className="w-[2px] h-8 bg-gray-200 hidden md:block"></div>
                 <div className="flex flex-col">
@@ -189,8 +234,19 @@ const OrderDetailPage = () => {
                       {item.variant_color || item.variant_size ? `Phân loại: ${item.variant_size || ''} ${item.variant_color ? `/ ${item.variant_color}` : ''}` : 'Mặc định'}
                     </p>
                     <div className="flex justify-between items-center mt-3">
-                      <p className="text-sm font-black text-primary">{(Number(item.unit_price)).toLocaleString()}₫</p>
-                      <p className="text-xs font-black text-gray-500 bg-white px-3 py-1 rounded-full border border-black/10 shadow-sm">x{item.quantity}</p>
+                      <div className="flex items-center gap-3">
+                        <p className="text-sm font-black text-primary">{(Number(item.unit_price)).toLocaleString()}₫</p>
+                        <p className="text-xs font-black text-gray-500 bg-white px-3 py-1 rounded-full border border-black/10 shadow-sm">x{item.quantity}</p>
+                      </div>
+                      
+                      {order.status === 'DELIVERED' && (
+                        <button 
+                          onClick={() => handleOpenReviewModal(item)}
+                          className="px-4 py-2 bg-black text-white rounded-lg text-xs font-bold hover:bg-primary transition-colors flex items-center gap-1"
+                        >
+                          <Star size={14} className="fill-yellow-400 text-yellow-400" /> Đánh giá
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -231,6 +287,74 @@ const OrderDetailPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Review Modal */}
+      {reviewModalOpen && selectedProductToReview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white border-2 border-black rounded-[2rem] w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-200">
+            <button 
+              onClick={() => setReviewModalOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-black hover:rotate-90 transition-all"
+            >
+              <X size={24} />
+            </button>
+            <h2 className="text-2xl font-black uppercase tracking-tighter mb-2">Đánh giá sản phẩm</h2>
+            <p className="text-sm text-gray-500 mb-6 font-medium">Chia sẻ trải nghiệm của bạn và nhận 100 điểm thưởng!</p>
+            
+            <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-2xl border-2 border-black/5">
+              <img 
+                src={(selectedProductToReview.product_image_url || selectedProductToReview.product?.images?.find((img: any) => img.is_primary)?.image_url || selectedProductToReview.product?.images?.[0]?.image_url)?.startsWith('http') ? (selectedProductToReview.product_image_url || selectedProductToReview.product?.images?.find((img: any) => img.is_primary)?.image_url || selectedProductToReview.product?.images?.[0]?.image_url) : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${selectedProductToReview.product_image_url || selectedProductToReview.product?.images?.find((img: any) => img.is_primary)?.image_url || selectedProductToReview.product?.images?.[0]?.image_url}`} 
+                alt="Product" 
+                className="w-16 h-16 rounded-xl object-cover border border-black/10 bg-white"
+              />
+              <div>
+                <p className="font-black text-sm uppercase leading-tight line-clamp-2 mb-1">{selectedProductToReview.product_name || selectedProductToReview.product?.name}</p>
+                <p className="text-xs text-gray-500 font-bold">{selectedProductToReview.variant_color || selectedProductToReview.variant_size ? `Phân loại: ${selectedProductToReview.variant_size || ''} ${selectedProductToReview.variant_color ? `/ ${selectedProductToReview.variant_color}` : ''}` : 'Mặc định'}</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitReview} className="space-y-6">
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-3 text-center">Chất lượng sản phẩm</label>
+                <div className="flex justify-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRating(star)}
+                      className="focus:outline-none transform hover:scale-110 transition-transform"
+                    >
+                      <Star 
+                        size={32} 
+                        className={`${star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} 
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-2">Đánh giá chi tiết</label>
+                <textarea
+                  className="w-full h-32 border-2 border-black/20 focus:border-black rounded-xl p-4 font-medium outline-none transition-all resize-none"
+                  placeholder="Hãy chia sẻ cảm nhận của bạn về sản phẩm nhé..."
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  required
+                ></textarea>
+              </div>
+
+              <button
+                type="submit"
+                disabled={createReviewMutation.isPending}
+                className="w-full py-4 bg-primary text-white border-2 border-black rounded-xl font-black uppercase tracking-widest hover:bg-black transition-colors active:translate-y-1 shadow-subtle hover:shadow-none disabled:opacity-50"
+              >
+                {createReviewMutation.isPending ? 'Đang gửi...' : 'Gửi đánh giá'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -76,7 +76,7 @@ const login = async (req, res) => {
 // REFRESH TOKEN
 const refresh = async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
 
     if (!refreshToken) {
       return res.status(400).json({ message: "Refresh token is required" });

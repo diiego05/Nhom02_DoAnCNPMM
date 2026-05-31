@@ -33,6 +33,7 @@ DROP TABLE IF EXISTS `orders`;
 DROP TABLE IF EXISTS `user_coupon_usages`;
 DROP TABLE IF EXISTS `carts`;
 DROP TABLE IF EXISTS `wishlists`;
+DROP TABLE IF EXISTS `user_viewed_products`;
 DROP TABLE IF EXISTS `user_addresses`;
 DROP TABLE IF EXISTS `flash_sale_items`;
 DROP TABLE IF EXISTS `flash_sales`;
@@ -81,6 +82,7 @@ CREATE TABLE `users` (
   `auth_provider`    VARCHAR(50)  DEFAULT 'local'   COMMENT 'local | google | facebook',
   `auth_provider_id` VARCHAR(255) DEFAULT NULL,
   `role_id`          INT          NOT NULL,
+  `loyalty_points`   INT          NOT NULL DEFAULT 0 COMMENT 'Kho điểm tích lũy',
   `status`           ENUM('PENDING','ACTIVE','LOCKED') NOT NULL DEFAULT 'PENDING',
   `created_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -243,6 +245,10 @@ CREATE TABLE `products` (
   `base_price`    DECIMAL(15,2) NOT NULL DEFAULT 0.00 COMMENT 'Giá niêm yết toàn hệ thống',
   `sale_price`    DECIMAL(15,2) DEFAULT NULL          COMMENT 'Giá khuyến mãi',
   `thumbnail_url` TEXT          DEFAULT NULL,
+  `view_count`    INT           NOT NULL DEFAULT 0,
+  `sold_count`    INT           NOT NULL DEFAULT 0,
+  `review_count`  INT           NOT NULL DEFAULT 0,
+  `rating_average` DECIMAL(3,2) NOT NULL DEFAULT 0.00,
   `is_active`     TINYINT(1)    NOT NULL DEFAULT 1,
   `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -479,7 +485,22 @@ CREATE TABLE `wishlists` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
--- 8.3  carts
+-- 8.3  user_viewed_products
+-- ============================================================
+CREATE TABLE `user_viewed_products` (
+  `id`         BIGINT   NOT NULL AUTO_INCREMENT,
+  `user_id`    BIGINT   NOT NULL,
+  `product_id` BIGINT   NOT NULL,
+  `viewed_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_uvp_user_product` (`user_id`, `product_id`),
+  INDEX `idx_uvp_user_date` (`user_id`, `viewed_at`),
+  CONSTRAINT `fk_uvp_user`    FOREIGN KEY (`user_id`)    REFERENCES `users`(`id`)    ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `fk_uvp_product` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- 8.4  carts
 -- ============================================================
 CREATE TABLE `carts` (
   `id`         BIGINT   NOT NULL AUTO_INCREMENT,
@@ -513,6 +534,8 @@ CREATE TABLE `orders` (
 
   -- [FIX Lỗi 1] Lưu mã giảm giá đã dùng để đối soát
   `coupon_id`        INT           DEFAULT NULL COMMENT 'FK tới coupons — NULL nếu không dùng mã',
+  `points_used`      INT           NOT NULL DEFAULT 0 COMMENT 'Số điểm tích lũy đã dùng',
+  `points_discount`  DECIMAL(15,2) NOT NULL DEFAULT 0.00 COMMENT 'Số tiền giảm từ điểm',
 
   -- Snapshot giao hàng
   `recipient_name`   VARCHAR(200)  NOT NULL,
@@ -615,6 +638,7 @@ CREATE TABLE `product_reviews` (
   `order_id`   BIGINT     NOT NULL COMMENT 'Chỉ đánh giá khi đã mua',
   `rating`     TINYINT    NOT NULL COMMENT '1 – 5 sao',
   `comment`    TEXT       DEFAULT NULL,
+  `images`     TEXT       DEFAULT NULL COMMENT 'JSON/Array URL ảnh đánh giá',
   `is_visible` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

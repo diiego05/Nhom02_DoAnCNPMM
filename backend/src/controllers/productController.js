@@ -94,6 +94,35 @@ const getMostViewedProducts = async (req, res) => {
   }
 };
 
+// POST /products/:id/favorite
+const toggleFavorite = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const userId = req.user.id; 
+
+    const result = await productService.toggleFavorite(userId, productId);
+    return res.status(result.status === "added" ? 201 : 200).json({ message: result.message });
+  } catch (error) {
+    console.error("Error toggle favorite:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// POST /products/:id/view
+const recordView = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const userId = req.user ? req.user.id : null; 
+
+    await productService.recordView(userId, productId);
+
+    return res.status(200).json({ message: "Đã ghi nhận lượt xem." });
+  } catch (error) {
+    console.error("Error recording view:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getProducts,
   getProductBySlug,
@@ -102,4 +131,6 @@ export default {
   getNewestProducts,
   getBestSellerProducts,
   getMostViewedProducts,
+  toggleFavorite,
+  recordView,
 };

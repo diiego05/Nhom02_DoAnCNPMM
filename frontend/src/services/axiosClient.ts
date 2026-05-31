@@ -69,7 +69,7 @@ axiosClient.interceptors.response.use(
 
     const isExpiredToken =
       error.response?.status === 401 &&
-      error.response?.data?.message === "accessToken jwt expired";
+      (error.response?.data?.message === "Invalid or expired token" || error.response?.data?.message === "accessToken jwt expired");
 
     if (isExpiredToken) {
       originalRequest._retry = true;

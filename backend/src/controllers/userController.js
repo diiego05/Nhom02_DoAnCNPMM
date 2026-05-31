@@ -16,6 +16,7 @@ const getUserProfile = async (req, res) => {
         gender: user.gender,
         avatarUrl: user.avatar_url,
         coverPhotoUrl: user.cover_photo_url,
+        loyalty_points: user.loyalty_points,
       },
     });
   } catch (error) {
@@ -49,7 +50,31 @@ const updateUserProfile = async (req, res) => {
   }
 };
 
+const getFavorites = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const favorites = await userService.getFavorites(userId);
+    return res.status(200).json({ message: "Success", data: favorites });
+  } catch (error) {
+    console.error("Error fetching favorites:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getViewedProducts = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const viewed = await userService.getViewedProducts(userId);
+    return res.status(200).json({ message: "Success", data: viewed });
+  } catch (error) {
+    console.error("Error fetching viewed products:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getUserProfile,
   updateUserProfile,
+  getFavorites,
+  getViewedProducts,
 };

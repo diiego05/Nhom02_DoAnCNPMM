@@ -9,6 +9,9 @@ export default (sequelize, DataTypes) => {
         foreignKey: "order_id",
         as: "statusLogs",
       });
+      Order.belongsTo(models.Coupon, { foreignKey: "coupon_id", as: "coupon" });
+      Order.hasMany(models.ProductReview, { foreignKey: "order_id", as: "reviews" });
+      Order.hasMany(models.UserCouponUsage, { foreignKey: "order_id", as: "couponUsages" });
     }
   }
 
@@ -71,6 +74,20 @@ export default (sequelize, DataTypes) => {
       discount_amount: {
         type: DataTypes.DECIMAL(15, 2),
         defaultValue: 0,
+      },
+      coupon_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      points_used: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      points_discount: {
+        type: DataTypes.DECIMAL(15, 2),
+        allowNull: false,
+        defaultValue: 0.00,
       },
       total_amount: {
         type: DataTypes.DECIMAL(15, 2),

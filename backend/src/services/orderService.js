@@ -1,11 +1,102 @@
 import db from "../models/index.js";
 import cartService from "./cartService.js";
+
 // Tạo mã đơn hàng duy nhất
 const generateOrderCode = () => {
   const date = new Date();
   const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
   const random = Math.random().toString(36).substring(2, 7).toUpperCase();
   return `ORD-${dateStr}-${random}`;
+};
+
+// Tính toán hóa đơn tạm tính
+const calculateCheckout = async (userId, { items, couponCode, usePoints }) => {
+  let orderItemsData = [];
+  let isCartCheckout = false;
+
+  // 1. Chuẩn bị dữ liệu Order Items
+  if (items && items.length > 0) {
+    for (const item of items) {
+      const product = await db.Product.findByPk(item.product_id);
+      if (!product || product.status !== "ACTIVE") throw new Error("Sản phẩm không hợp lệ");
+      let variant = null;
+      let price = product.sale_price || product.price;
+
+      if (item.product_variant_id) {
+        variant = await db.ProductVariant.findByPk(item.product_variant_id);
+        if (!variant) throw new Error("Biến thể không hợp lệ");
+        price = variant.price || price;
+      }
+
+      orderItemsData.push({
+        quantity: item.quantity,
+        total_price: item.quantity * Number(price),
+      });
+    }
+  } else {
+    isCartCheckout = true;
+    const cartData = await cartService.getCartByUserId(userId);
+    if (!cartData.items || cartData.items.length === 0) throw new Error("Giỏ hàng trống");
+    for (const item of cartData.items) {
+      orderItemsData.push({
+        quantity: item.quantity,
+        total_price: item.quantity * Number(item.unit_price),
+      });
+    }
+  }
+
+  // 2. Tính tiền cơ bản
+  const subtotal = orderItemsData.reduce((sum, item) => sum + item.total_price, 0);
+  let shippingFee = subtotal >= 500000 ? 0 : 30000;
+
+  // 3. Áp dụng Coupon
+  let discountAmount = 0;
+  let coupon = null;
+  if (couponCode) {
+    coupon = await db.Coupon.findOne({
+      where: { code: couponCode, is_active: true }
+    });
+    if (!coupon) throw new Error("Mã giảm giá không hợp lệ");
+    if (new Date() < coupon.start_date || new Date() > coupon.end_date) throw new Error("Mã giảm giá đã hết hạn hoặc chưa bắt đầu");
+    if (coupon.usage_limit && coupon.used_count >= coupon.usage_limit) throw new Error("Mã giảm giá đã hết lượt sử dụng chung");
+    if (subtotal < coupon.min_order_amount) throw new Error(`Đơn hàng chưa đạt mức tối thiểu ${coupon.min_order_amount}đ để áp dụng mã`);
+
+    const userUsage = await db.UserCouponUsage.count({ where: { user_id: userId, coupon_id: coupon.id } });
+    if (userUsage >= coupon.per_user_limit) throw new Error("Bạn đã hết lượt sử dụng mã này");
+
+    if (coupon.discount_type === 'PERCENTAGE') {
+      discountAmount = subtotal * (Number(coupon.discount_value) / 100);
+      if (coupon.max_discount && discountAmount > coupon.max_discount) discountAmount = Number(coupon.max_discount);
+    } else {
+      discountAmount = Number(coupon.discount_value);
+    }
+  }
+
+  // 4. Áp dụng Điểm
+  let pointsUsed = 0;
+  let pointsDiscount = 0;
+  let remainingAfterCoupon = subtotal - discountAmount;
+  if (remainingAfterCoupon < 0) remainingAfterCoupon = 0;
+
+  const user = await db.User.findByPk(userId);
+  if (usePoints && user.loyalty_points > 0) {
+    // 1 điểm = 1 VND
+    const maxPointsCanUse = Math.min(user.loyalty_points, remainingAfterCoupon);
+    pointsUsed = maxPointsCanUse;
+    pointsDiscount = maxPointsCanUse;
+  }
+
+  const finalTotalAmount = remainingAfterCoupon + shippingFee - pointsDiscount;
+
+  return {
+    subtotal,
+    shippingFee,
+    discountAmount,
+    coupon: coupon ? { id: coupon.id, code: coupon.code } : null,
+    pointsUsed,
+    pointsDiscount,
+    totalAmount: finalTotalAmount > 0 ? finalTotalAmount : 0,
+  };
 };
 
 // Tạo đơn hàng từ giỏ hàng hoặc từ danh sách items cụ thể
@@ -18,10 +109,12 @@ const createOrder = async (
     recipientPhone,
     note,
     items,
+    couponCode,
+    usePoints,
+    isCartCheckout = false,
   },
 ) => {
   let orderItemsData = [];
-  let isCartCheckout = false;
 
   // 1. Chuẩn bị dữ liệu Order Items
   if (items && items.length > 0) {
@@ -90,10 +183,10 @@ const createOrder = async (
     }
   }
 
-  // 2. Tính toán giá
-  const subtotal = orderItemsData.reduce((sum, item) => sum + item.total_price, 0);
-  const shippingFee = subtotal >= 500000 ? 0 : 30000; // Miễn ship đơn >= 500k
-  const totalAmount = subtotal + shippingFee; // Tổng tiền
+  // 2. Gọi calculateCheckout để xác định các loại phí, chiết khấu
+  const calcResult = await calculateCheckout(userId, { items, couponCode, usePoints });
+  const { subtotal, shippingFee, discountAmount, pointsUsed, pointsDiscount, totalAmount } = calcResult;
+  const couponId = calcResult.coupon ? calcResult.coupon.id : null;
 
   // 3. Tạo đơn hàng (dùng Transaction để đảm bảo toàn vẹn dữ liệu)
   const transaction = await db.sequelize.transaction();
@@ -110,9 +203,12 @@ const createOrder = async (
         shipping_address: shippingAddress,
         subtotal,
         shipping_fee: shippingFee,
-        discount_amount: 0,
+        discount_amount: discountAmount,
         total_amount: totalAmount,
         note: note || null,
+        coupon_id: couponId,
+        points_used: pointsUsed,
+        points_discount: pointsDiscount,
       },
       { transaction },
     );
@@ -133,7 +229,7 @@ const createOrder = async (
       { transaction },
     );
 
-    // 6. Trừ tồn kho
+    // 6. Trừ tồn kho và tăng sold_count
     for (const item of orderItemsData) {
       if (item.product_variant_id) {
         await db.ProductVariant.decrement("stock_quantity", {
@@ -148,12 +244,30 @@ const createOrder = async (
           transaction,
         });
       }
-      // Tăng sold_count
       await db.Product.increment("sold_count", {
         by: item.quantity,
         where: { id: item.product_id },
         transaction,
       });
+    }
+
+    // 6.5. Xử lý Coupon & Loyalty Points
+    if (pointsUsed > 0) {
+      await db.User.decrement("loyalty_points", {
+        by: pointsUsed,
+        where: { id: userId },
+        transaction
+      });
+    }
+    
+    if (couponId) {
+      await db.Coupon.increment("used_count", { by: 1, where: { id: couponId }, transaction });
+      await db.UserCouponUsage.create({
+        user_id: userId,
+        coupon_id: couponId,
+        order_id: order.id,
+        used_at: new Date()
+      }, { transaction });
     }
 
     // 7. Commit transaction
@@ -170,7 +284,6 @@ const createOrder = async (
     throw error;
   }
 };
-
 
 // Lấy danh sách đơn hàng của user
 const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
@@ -309,4 +422,4 @@ const autoConfirmOrders = async () => {
   return pendingOrders.length;
 };
 
-export default { createOrder, getUserOrders, getOrderDetail, cancelOrder, confirmOrder, autoConfirmOrders };
+export default { calculateCheckout, createOrder, getUserOrders, getOrderDetail, cancelOrder, confirmOrder, autoConfirmOrders };

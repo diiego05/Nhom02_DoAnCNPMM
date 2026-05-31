@@ -2,6 +2,11 @@ import { Order, CreateOrderPayload, OrderListResponse } from "@/types/order.type
 import { axiosClient } from "./axiosClient";
 
 const orderService = {
+  calculateCheckout: async (payload: any) => {
+    const response = await axiosClient.post("/orders/calculate", payload);
+    return response.data.data;
+  },
+
   createOrder: async (payload: CreateOrderPayload) => {
     const response = await axiosClient.post("/orders", payload);
     return response.data.data as Order;

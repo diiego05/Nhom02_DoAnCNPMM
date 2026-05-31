@@ -29,6 +29,7 @@ export const useCreateOrder = () => {
       // Refresh order list and cart
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["cart"] });
+      queryClient.invalidateQueries({ queryKey: ["coupons"] });
       // Reset badge
       dispatch(clearCartCount());
     },
@@ -43,5 +44,11 @@ export const useCancelOrder = () => {
       queryClient.invalidateQueries({ queryKey: ["order", variables.id] });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
+  });
+};
+
+export const useCalculateCheckout = () => {
+  return useMutation({
+    mutationFn: (payload: any) => orderService.calculateCheckout(payload),
   });
 };

@@ -14,4 +14,6 @@ export const userService = {
   getProfile: () => axiosClient.get("/user/profile"),
   updateProfile: (data: UpdateProfileData | FormData) =>
     axiosClient.put("/user/edit-profile", data),
+  getFavorites: () => axiosClient.get("/user/me/favorites"),
+  getViewedProducts: () => axiosClient.get("/user/me/viewed"),
 };

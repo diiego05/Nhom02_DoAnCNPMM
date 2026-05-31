@@ -37,6 +37,26 @@ export default (sequelize, DataTypes) => {
         foreignKey: "user_id",
         as: "addresses",
       });
+
+      User.hasMany(models.ProductReview, {
+        foreignKey: "user_id",
+        as: "reviews",
+      });
+
+      User.hasMany(models.Wishlist, {
+        foreignKey: "user_id",
+        as: "wishlist",
+      });
+
+      User.hasMany(models.UserViewedProduct, {
+        foreignKey: "user_id",
+        as: "viewedProducts",
+      });
+
+      User.hasMany(models.UserCouponUsage, {
+        foreignKey: "user_id",
+        as: "couponUsages",
+      });
     }
   }
 
@@ -82,6 +102,12 @@ export default (sequelize, DataTypes) => {
       role_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
+      },
+
+      loyalty_points: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
       },
 
       status: {

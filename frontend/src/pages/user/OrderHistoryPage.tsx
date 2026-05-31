@@ -154,7 +154,7 @@ const OrderHistoryPage = () => {
                       <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
                         <Hash size={12} /> Mã đơn hàng
                       </span>
-                      <span className="font-mono font-black text-lg text-black">UTE-{order.id.toString().padStart(5, '0')}</span>
+                      <span className="font-mono font-black text-lg text-black">{order.order_code}</span>
                     </div>
                     <div className="w-[2px] h-10 bg-gray-200 hidden md:block"></div>
                     <div className="flex flex-col">
@@ -223,7 +223,9 @@ const OrderHistoryPage = () => {
                     return null;
                   })()}
                   {order.status === 'DELIVERED' ? (
-                    <button className="flex items-center gap-2 px-6 py-3 bg-black text-white border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all active:translate-y-1 shadow-subtle hover:shadow-none">
+                    <button 
+                      onClick={() => navigate(`/orders/${order.id}`)}
+                      className="flex items-center gap-2 px-6 py-3 bg-black text-white border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all active:translate-y-1 shadow-subtle hover:shadow-none">
                       <Star size={14} className="text-yellow-400 fill-yellow-400" /> Đánh giá sản phẩm
                     </button>
                   ) : (

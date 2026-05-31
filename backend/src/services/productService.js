@@ -166,6 +166,16 @@ const getSimilarProducts = async (categoryId, excludeProductId, limit = 6) => {
     },
     include: [
       {
+        model: db.Category,
+        as: "category",
+        attributes: ["id", "name", "slug"]
+      },
+      {
+        model: db.Brand,
+        as: "brand",
+        attributes: ["id", "name", "slug"]
+      },
+      {
         model: db.ProductImage,
         as: "images",
         where: { is_primary: true },
@@ -379,6 +389,41 @@ const getMostViewedProducts = async (limit = 10) => {
   });
 };
 
+// POST /products/:id/favorite
+const toggleFavorite = async (userId, productId) => {
+  const existingFavorite = await db.Wishlist.findOne({
+    where: { user_id: userId, product_id: productId }
+  });
+
+  if (existingFavorite) {
+    await existingFavorite.destroy();
+    return { status: "removed", message: "Đã bỏ yêu thích sản phẩm." };
+  } else {
+    await db.Wishlist.create({ user_id: userId, product_id: productId });
+    return { status: "added", message: "Đã thêm vào danh sách yêu thích." };
+  }
+};
+
+// POST /products/:id/view
+const recordView = async (userId, productId) => {
+  // Tăng view_count của Product
+  await db.Product.increment('view_count', { by: 1, where: { id: productId } });
+
+  // Nếu đã đăng nhập, lưu vào UserViewedProduct
+  if (userId) {
+    const existingView = await db.UserViewedProduct.findOne({
+      where: { user_id: userId, product_id: productId }
+    });
+    if (existingView) {
+      existingView.viewed_at = new Date();
+      await existingView.save();
+    } else {
+      await db.UserViewedProduct.create({ user_id: userId, product_id: productId });
+    }
+  }
+  return true;
+};
+
 export default {
   getProducts,
   getProductBySlug,
@@ -387,4 +432,6 @@ export default {
   getNewestProducts,
   getBestSellerProducts,
   getMostViewedProducts,
+  toggleFavorite,
+  recordView,
 };

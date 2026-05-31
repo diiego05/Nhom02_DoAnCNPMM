@@ -24,6 +24,8 @@ import { Controller, useForm } from "react-hook-form";
 import * as yup from "yup";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { useAddresses, useCreateAddress, useUpdateAddress, useDeleteAddress } from "@/hooks/useAddresses";
+import { useFavorites, useViewedProducts, useProfile } from "@/hooks/useUser";
+import { formatPrice } from "@/utils/format";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8088";
 
@@ -86,6 +88,13 @@ const Profile = () => {
   const deleteAddressMutation = useDeleteAddress();
   const [isAddingAddress, setIsAddingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
+
+  // New features hooks
+  const { data: profile } = useProfile();
+  const { data: favorites } = useFavorites();
+  const { data: viewedProducts } = useViewedProducts();
+
+  const [activeTab, setActiveTab] = useState<"profile" | "favorites" | "viewed" | "points">("profile");
 
   const {
     register: registerAddress,
@@ -263,7 +272,8 @@ const Profile = () => {
               <nav className="flex flex-col">
                 <a
                   href="#"
-                  className="flex items-center gap-3 px-6 py-4 bg-primary text-white font-bold border-b border-black"
+                  onClick={(e) => { e.preventDefault(); setActiveTab("profile"); }}
+                  className={`flex items-center gap-3 px-6 py-4 font-bold border-b border-black transition-colors ${activeTab === 'profile' ? 'bg-primary text-white' : 'hover:bg-gray-50 text-gray-700'}`}
                 >
                   <User size={18} /> Thông tin tài khoản
                 </a>
@@ -275,16 +285,25 @@ const Profile = () => {
                 </Link>
                 <a
                   href="#"
-                  className="flex items-center gap-3 px-6 py-4 hover:bg-gray-50 border-b border-black text-gray-700 font-medium transition-colors"
+                  onClick={(e) => { e.preventDefault(); setActiveTab("favorites"); }}
+                  className={`flex items-center gap-3 px-6 py-4 font-medium border-b border-black transition-colors ${activeTab === 'favorites' ? 'bg-primary text-white' : 'hover:bg-gray-50 text-gray-700'}`}
                 >
-                  <MapPin size={18} /> Địa chỉ giao hàng
+                  <Heart size={18} /> Sản phẩm yêu thích
                 </a>
-                <Link
-                  to="/reviews"
-                  className="flex items-center gap-3 px-6 py-4 hover:bg-gray-50 border-b border-black text-gray-700 font-medium transition-colors"
+                <a
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); setActiveTab("viewed"); }}
+                  className={`flex items-center gap-3 px-6 py-4 font-medium border-b border-black transition-colors ${activeTab === 'viewed' ? 'bg-primary text-white' : 'hover:bg-gray-50 text-gray-700'}`}
                 >
-                  <Heart size={18} /> Đánh giá & Yêu thích
-                </Link>
+                  <Map size={18} /> Sản phẩm đã xem
+                </a>
+                <a
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); setActiveTab("points"); }}
+                  className={`flex items-center gap-3 px-6 py-4 font-medium border-b border-black transition-colors ${activeTab === 'points' ? 'bg-primary text-white' : 'hover:bg-gray-50 text-gray-700'}`}
+                >
+                  <Star size={18} /> Quản lý ví điểm
+                </a>
                 <Link
                   to="/vendor"
                   className="flex items-center gap-3 px-6 py-4 hover:bg-primary hover:text-white border-b border-black text-primary font-black transition-all group"
@@ -312,355 +331,388 @@ const Profile = () => {
 
           {/* Main Content */}
           <div className="w-full md:w-3/4 flex flex-col gap-6">
-            <div className="mb-2">
-              <h1 className="font-serif text-4xl font-bold mb-2">
-                THÔNG TIN TÀI KHOẢN
-              </h1>
-              <p className="text-gray-600">
-                Quản lý thông tin cá nhân và bảo mật tài khoản của bạn tại
-                UTEShop.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Profile Form */}
-              <Card className="p-0 lg:col-span-2 flex flex-col">
-                <div className="p-6 border-b-2 border-black flex items-center gap-2">
-                  <User size={20} />
-                  <h3 className="font-serif text-xl font-bold">
-                    Hồ sơ cá nhân
-                  </h3>
+            {activeTab === "profile" && (
+              <>
+                <div className="mb-2">
+                  <h1 className="font-serif text-4xl font-bold mb-2">
+                    THÔNG TIN TÀI KHOẢN
+                  </h1>
+                  <p className="text-gray-600">
+                    Quản lý thông tin cá nhân và bảo mật tài khoản của bạn tại
+                    UTEShop.
+                  </p>
                 </div>
-                <div className="p-6 md:p-8 flex-grow">
-                  <form
-                    className="space-y-6"
-                    onSubmit={handleSubmit((data) => onSubmit(data))}
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <Controller
-                        control={control}
-                        name="full_name"
-                        render={({ field, fieldState }) => (
-                          <div>
-                            <Input
-                              label="Họ và tên"
-                              id="fullname"
-                              name="full_name"
-                              value={field.value}
-                              onChange={field.onChange}
-                            />
-                            {fieldState.error?.message && (
-                              <p className="text-red-500 text-sm mt-1">
-                                {fieldState.error.message}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      />
-                      <Controller
-                        control={control}
-                        name="phone"
-                        render={({ field, fieldState }) => (
-                          <div>
-                            <Input
-                              label="Số điện thoại"
-                              id="phone"
-                              name="phone"
-                              value={field.value}
-                              onChange={field.onChange}
-                            />
-                            {fieldState.error?.message && (
-                              <p className="text-red-500 text-sm mt-1">
-                                {fieldState.error.message}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      />
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Profile Form */}
+                  <Card className="p-0 lg:col-span-2 flex flex-col">
+                    <div className="p-6 border-b-2 border-black flex items-center gap-2">
+                      <User size={20} />
+                      <h3 className="font-serif text-xl font-bold">
+                        Hồ sơ cá nhân
+                      </h3>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <Input
-                        label="Email"
-                        id="email"
-                        type="email"
-                        value={user?.email || ""}
-                        disabled
-                        className="bg-gray-100 text-gray-500"
-                        onChange={() => {}}
-                      />
-                      <Controller
-                        control={control}
-                        name="date_of_birth"
-                        render={({ field }) => (
-                          <Input
-                            label="Ngày sinh"
-                            id="dob"
-                            name="date_of_birth"
-                            type="date"
-                            value={field.value}
-                            onChange={field.onChange}
-                          />
-                        )}
-                      />
-                    </div>
-
-
-
-                    <div>
-                      <label className="text-xs font-bold uppercase tracking-wider mb-3 block">
-                        Giới tính
-                      </label>
-                      <div className="flex items-center space-x-6">
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                          <Controller
-                            control={control}
-                            name="gender"
-                            render={({ field }) => (
-                              <input
-                                type="radio"
-                                name="gender"
-                                value="male"
-                                checked={field.value === "male"}
-                                onChange={field.onChange}
-                                className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
-                              />
-                            )}
-                          />
-                          <span>Nam</span>
-                        </label>
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                          <Controller
-                            control={control}
-                            name="gender"
-                            render={({ field }) => (
-                              <input
-                                type="radio"
-                                name="gender"
-                                value="female"
-                                checked={field.value === "female"}
-                                onChange={field.onChange}
-                                className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
-                              />
-                            )}
-                          />
-                          <span>Nữ</span>
-                        </label>
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                          <Controller
-                            control={control}
-                            name="gender"
-                            render={({ field }) => (
-                              <input
-                                type="radio"
-                                name="gender"
-                                value="other"
-                                checked={field.value === "other"}
-                                onChange={field.onChange}
-                                className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
-                              />
-                            )}
-                          />
-                          <span>Khác</span>
-                        </label>
-                      </div>
-                      {errors.gender?.message && (
-                        <p className="text-red-500 text-sm mt-1">
-                          {errors.gender.message}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="pt-4">
-                      <Button
-                        type="submit"
-                        disabled={isUpdating}
-                        className="w-full md:w-auto"
+                    <div className="p-6 md:p-8 flex-grow">
+                      <form
+                        className="space-y-6"
+                        onSubmit={handleSubmit((data) => onSubmit(data))}
                       >
-                        {isUpdating ? "Đang lưu..." : "Lưu thay đổi"}
-                      </Button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <Controller
+                            control={control}
+                            name="full_name"
+                            render={({ field, fieldState }) => (
+                              <div>
+                                <Input
+                                  label="Họ và tên"
+                                  id="fullname"
+                                  name="full_name"
+                                  value={field.value}
+                                  onChange={field.onChange}
+                                />
+                                {fieldState.error?.message && (
+                                  <p className="text-red-500 text-sm mt-1">
+                                    {fieldState.error.message}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          />
+                          <Controller
+                            control={control}
+                            name="phone"
+                            render={({ field, fieldState }) => (
+                              <div>
+                                <Input
+                                  label="Số điện thoại"
+                                  id="phone"
+                                  name="phone"
+                                  value={field.value}
+                                  onChange={field.onChange}
+                                />
+                                {fieldState.error?.message && (
+                                  <p className="text-red-500 text-sm mt-1">
+                                    {fieldState.error.message}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <Input
+                            label="Email"
+                            id="email"
+                            type="email"
+                            value={user?.email || ""}
+                            disabled
+                            className="bg-gray-100 text-gray-500"
+                            onChange={() => {}}
+                          />
+                          <Controller
+                            control={control}
+                            name="date_of_birth"
+                            render={({ field }) => (
+                              <Input
+                                label="Ngày sinh"
+                                id="dob"
+                                name="date_of_birth"
+                                type="date"
+                                value={field.value}
+                                onChange={field.onChange}
+                              />
+                            )}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wider mb-3 block">
+                            Giới tính
+                          </label>
+                          <div className="flex items-center space-x-6">
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <Controller
+                                control={control}
+                                name="gender"
+                                render={({ field }) => (
+                                  <input
+                                    type="radio"
+                                    name="gender"
+                                    value="male"
+                                    checked={field.value === "male"}
+                                    onChange={field.onChange}
+                                    className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
+                                  />
+                                )}
+                              />
+                              <span>Nam</span>
+                            </label>
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <Controller
+                                control={control}
+                                name="gender"
+                                render={({ field }) => (
+                                  <input
+                                    type="radio"
+                                    name="gender"
+                                    value="female"
+                                    checked={field.value === "female"}
+                                    onChange={field.onChange}
+                                    className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
+                                  />
+                                )}
+                              />
+                              <span>Nữ</span>
+                            </label>
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <Controller
+                                control={control}
+                                name="gender"
+                                render={({ field }) => (
+                                  <input
+                                    type="radio"
+                                    name="gender"
+                                    value="other"
+                                    checked={field.value === "other"}
+                                    onChange={field.onChange}
+                                    className="w-4 h-4 text-primary focus:ring-primary border-black accent-primary"
+                                  />
+                                )}
+                              />
+                              <span>Khác</span>
+                            </label>
+                          </div>
+                          {errors.gender?.message && (
+                            <p className="text-red-500 text-sm mt-1">
+                              {errors.gender.message}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="pt-4">
+                          <Button
+                            type="submit"
+                            disabled={isUpdating}
+                            className="w-full md:w-auto"
+                          >
+                            {isUpdating ? "Đang lưu..." : "Lưu thay đổi"}
+                          </Button>
+                        </div>
+                      </form>
                     </div>
-                  </form>
+                  </Card>
+
+                  {/* Stats & Rank */}
+                  <div className="flex flex-col gap-6 lg:col-span-1">
+                    <Card className="p-0 flex flex-col">
+                      <div className="p-5 border-b-2 border-black">
+                        <h3 className="font-serif text-lg font-bold">Thống kê</h3>
+                      </div>
+                      <div className="flex flex-col">
+                        <div className="p-5 border-b-2 border-black flex items-center justify-between hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => setActiveTab("points")}>
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-black text-white flex items-center justify-center">
+                              <Star size={20} />
+                            </div>
+                            <div>
+                              <p className="font-serif text-2xl font-bold leading-none">
+                                {profile?.loyalty_points || 0}
+                              </p>
+                              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mt-1">
+                                Điểm tích lũy
+                              </p>
+                            </div>
+                          </div>
+                          <span>›</span>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
                 </div>
-              </Card>
 
-              {/* Stats & Rank */}
-              <div className="flex flex-col gap-6 lg:col-span-1">
-                <Card className="p-0 flex flex-col">
-                  <div className="p-5 border-b-2 border-black">
-                    <h3 className="font-serif text-lg font-bold">Thống kê</h3>
+                {/* Address Book */}
+                <Card className="p-0 mt-2 flex flex-col">
+                  <div className="p-6 border-b-2 border-black flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MapPin size={20} />
+                      <h3 className="font-serif text-xl font-bold">
+                        Sổ địa chỉ nhận hàng
+                      </h3>
+                    </div>
+                    {!isAddingAddress && (
+                      <button 
+                        onClick={() => {
+                          setIsAddingAddress(true);
+                          setEditingAddressId(null);
+                          resetAddress({ recipient_name: "", phone_number: "", address_line: "" });
+                        }}
+                        className="border-2 border-black px-4 py-1 text-sm font-bold hover:bg-black hover:text-white transition-colors"
+                      >
+                        + Thêm địa chỉ mới
+                      </button>
+                    )}
                   </div>
-                  <div className="flex flex-col">
-                    <div className="p-5 border-b-2 border-black flex items-center justify-between hover:bg-gray-50 cursor-pointer transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-black text-white flex items-center justify-center">
-                          <PackageSearch size={20} />
+                  
+                  <div className="p-6 md:p-8 flex flex-col gap-4">
+                    {isAddressesLoading ? (
+                      <p>Đang tải...</p>
+                    ) : addresses && addresses.length > 0 ? (
+                      addresses.map(addr => (
+                        <div key={addr.id} className="border-2 border-black/10 rounded-2xl p-5 relative transition-all hover:border-black">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="font-bold text-lg">{addr.recipient_name}</span>
+                            <span className="text-gray-300">|</span>
+                            <span className="text-gray-600">{addr.phone_number}</span>
+                            {addr.is_default && (
+                              <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-1 uppercase tracking-wider border border-primary rounded">
+                                Mặc định
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-gray-700 mb-4">{addr.address_line}</p>
+                          
+                          {!addr.is_default && (
+                            <button 
+                              onClick={() => handleSetDefaultAddress(addr.id)}
+                              className="text-xs font-bold text-primary hover:underline mt-2 inline-block"
+                            >
+                              Đặt làm mặc định
+                            </button>
+                          )}
+
+                          <div className="absolute top-4 right-4 flex items-center gap-3">
+                            <button 
+                              onClick={() => handleEditAddress(addr)}
+                              className="text-gray-500 hover:text-black text-xs font-bold transition-colors"
+                            >
+                              Sửa
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteAddress(addr.id)}
+                              className="text-red-400 hover:text-red-600 text-xs font-bold transition-colors"
+                            >
+                              Xóa
+                            </button>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-serif text-2xl font-bold leading-none">
-                            08
-                          </p>
-                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mt-1">
-                            Đơn hàng hiện tại
-                          </p>
-                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 italic">Bạn chưa có địa chỉ giao hàng nào.</p>
+                    )}
+
+                    {isAddingAddress && (
+                      <div className="mt-4 pt-6 border-t-2 border-dashed border-gray-200">
+                        <h4 className="font-bold mb-4">{editingAddressId ? "Cập nhật địa chỉ" : "Thêm địa chỉ mới"}</h4>
+                        <form onSubmit={handleAddressSubmit(onSubmitAddress)} className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <input {...registerAddress("recipient_name")} placeholder="Họ và tên người nhận" className="w-full border-2 border-black/20 p-3 rounded-lg focus:border-primary outline-none" />
+                              {addressErrors.recipient_name && <p className="text-red-500 text-xs mt-1">{String(addressErrors.recipient_name.message)}</p>}
+                            </div>
+                            <div>
+                              <input {...registerAddress("phone_number")} placeholder="Số điện thoại" className="w-full border-2 border-black/20 p-3 rounded-lg focus:border-primary outline-none" />
+                              {addressErrors.phone_number && <p className="text-red-500 text-xs mt-1">{String(addressErrors.phone_number.message)}</p>}
+                            </div>
+                          </div>
+                          <div>
+                            <input {...registerAddress("address_line")} placeholder="Địa chỉ chi tiết" className="w-full border-2 border-black/20 p-3 rounded-lg focus:border-primary outline-none" />
+                            {addressErrors.address_line && <p className="text-red-500 text-xs mt-1">{String(addressErrors.address_line.message)}</p>}
+                          </div>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); resetAddress(); }} className="px-6 py-2 border-2 border-black font-bold hover:bg-gray-100 transition-colors rounded-lg">Hủy</button>
+                            <button type="submit" className="px-6 py-2 bg-primary text-white font-bold border-2 border-primary hover:bg-primary/90 transition-colors rounded-lg">{editingAddressId ? "Cập nhật" : "Lưu địa chỉ"}</button>
+                          </div>
+                        </form>
                       </div>
-                      <span>›</span>
-                    </div>
-                    <div className="p-5 border-b-2 border-black flex items-center justify-between hover:bg-gray-50 cursor-pointer transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-black text-white flex items-center justify-center">
-                          <Star size={20} />
-                        </div>
-                        <div>
-                          <p className="font-serif text-2xl font-bold leading-none">
-                            1.250
-                          </p>
-                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mt-1">
-                            Điểm tích lũy
-                          </p>
-                        </div>
-                      </div>
-                      <span>›</span>
-                    </div>
-                    <div className="p-5 flex items-center justify-between hover:bg-gray-50 cursor-pointer transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-black text-white flex items-center justify-center">
-                          <Ticket size={20} />
-                        </div>
-                        <div>
-                          <p className="font-serif text-2xl font-bold leading-none">
-                            03
-                          </p>
-                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mt-1">
-                            Voucher khả dụng
-                          </p>
-                        </div>
-                      </div>
-                      <span>›</span>
-                    </div>
+                    )}
                   </div>
                 </Card>
+              </>
+            )}
 
-                <Card className="p-6 bg-[#faf9f6]">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-full border-2 border-black bg-white flex items-center justify-center flex-shrink-0">
-                      <Star size={24} className="text-[#fbbd08]" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
-                        Hạng thành viên
-                      </p>
-                      <h4 className="font-serif text-2xl font-bold text-[#d4af37] mt-1 mb-2">
-                        Gold Member
-                      </h4>
-                      <p className="text-xs text-gray-600 leading-relaxed">
-                        Tích lũy thêm{" "}
-                        <span className="font-bold text-black">750 điểm</span>{" "}
-                        để lên hạng Kim Cương.
-                      </p>
-                    </div>
-                  </div>
-                </Card>
+            {activeTab === "favorites" && (
+              <div>
+                <div className="mb-6">
+                  <h1 className="font-serif text-4xl font-bold mb-2">SẢN PHẨM YÊU THÍCH</h1>
+                  <p className="text-gray-600">Danh sách các sản phẩm bạn đã lưu lại.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  {favorites && favorites.length > 0 ? (
+                    favorites.map((fav: any) => (
+                      <Link to={`/products/${fav.product.slug}`} key={fav.id} className="bg-white border-2 border-black rounded-[2rem] p-4 flex flex-col gap-4 shadow-subtle hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all">
+                        <div className="aspect-square bg-gray-100 rounded-[1rem] overflow-hidden border-2 border-black/10">
+                          <img src={(fav.product.images?.[0]?.image_url)?.startsWith('http') ? fav.product.images[0].image_url : `${API_URL}${fav.product.images?.[0]?.image_url}`} alt={fav.product.name} className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                          <h3 className="font-black text-lg truncate">{fav.product.name}</h3>
+                          <p className="text-primary font-black mt-1">{formatPrice(fav.product.price)}</p>
+                        </div>
+                      </Link>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 italic col-span-full">Bạn chưa có sản phẩm yêu thích nào.</p>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Address Book */}
-            <Card className="p-0 mt-2 flex flex-col">
-              <div className="p-6 border-b-2 border-black flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <MapPin size={20} />
-                  <h3 className="font-serif text-xl font-bold">
-                    Sổ địa chỉ nhận hàng
+            {activeTab === "viewed" && (
+              <div>
+                <div className="mb-6">
+                  <h1 className="font-serif text-4xl font-bold mb-2">SẢN PHẨM VỪA XEM</h1>
+                  <p className="text-gray-600">Những sản phẩm bạn đã quan tâm gần đây.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  {viewedProducts && viewedProducts.length > 0 ? (
+                    viewedProducts.map((view: any) => (
+                      <Link to={`/products/${view.product.slug}`} key={view.id} className="bg-white border-2 border-black rounded-[2rem] p-4 flex flex-col gap-4 shadow-subtle hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all">
+                        <div className="aspect-square bg-gray-100 rounded-[1rem] overflow-hidden border-2 border-black/10">
+                          <img src={(view.product.images?.[0]?.image_url)?.startsWith('http') ? view.product.images[0].image_url : `${API_URL}${view.product.images?.[0]?.image_url}`} alt={view.product.name} className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                          <h3 className="font-black text-lg truncate">{view.product.name}</h3>
+                          <p className="text-primary font-black mt-1">{formatPrice(view.product.price)}</p>
+                          <p className="text-[10px] font-bold text-gray-400 mt-2">Xem lúc: {new Date(view.viewed_at).toLocaleDateString('vi-VN')}</p>
+                        </div>
+                      </Link>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 italic col-span-full">Bạn chưa xem sản phẩm nào.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "points" && (
+              <div>
+                <div className="mb-6">
+                  <h1 className="font-serif text-4xl font-bold mb-2">QUẢN LÝ VÍ ĐIỂM</h1>
+                  <p className="text-gray-600">Theo dõi điểm tích lũy và các ưu đãi của bạn.</p>
+                </div>
+                
+                <Card className="p-8 bg-gradient-to-br from-yellow-400 to-yellow-600 border-none shadow-xl text-white mb-8 relative overflow-hidden">
+                  <div className="absolute -right-10 -top-10 opacity-20">
+                    <Star size={200} className="fill-white" />
+                  </div>
+                  <div className="relative z-10">
+                    <p className="text-sm font-bold uppercase tracking-widest text-yellow-100 mb-2">Điểm hiện có</p>
+                    <h2 className="text-6xl font-black mb-4">{profile?.loyalty_points?.toLocaleString() || 0} <span className="text-xl">điểm</span></h2>
+                    <p className="text-sm font-medium">Tương đương <strong>{((profile?.loyalty_points || 0) * 100).toLocaleString()}₫</strong> khi thanh toán</p>
+                  </div>
+                </Card>
+
+                <Card className="p-6">
+                  <h3 className="font-serif text-xl font-bold mb-4 flex items-center gap-2 border-b-2 border-black pb-4">
+                    <Ticket size={24} /> Lịch sử dùng điểm
                   </h3>
-                </div>
-                {!isAddingAddress && (
-                  <button 
-                    onClick={() => {
-                      setIsAddingAddress(true);
-                      setEditingAddressId(null);
-                      resetAddress({ recipient_name: "", phone_number: "", address_line: "" });
-                    }}
-                    className="border-2 border-black px-4 py-1 text-sm font-bold hover:bg-black hover:text-white transition-colors"
-                  >
-                    + Thêm địa chỉ mới
-                  </button>
-                )}
-              </div>
-              
-              <div className="p-6 md:p-8 flex flex-col gap-4">
-                {isAddressesLoading ? (
-                  <p>Đang tải...</p>
-                ) : addresses && addresses.length > 0 ? (
-                  addresses.map(addr => (
-                    <div key={addr.id} className="border-2 border-black/10 rounded-2xl p-5 relative transition-all hover:border-black">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="font-bold text-lg">{addr.recipient_name}</span>
-                        <span className="text-gray-300">|</span>
-                        <span className="text-gray-600">{addr.phone_number}</span>
-                        {addr.is_default && (
-                          <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-1 uppercase tracking-wider border border-primary rounded">
-                            Mặc định
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-gray-700 mb-4">{addr.address_line}</p>
-                      
-                      {!addr.is_default && (
-                        <button 
-                          onClick={() => handleSetDefaultAddress(addr.id)}
-                          className="text-xs font-bold text-primary hover:underline mt-2 inline-block"
-                        >
-                          Đặt làm mặc định
-                        </button>
-                      )}
-
-                      <div className="absolute top-4 right-4 flex items-center gap-3">
-                        <button 
-                          onClick={() => handleEditAddress(addr)}
-                          className="text-gray-500 hover:text-black text-xs font-bold transition-colors"
-                        >
-                          Sửa
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteAddress(addr.id)}
-                          className="text-red-400 hover:text-red-600 text-xs font-bold transition-colors"
-                        >
-                          Xóa
-                        </button>
-                      </div>
+                  <div className="space-y-4">
+                    <div className="text-center py-10 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300">
+                      <p className="text-gray-500 font-bold">Chưa có lịch sử giao dịch điểm.</p>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-gray-500 italic">Bạn chưa có địa chỉ giao hàng nào.</p>
-                )}
-
-                {isAddingAddress && (
-                  <div className="mt-4 pt-6 border-t-2 border-dashed border-gray-200">
-                    <h4 className="font-bold mb-4">{editingAddressId ? "Cập nhật địa chỉ" : "Thêm địa chỉ mới"}</h4>
-                    <form onSubmit={handleAddressSubmit(onSubmitAddress)} className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <input {...registerAddress("recipient_name")} placeholder="Họ và tên người nhận" className="w-full border-2 border-black/20 p-3 rounded-lg focus:border-primary outline-none" />
-                          {addressErrors.recipient_name && <p className="text-red-500 text-xs mt-1">{String(addressErrors.recipient_name.message)}</p>}
-                        </div>
-                        <div>
-                          <input {...registerAddress("phone_number")} placeholder="Số điện thoại" className="w-full border-2 border-black/20 p-3 rounded-lg focus:border-primary outline-none" />
-                          {addressErrors.phone_number && <p className="text-red-500 text-xs mt-1">{String(addressErrors.phone_number.message)}</p>}
-                        </div>
-                      </div>
-                      <div>
-                        <input {...registerAddress("address_line")} placeholder="Địa chỉ chi tiết" className="w-full border-2 border-black/20 p-3 rounded-lg focus:border-primary outline-none" />
-                        {addressErrors.address_line && <p className="text-red-500 text-xs mt-1">{String(addressErrors.address_line.message)}</p>}
-                      </div>
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); resetAddress(); }} className="px-6 py-2 border-2 border-black font-bold hover:bg-gray-100 transition-colors rounded-lg">Hủy</button>
-                        <button type="submit" className="px-6 py-2 bg-primary text-white font-bold border-2 border-primary hover:bg-primary/90 transition-colors rounded-lg">{editingAddressId ? "Cập nhật" : "Lưu địa chỉ"}</button>
-                      </div>
-                    </form>
                   </div>
-                )}
+                </Card>
               </div>
-            </Card>
+            )}
           </div>
         </div>
       </main>

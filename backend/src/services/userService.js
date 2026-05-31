@@ -8,8 +8,9 @@ const getUserProfileById = (id) => {
         where: { user_id: id },
         raw: true,
       });
-      if (userProfile) {
-        resolve(userProfile);
+      let userAccount = await db.User.findByPk(id, { attributes: ["loyalty_points", "email", "phone"], raw: true });
+      if (userProfile || userAccount) {
+        resolve({ ...userProfile, ...userAccount });
       } else {
         resolve({});
       }
@@ -46,7 +47,52 @@ const updateUserProfile = (data) => {
   });
 };
 
+const getFavorites = async (userId) => {
+  return await db.Wishlist.findAll({
+    where: { user_id: userId },
+    include: [
+      { 
+        model: db.Product, 
+        as: "product",
+        include: [
+          {
+            model: db.ProductImage,
+            as: "images",
+            where: { is_primary: true },
+            required: false,
+          }
+        ]
+      }
+    ],
+    order: [["created_at", "DESC"]],
+  });
+};
+
+const getViewedProducts = async (userId) => {
+  return await db.UserViewedProduct.findAll({
+    where: { user_id: userId },
+    include: [
+      { 
+        model: db.Product, 
+        as: "product",
+        include: [
+          {
+            model: db.ProductImage,
+            as: "images",
+            where: { is_primary: true },
+            required: false,
+          }
+        ]
+      }
+    ],
+    order: [["viewed_at", "DESC"]],
+    limit: 20,
+  });
+};
+
 export default {
   getUserProfileById,
   updateUserProfile,
+  getFavorites,
+  getViewedProducts,
 };
