@@ -16,13 +16,13 @@ const XIcon = ({ size = 18 }: { size?: number }) => (
 
 const Footer = () => {
   return (
-    <footer className="w-full bg-white border-t-2 border-black mt-32">
+    <footer className="w-full bg-white border-t border-black/10 mt-32">
       <div className="max-w-7xl mx-auto px-6 py-20">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16">
           {/* Brand Info */}
           <div className="space-y-8">
             <Link to="/" className="flex items-center space-x-3 group">
-              <div className="w-10 h-10 bg-primary text-white border-2 border-black rounded-xl flex items-center justify-center group-hover:bg-black transition-all shadow-subtle">
+              <div className="w-10 h-10 bg-primary text-white border-2 border-black/10 rounded-xl flex items-center justify-center group-hover:bg-black group-hover:border-black transition-all shadow-sm">
                 <ShoppingBag size={24} strokeWidth={2.5} />
               </div>
               <span className="font-serif text-2xl font-black text-primary uppercase group-hover:text-black transition-colors">UTEShop</span>
@@ -36,7 +36,7 @@ const Footer = () => {
                 { icon: <InstagramIcon />, href: "#" },
                 { icon: <XIcon />, href: "#" }
               ].map((social, i) => (
-                <a key={i} href={social.href} className="w-11 h-11 bg-white border-2 border-black rounded-xl flex items-center justify-center text-black hover:bg-primary hover:text-white transition-all hover:shadow-subtle hover:translate-x-[-2px] hover:translate-y-[-2px]">
+                <a key={i} href={social.href} className="w-11 h-11 bg-white border border-black/10 rounded-xl flex items-center justify-center text-black hover:bg-primary hover:text-white transition-all shadow-sm hover:shadow-subtle hover:-translate-y-1">
                   {social.icon}
                 </a>
               ))}
@@ -45,7 +45,7 @@ const Footer = () => {
 
           {/* Quick Links */}
           <div>
-            <h4 className="font-black text-xs uppercase tracking-widest mb-8 pb-2 border-b-2 border-black w-fit">Mua sắm</h4>
+            <h4 className="font-black text-xs uppercase tracking-widest mb-8 pb-2 border-b border-black/10 w-fit">Mua sắm</h4>
             <ul className="space-y-4">
               {["Thời trang Nam", "Thời trang Nữ", "Phụ kiện", "Bộ sưu tập"].map((link) => (
                 <li key={link}>
@@ -57,7 +57,7 @@ const Footer = () => {
 
           {/* Support */}
           <div>
-            <h4 className="font-black text-xs uppercase tracking-widest mb-8 pb-2 border-b-2 border-black w-fit">Hỗ trợ</h4>
+            <h4 className="font-black text-xs uppercase tracking-widest mb-8 pb-2 border-b border-black/10 w-fit">Hỗ trợ</h4>
             <ul className="space-y-4">
               {["Chính sách đổi trả", "Hướng dẫn chọn size", "Câu hỏi thường gặp", "Liên hệ"].map((link) => (
                 <li key={link}>
@@ -69,7 +69,7 @@ const Footer = () => {
 
           {/* Newsletter */}
           <div className="space-y-8">
-            <h4 className="font-black text-xs uppercase tracking-widest mb-8 pb-2 border-b-2 border-black w-fit">Bản tin</h4>
+            <h4 className="font-black text-xs uppercase tracking-widest mb-8 pb-2 border-b border-black/10 w-fit">Bản tin</h4>
             <form className="relative">
               <input
                 type="email"
@@ -78,7 +78,7 @@ const Footer = () => {
               />
               <button
                 type="submit"
-                className="absolute right-1.5 top-1.5 bottom-1.5 w-11 bg-black text-white rounded-xl flex items-center justify-center border-2 border-black hover:bg-primary transition-all"
+                className="absolute right-1.5 top-1.5 bottom-1.5 w-11 bg-black text-white rounded-lg flex items-center justify-center border border-black hover:bg-primary transition-all shadow-sm"
               >
                 <Send size={18} strokeWidth={2.5} />
               </button>
@@ -86,7 +86,7 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="border-t-2 border-black mt-20 pt-10 flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="border-t border-black/10 mt-20 pt-10 flex flex-col md:flex-row justify-between items-center gap-6">
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
             © 2024 UTEShop. ALL RIGHTS RESERVED.
           </p>

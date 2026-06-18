@@ -23,11 +23,11 @@ const Header = () => {
   ];
 
   return (
-    <header className="w-full bg-white border-b-2 border-black sticky top-0 z-50">
+    <header className="w-full bg-white/90 backdrop-blur-md border-b border-black/10 sticky top-0 z-50 shadow-sm">
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between gap-10">
         {/* Logo - Sửa lại màu Cam cho cả Icon và Chữ */}
         <Link to="/" className="flex items-center space-x-3 group">
-          <div className="w-10 h-10 bg-primary text-white border-2 border-black rounded-2xl flex items-center justify-center group-hover:bg-black transition-all shadow-subtle group-hover:shadow-none">
+          <div className="w-10 h-10 bg-primary text-white border-2 border-black/10 rounded-xl flex items-center justify-center group-hover:bg-black group-hover:border-black transition-all shadow-sm">
             <ShoppingBag size={24} strokeWidth={2.5} />
           </div>
           <span className="font-serif text-2xl font-black tracking-tighter text-primary uppercase group-hover:text-black transition-colors">UTEShop</span>
@@ -46,7 +46,7 @@ const Header = () => {
               <div className="grid grid-cols-4 gap-12 p-10 max-w-6xl mx-auto">
                 {categories.map((cat) => (
                   <div key={cat.name}>
-                    <h4 className="font-black text-black mb-6 pb-2 border-b-2 border-black uppercase text-[10px] tracking-widest">
+                    <h4 className="font-black text-black mb-6 pb-2 border-b border-black/10 uppercase text-[10px] tracking-widest">
                       {cat.name}
                     </h4>
                     <ul className="space-y-4">
@@ -82,11 +82,11 @@ const Header = () => {
         <div className="flex items-center space-x-4 shrink-0">
           <Link
             to="/cart"
-            className="relative w-11 h-11 bg-white border-2 border-black rounded-2xl flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-subtle hover:shadow-none active:translate-x-[3px] active:translate-y-[3px] active:shadow-none"
+            className="relative w-11 h-11 bg-white border border-black/10 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white hover:border-transparent transition-all shadow-sm hover:shadow-subtle hover:-translate-y-1 active:scale-95"
           >
             <ShoppingCart size={22} strokeWidth={2.5} />
             {itemCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[20px] px-1 h-5 bg-primary text-white text-[10px] font-black flex items-center justify-center rounded-lg border-2 border-black shadow-subtle">
+              <span className="absolute -top-1.5 -right-1.5 min-w-[20px] px-1 h-5 bg-primary text-white text-[10px] font-black flex items-center justify-center rounded-lg shadow-sm border border-white">
                 {itemCount > 99 ? "99+" : itemCount}
               </span>
             )}
@@ -106,7 +106,7 @@ const Header = () => {
           ) : (
             <Link
               to="/auth/login"
-              className="w-11 h-11 bg-white border-2 border-black rounded-2xl flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-subtle hover:shadow-none active:translate-x-[3px] active:translate-y-[3px] active:shadow-none"
+              className="w-11 h-11 bg-white border border-black/10 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white hover:border-transparent transition-all shadow-sm hover:shadow-subtle hover:-translate-y-1 active:scale-95"
             >
               <User size={22} strokeWidth={2.5} />
             </Link>

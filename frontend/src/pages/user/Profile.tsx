@@ -46,8 +46,8 @@ const Profile = () => {
   const dispatch = useAppDispatch();
   const hasShop =
     (typeof user?.role === "string"
-      ? user.role === "VENDOR"
-      : user?.role?.role_name === "VENDOR") || user?.isVendor; // Giả lập kiểm tra quyền
+      ? user.role.toLowerCase() === "vendor"
+      : user?.role?.role_name?.toLowerCase() === "vendor") || user?.isVendor; // Giả lập kiểm tra quyền
 
   const schema = yup.object({
     full_name: yup.string().required("Tên không được để trống"),

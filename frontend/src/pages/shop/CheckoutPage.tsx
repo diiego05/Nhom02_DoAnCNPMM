@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form';
 import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { CreateOrderPayload } from '@/types/order.types';
+import { CartItem } from '@/types/cart.types';
 
 const addressSchema = yup.object().shape({
   recipient_name: yup.string().required('Vui lòng nhập tên người nhận'),
@@ -129,7 +130,7 @@ const CheckoutPage = () => {
     );
   }
 
-  const cartItems = buyNowItem ? [buyNowItem] : (cart?.items || []);
+  const cartItems = (buyNowItem ? [buyNowItem] : (cart?.items || [])) as CartItem[];
   const subtotal = buyNowItem ? (buyNowItem.unit_price * buyNowItem.quantity) : (cart?.totalAmount || 0);
   const total = subtotal + (cartItems.length > 0 ? shippingFee : 0);
 
@@ -154,7 +155,7 @@ const CheckoutPage = () => {
           
           {/* Column 1: Shipping Info (4/12) */}
           <div className="lg:col-span-4 space-y-6">
-            <div className="bg-white border-2 border-black rounded-[2.5rem] p-8 shadow-sm">
+            <div className="card-brutal !p-8 !rounded-[2rem]">
               <div className="flex justify-between items-center mb-8">
                 <h3 className="text-xl font-black uppercase tracking-tighter flex items-center gap-3">
                   <MapPin className="text-primary" /> Địa chỉ nhận hàng
@@ -174,10 +175,10 @@ const CheckoutPage = () => {
                   <div 
                     key={addr.id} 
                     onClick={() => handleSelectAddress(addr.id)}
-                    className={`p-5 rounded-2xl relative cursor-pointer group transition-all border-2 ${selectedAddressId === addr.id ? 'border-primary bg-primary/5' : 'border-black/10 hover:border-black'}`}
+                    className={`p-5 rounded-2xl relative cursor-pointer group transition-all border ${selectedAddressId === addr.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-black/10 hover:border-black hover:shadow-subtle hover:-translate-y-1'}`}
                   >
-                    <div className={`absolute top-4 right-4 w-5 h-5 rounded-full flex items-center justify-center bg-white border-2 ${selectedAddressId === addr.id ? 'border-primary' : 'border-gray-300'}`}>
-                      {selectedAddressId === addr.id && <div className="w-2 h-2 rounded-full bg-primary"></div>}
+                    <div className={`absolute top-4 right-4 w-5 h-5 rounded-full flex items-center justify-center bg-white border ${selectedAddressId === addr.id ? 'border-primary' : 'border-gray-300'}`}>
+                      {selectedAddressId === addr.id && <div className="w-2.5 h-2.5 rounded-full bg-primary"></div>}
                     </div>
                     <p className="text-xs font-black uppercase mb-1">
                       {addr.recipient_name}
@@ -193,15 +194,15 @@ const CheckoutPage = () => {
                 <div className="space-y-4 pt-4 border-t border-dashed border-gray-200">
                   <p className="text-sm font-black uppercase">Thêm địa chỉ mới</p>
                   <div>
-                    <input {...register('recipient_name')} placeholder="Họ và tên" className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-3 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                    <input {...register('recipient_name')} placeholder="Họ và tên" className="input-brutal text-sm" />
                     {errors.recipient_name && <p className="text-red-500 text-xs mt-1 font-bold">{errors.recipient_name.message}</p>}
                   </div>
                   <div>
-                    <input {...register('phone_number')} placeholder="Số điện thoại" className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-3 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                    <input {...register('phone_number')} placeholder="Số điện thoại" className="input-brutal text-sm" />
                     {errors.phone_number && <p className="text-red-500 text-xs mt-1 font-bold">{errors.phone_number.message}</p>}
                   </div>
                   <div>
-                    <input {...register('address_line')} placeholder="Địa chỉ chi tiết" className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-3 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                    <input {...register('address_line')} placeholder="Địa chỉ chi tiết" className="input-brutal text-sm" />
                     {errors.address_line && <p className="text-red-500 text-xs mt-1 font-bold">{errors.address_line.message}</p>}
                   </div>
                 </div>
@@ -209,7 +210,7 @@ const CheckoutPage = () => {
 
               <div className="mt-8 pt-8 border-t border-dashed border-gray-200">
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Ghi chú cho đơn hàng</p>
-                <textarea {...register('note')} rows={2} placeholder="Ví dụ: Giao giờ hành chính..." className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-4 font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none text-sm"></textarea>
+                <textarea {...register('note')} rows={2} placeholder="Ví dụ: Giao giờ hành chính..." className="input-brutal text-sm resize-none"></textarea>
               </div>
             </div>
           </div>
@@ -217,15 +218,15 @@ const CheckoutPage = () => {
           {/* Column 2: Shipping & Payment Methods (4/12) */}
           <div className="lg:col-span-4 space-y-8">
             {/* Shipping Methods */}
-            <div className="bg-white border-2 border-black rounded-[2.5rem] p-8 shadow-sm">
+            <div className="card-brutal !p-8 !rounded-[2rem]">
               <h3 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
                 <Truck className="text-primary" /> Phương thức vận chuyển
               </h3>
               
               <div className="grid grid-cols-1 gap-4">
-                <label className="relative flex items-center justify-between p-6 bg-primary/5 border-2 border-primary rounded-2xl cursor-pointer transition-all">
+                <label className="relative flex items-center justify-between p-6 bg-primary/5 border border-primary rounded-2xl cursor-pointer transition-all shadow-sm">
                   <div className="flex items-center gap-4">
-                    <div className="w-6 h-6 rounded-full border-2 border-primary flex items-center justify-center bg-white">
+                    <div className="w-6 h-6 rounded-full border border-primary flex items-center justify-center bg-white">
                       <div className="w-2.5 h-2.5 rounded-full bg-primary"></div>
                     </div>
                     <div>
@@ -239,7 +240,7 @@ const CheckoutPage = () => {
             </div>
 
             {/* Payment Methods */}
-            <div className="bg-white border-2 border-black rounded-[2.5rem] p-8 shadow-sm">
+            <div className="card-brutal !p-8 !rounded-[2rem]">
               <h3 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
                 <CreditCard className="text-primary" /> Phương thức thanh toán
               </h3>

@@ -79,9 +79,12 @@ const HomePage = () => {
   }, [nextSlide, isHovered]);
 
   return (
-    <div className="space-y-24 pb-24">
+    <div className="space-y-32 pb-32 relative">
+      {/* Background Gradient SaaS Style */}
+      <div className="absolute top-0 left-0 w-full h-[600px] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/15 via-white to-transparent -z-10 pointer-events-none"></div>
+
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-6 pt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <section className="max-w-7xl mx-auto px-6 pt-12 grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div
           className="lg:col-span-2 relative aspect-[16/9] lg:aspect-auto rounded-3xl overflow-hidden group border-2 border-black shadow-subtle"
           onMouseEnter={() => setIsHovered(true)}
@@ -97,11 +100,11 @@ const HomePage = () => {
                 alt={slide.title}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-black/30 flex flex-col justify-end p-10 md:p-16 text-white">
-                <h1 className="text-5xl md:text-6xl font-serif font-black mb-6 max-w-2xl leading-tight uppercase">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-10 md:p-16 text-white">
+                <h1 className="text-6xl md:text-7xl font-serif font-black mb-6 max-w-3xl leading-tight drop-shadow-xl">
                   {slide.title}
                 </h1>
-                <p className="text-lg opacity-90 mb-10 max-w-md font-medium">
+                <p className="text-xl opacity-90 mb-10 max-w-lg font-medium drop-shadow-md">
                   {slide.description}
                 </p>
                 <div className="flex items-center gap-6">
@@ -143,31 +146,31 @@ const HomePage = () => {
         </div>
 
         <div className="grid grid-cols-1 gap-8">
-          <div className="bg-[#FFE4D6] border-2 border-black rounded-3xl p-10 flex flex-col justify-between relative overflow-hidden group hover:shadow-subtle transition-all">
+          <div className="bg-gradient-to-br from-[#FFE4D6] to-white border-2 border-black/10 rounded-[2rem] p-10 flex flex-col justify-between relative overflow-hidden group hover:shadow-subtle hover:border-black transition-all duration-300">
             <div className="relative z-10">
               <span className="badge-brutal">Giới hạn</span>
-              <h3 className="text-5xl font-serif font-black mt-8 text-[#D97736]">
+              <h3 className="text-6xl font-serif font-black mt-8 text-[#D97736] tracking-tight">
                 Giảm 50%
               </h3>
-              <p className="text-sm font-bold text-[#D97736]/60 mt-3 uppercase tracking-widest">
+              <p className="text-sm font-bold text-[#D97736]/80 mt-3 uppercase tracking-widest">
                 Bộ sưu tập mùa hè
               </p>
             </div>
             <Link
               to="/products"
-              className="relative z-10 w-fit p-4 bg-white border-2 border-black rounded-xl hover:bg-primary hover:text-white transition-all shadow-subtle hover:shadow-none"
+              className="relative z-10 w-fit p-4 bg-white border border-black/10 rounded-2xl hover:bg-primary hover:text-white transition-all shadow-sm group-hover:border-black group-hover:shadow-subtle hover:!shadow-none"
             >
               <ArrowRight className="w-6 h-6" />
             </Link>
-            <div className="absolute -right-6 -bottom-6 text-[16rem] font-black text-[#D97736]/5 rotate-12 group-hover:rotate-0 transition-all duration-700 select-none">
+            <div className="absolute -right-6 -bottom-6 text-[16rem] font-black text-[#D97736]/10 rotate-12 group-hover:rotate-0 transition-all duration-700 select-none">
               %
             </div>
           </div>
 
-          <div className="bg-[#E2E8E4] border-2 border-black rounded-3xl p-10 flex flex-col justify-between relative overflow-hidden group hover:shadow-subtle transition-all">
+          <div className="bg-gradient-to-br from-[#E2E8E4] to-white border-2 border-black/10 rounded-[2rem] p-10 flex flex-col justify-between relative overflow-hidden group hover:shadow-subtle hover:border-black transition-all duration-300">
             <div className="relative z-10">
               <span className="badge-brutal">Flash Sale</span>
-              <h3 className="text-5xl font-serif font-black mt-8 text-[#4A5D50]">
+              <h3 className="text-6xl font-serif font-black mt-8 text-[#4A5D50] tracking-tight">
                 Giá Sốc
               </h3>
               <p className="text-sm font-bold text-[#4A5D50]/60 mt-3 uppercase tracking-widest">
@@ -176,11 +179,11 @@ const HomePage = () => {
             </div>
             <Link
               to="/products"
-              className="relative z-10 w-fit p-4 bg-white border-2 border-black rounded-xl hover:bg-primary hover:text-white transition-all shadow-subtle hover:shadow-none"
+              className="relative z-10 w-fit p-4 bg-white border border-black/10 rounded-2xl hover:bg-primary hover:text-white transition-all shadow-sm group-hover:border-black group-hover:shadow-subtle hover:!shadow-none"
             >
               <ArrowRight className="w-6 h-6" />
             </Link>
-            <div className="absolute -right-6 -bottom-6 text-[16rem] font-black text-[#4A5D50]/5 rotate-12 group-hover:rotate-0 transition-all duration-700 select-none">
+            <div className="absolute -right-6 -bottom-6 text-[16rem] font-black text-[#4A5D50]/10 rotate-12 group-hover:rotate-0 transition-all duration-700 select-none">
               ⚡
             </div>
           </div>
