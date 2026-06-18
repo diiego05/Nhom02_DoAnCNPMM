@@ -14,6 +14,7 @@ const getProducts = async (filters) => {
     sortBy, // Sắp xếp: price_asc | price_desc | newest | best_sellers
     page = 1,
     limit = 12,
+    shopId,
   } = filters;
 
   // 1. Xây dựng where clause động
@@ -21,6 +22,9 @@ const getProducts = async (filters) => {
 
   if (keyword) {
     where.name = { [Op.like]: `%${keyword}%` };
+  }
+  if (shopId) {
+    where.shop_id = shopId;
   }
   if (brandId) {
     where.brand_id = brandId;

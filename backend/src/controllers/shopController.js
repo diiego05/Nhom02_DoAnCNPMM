@@ -1,0 +1,289 @@
+import shopService from "../services/shopService.js";
+import db from "../models/index.js";
+
+const registerShop = async (req, res) => {
+  try {
+    const userId = req.user.id; // Lấy từ verifyToken middleware
+    const shop = await shopService.registerShop(userId, req.body);
+    return res.status(201).json({ message: "Register shop successfully", data: shop });
+  } catch (error) {
+    console.error("Error registering shop:", error);
+    return res.status(500).json({ error: error.message || "Internal server error" });
+  }
+};
+
+const getShopProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const shop = await shopService.getShopProfile(id);
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+    return res.status(200).json({ message: "Success", data: shop });
+  } catch (error) {
+    console.error("Error getting shop profile:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const getMyShop = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.getShopByUserId(userId);
+    if (!shop) {
+      return res.status(404).json({ message: "You don't have a registered shop" });
+    }
+    return res.status(200).json({ message: "Success", data: shop });
+  } catch (error) {
+    console.error("Error getting my shop:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const updateMyShop = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.updateShop(userId, req.body);
+    return res.status(200).json({ message: "Update shop successfully", data: shop });
+  } catch (error) {
+    console.error("Error updating shop:", error);
+    return res.status(500).json({ error: error.message || "Internal server error" });
+  }
+};
+
+const getShopStatistics = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.getShopByUserId(userId);
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+    const statistics = await shopService.getShopStatistics(shop.id);
+    return res.status(200).json({ message: "Success", data: statistics });
+  } catch (error) {
+    console.error("Error getting shop stats:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const getShopOrders = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.getShopByUserId(userId);
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+    const orders = await shopService.getShopOrders(shop.id);
+    return res.status(200).json({ message: "Success", data: orders });
+  } catch (error) {
+    console.error("Error getting shop orders:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const createProduct = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.getShopByUserId(userId);
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+    const product = await shopService.createShopProduct(shop.id, req.body);
+    return res.status(201).json({ message: "Create product successfully", data: product });
+  } catch (error) {
+    console.error("Error creating product:", error);
+    return res.status(500).json({ error: error.message || "Internal server error" });
+  }
+};
+
+const updateProduct = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.getShopByUserId(userId);
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+    const { id } = req.params;
+    const product = await shopService.updateShopProduct(shop.id, id, req.body);
+    return res.status(200).json({ message: "Update product successfully", data: product });
+  } catch (error) {
+    console.error("Error updating product:", error);
+    return res.status(500).json({ error: error.message || "Internal server error" });
+  }
+};
+
+const deleteProduct = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.getShopByUserId(userId);
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+    const { id } = req.params;
+    await shopService.deleteShopProduct(shop.id, id);
+    return res.status(200).json({ message: "Delete product successfully" });
+  } catch (error) {
+    console.error("Error deleting product:", error);
+    return res.status(500).json({ error: error.message || "Internal server error" });
+  }
+};
+
+// Vouchers (Coupons)
+const getShopVouchers = async (req, res) => {
+  try {
+    const { id } = req.params; // Lấy shopId từ params
+    const vouchers = await db.Coupon.findAll({
+      where: { shop_id: id, is_active: true },
+    });
+    return res.status(200).json({ message: "Success", data: vouchers });
+  } catch (error) {
+    console.error("Error getting shop vouchers:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const createShopVoucher = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.getShopByUserId(userId);
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+    const {
+      code,
+      description,
+      discount_type,
+      discount_value,
+      min_order_amount,
+      max_discount,
+      usage_limit,
+      per_user_limit,
+      start_date,
+      end_date,
+    } = req.body;
+
+    const voucher = await db.Coupon.create({
+      code,
+      description,
+      discount_type: discount_type || "PERCENTAGE",
+      discount_value,
+      min_order_amount: min_order_amount || 0.00,
+      max_discount: max_discount || null,
+      usage_limit: usage_limit || null,
+      per_user_limit: per_user_limit || 1,
+      used_count: 0,
+      start_date: start_date || new Date(),
+      end_date: end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      is_active: true,
+      shop_id: shop.id,
+    });
+
+    return res.status(201).json({ message: "Create voucher successfully", data: voucher });
+  } catch (error) {
+    console.error("Error creating voucher:", error);
+    return res.status(500).json({ error: error.message || "Internal server error" });
+  }
+};
+
+const deleteShopVoucher = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.getShopByUserId(userId);
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+    const { id } = req.params;
+    const voucher = await db.Coupon.findOne({
+      where: { id, shop_id: shop.id },
+    });
+    if (!voucher) {
+      return res.status(404).json({ message: "Voucher not found" });
+    }
+
+    // Soft delete bằng cách set is_active = false
+    await voucher.update({ is_active: false });
+    return res.status(200).json({ message: "Delete voucher successfully" });
+  } catch (error) {
+    console.error("Error deleting voucher:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const getShopReviews = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.getShopByUserId(userId);
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+    const reviews = await shopService.getShopReviews(shop.id);
+    return res.status(200).json({ message: "Success", data: reviews });
+  } catch (error) {
+    console.error("Error getting shop reviews:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const uploadImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    return res.status(200).json({ 
+      message: "Upload successfully", 
+      url: req.file.path 
+    });
+  } catch (error) {
+    console.error("Error uploading image:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const requestWithdrawal = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.getShopByUserId(userId);
+    if (!shop) {
+      return res.status(404).json({ message: "Không tìm thấy Shop" });
+    }
+    const withdrawal = await shopService.requestWithdrawal(shop.id, req.body);
+    return res.status(201).json({ message: "Yêu cầu rút tiền thành công", data: withdrawal });
+  } catch (error) {
+    console.error("Error requesting withdrawal:", error);
+    return res.status(400).json({ message: error.message || "Lỗi xử lý yêu cầu rút tiền" });
+  }
+};
+
+const getWithdrawals = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.getShopByUserId(userId);
+    if (!shop) {
+      return res.status(404).json({ message: "Không tìm thấy Shop" });
+    }
+    const withdrawals = await shopService.getWithdrawals(shop.id);
+    return res.status(200).json({ message: "Success", data: withdrawals });
+  } catch (error) {
+    console.error("Error getting withdrawals:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export default {
+  registerShop,
+  getShopProfile,
+  getMyShop,
+  updateMyShop,
+  getShopStatistics,
+  getShopOrders,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  getShopVouchers,
+  createShopVoucher,
+  deleteShopVoucher,
+  getShopReviews,
+  uploadImage,
+  requestWithdrawal,
+  getWithdrawals,
+};

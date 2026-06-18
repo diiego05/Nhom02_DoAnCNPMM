@@ -79,4 +79,13 @@ const confirmOrder = async (req, res) => {
   }
 };
 
-export default { createOrder, getMyOrders, getOrderDetail, cancelOrder, confirmOrder };
+const prepareOrder = async (req, res) => {
+  try {
+    const order = await orderService.prepareOrder(req.params.orderId, req.user?.id);
+    return res.status(200).json({ message: "Chuẩn bị hàng thành công", data: order });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+export default { createOrder, getMyOrders, getOrderDetail, cancelOrder, confirmOrder, prepareOrder };

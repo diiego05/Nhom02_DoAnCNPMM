@@ -187,9 +187,9 @@ CREATE TABLE `branches` (
 -- ⚠️  LƯU Ý (Lỗi 5 – Xung đột role vs position):
 --    Cột `position` ở đây phải LUÔN đồng bộ với `users.role_id`.
 --    Tầng code (Node.js) PHẢI đảm bảo khi INSERT/UPDATE branch_staff:
---      • position = 'STAFF'   → users.role_id = 2 (BRANCH_STAFF)
---      • position = 'MANAGER' → users.role_id = 3 (BRANCH_MANAGER)
---    Không được phép user có role_id = 1 (CUSTOMER) mà lại xuất hiện
+--      • position = 'STAFF'   → users.role_id = 4 (manager)
+--      • position = 'MANAGER' → users.role_id = 4 (manager)
+--    Không được phép user có role_id = 2 (user) mà lại xuất hiện
 --    trong bảng này. Nên validate bằng Trigger hoặc Application Layer.
 -- ============================================================
 CREATE TABLE `branch_staff` (
@@ -811,7 +811,8 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- Roles mặc định
 INSERT INTO `roles` (`id`, `role_name`) VALUES
-  (1, 'CUSTOMER'),
-  (2, 'BRANCH_STAFF'),
-  (3, 'BRANCH_MANAGER'),
-  (4, 'GLOBAL_ADMIN');
+  (1, 'admin'),
+  (2, 'user'),
+  (3, 'vendor'),
+  (4, 'manager'),
+  (5, 'shipper');

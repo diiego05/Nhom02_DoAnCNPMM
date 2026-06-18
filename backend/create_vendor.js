@@ -3,11 +3,11 @@ import bcrypt from "bcryptjs";
 
 const createVendorAccount = async () => {
   try {
-    // 1. Ensure Roles exist
-    const [adminRole] = await db.Role.findOrCreate({ where: { role_name: "ADMIN" } });
-    const [userRole] = await db.Role.findOrCreate({ where: { role_name: "USER" } });
-    const [vendorRole] = await db.Role.findOrCreate({ where: { role_name: "VENDOR" } });
-    const [managerRole] = await db.Role.findOrCreate({ where: { role_name: "MANAGER" } });
+    const [adminRole] = await db.Role.findOrCreate({ where: { role_name: "admin" } });
+    const [userRole] = await db.Role.findOrCreate({ where: { role_name: "user" } });
+    const [vendorRole] = await db.Role.findOrCreate({ where: { role_name: "vendor" } });
+    const [managerRole] = await db.Role.findOrCreate({ where: { role_name: "manager" } });
+    const [shipperRole] = await db.Role.findOrCreate({ where: { role_name: "shipper" } });
 
     console.log("Roles verified/created.");
 

@@ -43,6 +43,10 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.DECIMAL(15, 2),
         allowNull: true,
       },
+      sale_price: {
+        type: DataTypes.DECIMAL(15, 2),
+        allowNull: true,
+      },
       stock_quantity: {
         type: DataTypes.INTEGER,
         allowNull: false,

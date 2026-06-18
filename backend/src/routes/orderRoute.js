@@ -12,5 +12,6 @@ router.get("/", orderController.getMyOrders); // Lịch sử đơn hàng
 router.get("/:orderId", orderController.getOrderDetail); // Chi tiết đơn
 router.post("/:orderId/cancel", orderController.cancelOrder); // Hủy đơn
 router.post("/:orderId/confirm", orderController.confirmOrder); // Xác nhận đơn (dành cho Admin/Vendor)
+router.post("/:orderId/prepare", orderController.prepareOrder); // Chuẩn bị hàng (dành cho Vendor)
 
 export default router;
