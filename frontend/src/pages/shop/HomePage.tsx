@@ -20,7 +20,7 @@ import {
   useMostViewedProducts,
 } from "@/hooks/useProducts";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { Navigation, Pagination } from "swiper/modules";
+import { Navigation, Pagination, Autoplay } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
@@ -79,9 +79,12 @@ const HomePage = () => {
   }, [nextSlide, isHovered]);
 
   return (
-    <div className="space-y-24 pb-24">
+    <div className="space-y-32 pb-32 relative">
+      {/* Background Gradient SaaS Style */}
+      <div className="absolute top-0 left-0 w-full h-[600px] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/15 via-white to-transparent -z-10 pointer-events-none"></div>
+
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-6 pt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <section className="max-w-7xl mx-auto px-6 pt-12 grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div
           className="lg:col-span-2 relative aspect-[16/9] lg:aspect-auto rounded-3xl overflow-hidden group border-2 border-black shadow-subtle"
           onMouseEnter={() => setIsHovered(true)}
@@ -97,11 +100,11 @@ const HomePage = () => {
                 alt={slide.title}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-black/30 flex flex-col justify-end p-10 md:p-16 text-white">
-                <h1 className="text-5xl md:text-6xl font-serif font-black mb-6 max-w-2xl leading-tight uppercase">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-10 md:p-16 text-white">
+                <h1 className="text-6xl md:text-7xl font-serif font-black mb-6 max-w-3xl leading-tight drop-shadow-xl">
                   {slide.title}
                 </h1>
-                <p className="text-lg opacity-90 mb-10 max-w-md font-medium">
+                <p className="text-xl opacity-90 mb-10 max-w-lg font-medium drop-shadow-md">
                   {slide.description}
                 </p>
                 <div className="flex items-center gap-6">
@@ -143,31 +146,31 @@ const HomePage = () => {
         </div>
 
         <div className="grid grid-cols-1 gap-8">
-          <div className="bg-[#FFE4D6] border-2 border-black rounded-3xl p-10 flex flex-col justify-between relative overflow-hidden group hover:shadow-subtle transition-all">
+          <div className="bg-gradient-to-br from-[#FFE4D6] to-white border-2 border-black/10 rounded-[2rem] p-10 flex flex-col justify-between relative overflow-hidden group hover:shadow-subtle hover:border-black transition-all duration-300">
             <div className="relative z-10">
               <span className="badge-brutal">Giới hạn</span>
-              <h3 className="text-5xl font-serif font-black mt-8 text-[#D97736]">
+              <h3 className="text-6xl font-serif font-black mt-8 text-[#D97736] tracking-tight">
                 Giảm 50%
               </h3>
-              <p className="text-sm font-bold text-[#D97736]/60 mt-3 uppercase tracking-widest">
+              <p className="text-sm font-bold text-[#D97736]/80 mt-3 uppercase tracking-widest">
                 Bộ sưu tập mùa hè
               </p>
             </div>
             <Link
               to="/products"
-              className="relative z-10 w-fit p-4 bg-white border-2 border-black rounded-xl hover:bg-primary hover:text-white transition-all shadow-subtle hover:shadow-none"
+              className="relative z-10 w-fit p-4 bg-white border border-black/10 rounded-2xl hover:bg-primary hover:text-white transition-all shadow-sm group-hover:border-black group-hover:shadow-subtle hover:!shadow-none"
             >
               <ArrowRight className="w-6 h-6" />
             </Link>
-            <div className="absolute -right-6 -bottom-6 text-[16rem] font-black text-[#D97736]/5 rotate-12 group-hover:rotate-0 transition-all duration-700 select-none">
+            <div className="absolute -right-6 -bottom-6 text-[16rem] font-black text-[#D97736]/10 rotate-12 group-hover:rotate-0 transition-all duration-700 select-none">
               %
             </div>
           </div>
 
-          <div className="bg-[#E2E8E4] border-2 border-black rounded-3xl p-10 flex flex-col justify-between relative overflow-hidden group hover:shadow-subtle transition-all">
+          <div className="bg-gradient-to-br from-[#E2E8E4] to-white border-2 border-black/10 rounded-[2rem] p-10 flex flex-col justify-between relative overflow-hidden group hover:shadow-subtle hover:border-black transition-all duration-300">
             <div className="relative z-10">
               <span className="badge-brutal">Flash Sale</span>
-              <h3 className="text-5xl font-serif font-black mt-8 text-[#4A5D50]">
+              <h3 className="text-6xl font-serif font-black mt-8 text-[#4A5D50] tracking-tight">
                 Giá Sốc
               </h3>
               <p className="text-sm font-bold text-[#4A5D50]/60 mt-3 uppercase tracking-widest">
@@ -176,11 +179,11 @@ const HomePage = () => {
             </div>
             <Link
               to="/products"
-              className="relative z-10 w-fit p-4 bg-white border-2 border-black rounded-xl hover:bg-primary hover:text-white transition-all shadow-subtle hover:shadow-none"
+              className="relative z-10 w-fit p-4 bg-white border border-black/10 rounded-2xl hover:bg-primary hover:text-white transition-all shadow-sm group-hover:border-black group-hover:shadow-subtle hover:!shadow-none"
             >
               <ArrowRight className="w-6 h-6" />
             </Link>
-            <div className="absolute -right-6 -bottom-6 text-[16rem] font-black text-[#4A5D50]/5 rotate-12 group-hover:rotate-0 transition-all duration-700 select-none">
+            <div className="absolute -right-6 -bottom-6 text-[16rem] font-black text-[#4A5D50]/10 rotate-12 group-hover:rotate-0 transition-all duration-700 select-none">
               ⚡
             </div>
           </div>
@@ -227,6 +230,7 @@ const HomePage = () => {
                 rating={5}
                 sales={product.sold_count}
                 badge={product.is_new ? "Mới" : undefined}
+                shop={product.shop}
               />
             ))}
           </div>
@@ -274,12 +278,22 @@ const HomePage = () => {
             </h2>
             <div className="h-1.5 w-24 bg-primary border-2 border-black rounded-full shadow-subtle mt-4"></div>
           </div>
-          <Link
-            to="/products?isFeatured=true"
-            className="btn-brutal-secondary h-14 px-10 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none"
-          >
-            Xem tất cả
-          </Link>
+          <div className="flex items-center gap-4">
+            <div className="flex gap-2">
+              <button type="button" className="featured-prev w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer">
+                <ChevronLeft size={20} />
+              </button>
+              <button type="button" className="featured-next w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer">
+                <ChevronRight size={20} />
+              </button>
+            </div>
+            <Link
+              to="/products?isFeatured=true"
+              className="btn-brutal-secondary h-12 px-8 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none inline-flex items-center"
+            >
+              Xem tất cả
+            </Link>
+          </div>
         </div>
 
         {loadFeatured ? (
@@ -293,10 +307,18 @@ const HomePage = () => {
           </div>
         ) : (
           <Swiper
-            modules={[Navigation, Pagination]}
+            modules={[Navigation, Pagination, Autoplay]}
             spaceBetween={30}
             slidesPerView={1}
-            navigation
+            navigation={{
+              prevEl: ".featured-prev",
+              nextEl: ".featured-next",
+            }}
+            autoplay={{
+              delay: 3000,
+              disableOnInteraction: false,
+              pauseOnMouseEnter: true,
+            }}
             pagination={{ clickable: true }}
             breakpoints={{
               640: { slidesPerView: 2 },
@@ -320,6 +342,7 @@ const HomePage = () => {
                     rating={5}
                     sales={product.sold_count}
                     badge={product.is_featured ? "Sale" : undefined}
+                    shop={product.shop}
                   />
                 </div>
               </SwiperSlide>
@@ -340,12 +363,22 @@ const HomePage = () => {
             </h2>
             <div className="h-1.5 w-24 bg-primary border-2 border-black rounded-full shadow-subtle mt-4"></div>
           </div>
-          <Link
-            to="/products?sort=most_viewed"
-            className="btn-brutal-secondary h-14 px-10 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none"
-          >
-            Xem tất cả
-          </Link>
+          <div className="flex items-center gap-4">
+            <div className="flex gap-2">
+              <button type="button" className="most-viewed-prev w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer">
+                <ChevronLeft size={20} />
+              </button>
+              <button type="button" className="most-viewed-next w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer">
+                <ChevronRight size={20} />
+              </button>
+            </div>
+            <Link
+              to="/products?sort=most_viewed"
+              className="btn-brutal-secondary h-12 px-8 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none inline-flex items-center"
+            >
+              Xem tất cả
+            </Link>
+          </div>
         </div>
 
         {loadMostViewed ? (
@@ -359,10 +392,18 @@ const HomePage = () => {
           </div>
         ) : (
           <Swiper
-            modules={[Navigation, Pagination]}
+            modules={[Navigation, Pagination, Autoplay]}
             spaceBetween={30}
             slidesPerView={1}
-            navigation
+            navigation={{
+              prevEl: ".most-viewed-prev",
+              nextEl: ".most-viewed-next",
+            }}
+            autoplay={{
+              delay: 3000,
+              disableOnInteraction: false,
+              pauseOnMouseEnter: true,
+            }}
             pagination={{ clickable: true }}
             breakpoints={{
               640: { slidesPerView: 2 },
@@ -386,6 +427,7 @@ const HomePage = () => {
                     rating={5}
                     sales={product.sold_count}
                     badge={product.view_count > 100 ? "Hot" : undefined}
+                    shop={product.shop}
                   />
                 </div>
               </SwiperSlide>
@@ -425,12 +467,17 @@ const HomePage = () => {
             </div>
           ) : (
             <Swiper
-              modules={[Navigation, Pagination]}
+              modules={[Navigation, Pagination, Autoplay]}
               spaceBetween={30}
               slidesPerView={1}
               navigation={{
                 prevEl: ".best-seller-prev",
                 nextEl: ".best-seller-next",
+              }}
+              autoplay={{
+                delay: 3000,
+                disableOnInteraction: false,
+                pauseOnMouseEnter: true,
               }}
               pagination={{ clickable: true }}
               breakpoints={{
@@ -453,6 +500,7 @@ const HomePage = () => {
                       rating={5}
                       sales={product.sold_count}
                       badge={product.sold_count > 15 ? "Hot" : undefined}
+                      shop={product.shop}
                     />
                   </div>
                 </SwiperSlide>

@@ -14,6 +14,7 @@ const getProducts = async (filters) => {
     sortBy, // Sắp xếp: price_asc | price_desc | newest | best_sellers
     page = 1,
     limit = 12,
+    shopId,
   } = filters;
 
   // 1. Xây dựng where clause động
@@ -21,6 +22,9 @@ const getProducts = async (filters) => {
 
   if (keyword) {
     where.name = { [Op.like]: `%${keyword}%` };
+  }
+  if (shopId) {
+    where.shop_id = shopId;
   }
   if (brandId) {
     where.brand_id = brandId;
@@ -43,6 +47,12 @@ const getProducts = async (filters) => {
       model: db.ProductImage,
       as: "images",
       where: { is_primary: true },
+      required: false,
+    },
+    {
+      model: db.Shop,
+      as: "shop",
+      attributes: ["id", "name", "status", "rating", "followers_count", "avatar_url"],
       required: false,
     },
   ];
@@ -141,6 +151,7 @@ const getProductBySlug = async (slug) => {
       { model: db.ProductImage, as: "images", order: [["sort_order", "ASC"]] },
       { model: db.ProductVariant, as: "variants" },
       { model: db.ProductAttribute, as: "attributes" },
+      { model: db.Shop, as: "shop" },
     ],
   });
   if (!product) return null;
@@ -229,6 +240,16 @@ const getFeaturedProducts = async (limit = 10) => {
 
         required: false,
       },
+
+      {
+        model: db.Shop,
+        as: "shop",
+        attributes: ["id", "name", "status", "rating", "followers_count", "avatar_url"],
+        where: {
+          status: "ACTIVE",
+          rating: { [Op.gte]: 4.0 },
+        },
+      },
     ],
 
     order: [
@@ -283,6 +304,16 @@ const getNewestProducts = async (limit = 10) => {
 
         required: false,
       },
+
+      {
+        model: db.Shop,
+        as: "shop",
+        attributes: ["id", "name", "status", "rating", "followers_count", "avatar_url"],
+        where: {
+          status: "ACTIVE",
+          rating: { [Op.gte]: 4.0 },
+        },
+      },
     ],
 
     order: [
@@ -335,6 +366,16 @@ const getBestSellerProducts = async (limit = 10) => {
 
         required: false,
       },
+
+      {
+        model: db.Shop,
+        as: "shop",
+        attributes: ["id", "name", "status", "rating", "followers_count", "avatar_url"],
+        where: {
+          status: "ACTIVE",
+          rating: { [Op.gte]: 4.0 },
+        },
+      },
     ],
 
     order: [["sold_count", "DESC"]],
@@ -380,6 +421,15 @@ const getMostViewedProducts = async (limit = 10) => {
           is_primary: true,
         },
         required: false,
+      },
+      {
+        model: db.Shop,
+        as: "shop",
+        attributes: ["id", "name", "status", "rating", "followers_count", "avatar_url"],
+        where: {
+          status: "ACTIVE",
+          rating: { [Op.gte]: 4.0 },
+        },
       },
     ],
 

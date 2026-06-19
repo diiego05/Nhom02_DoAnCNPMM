@@ -50,6 +50,23 @@ export interface Product {
   totalStock?: number; // Được Backend tính toán trả về trong chi tiết
   view_count: number;
   created_at: string;
+  shop_id?: number;
+  shop?: Shop;
+}
+
+export interface Shop {
+  id: number;
+  name: string;
+  phone?: string;
+  address?: string;
+  avatar_url?: string;
+  cover_url?: string;
+  rating: number | string;
+  followers_count: number;
+  response_rate: number;
+  productsCount?: number;
+  reviewsCount?: number;
+  created_at?: string;
 }
 
 export interface ProductListResponse {

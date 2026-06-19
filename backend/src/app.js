@@ -13,6 +13,9 @@ import cartRouter from "./routes/cartRoute.js";
 import orderRouter from "./routes/orderRoute.js";
 import addressRouter from "./routes/addressRoute.js";
 import couponRouter from "./routes/couponRoute.js";
+import shopRouter from "./routes/shopRoute.js";
+import brandRouter from "./routes/brandRoute.js";
+import chatRouter from "./routes/chatRoute.js";
 import cron from "node-cron";
 import orderService from "./services/orderService.js";
 import morgan from "morgan";
@@ -48,8 +51,9 @@ app.use("/cart", cartRouter);
 app.use("/orders", orderRouter);
 app.use("/addresses", addressRouter);
 app.use("/coupons", couponRouter);
-
-
+app.use("/shops", shopRouter);
+app.use("/brands", brandRouter);
+app.use("/chats", chatRouter);
 
 let port = process.env.PORT || 8080;
 

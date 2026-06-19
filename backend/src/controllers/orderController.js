@@ -100,6 +100,15 @@ const calculateCheckout = async (req, res) => {
   }
 };
 
+const prepareOrder = async (req, res) => {
+  try {
+    const order = await orderService.prepareOrder(req.params.orderId, req.user?.id);
+    return res.status(200).json({ message: "Chuẩn bị hàng thành công", data: order });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
 const updateOrderStatus = async (req, res) => {
   try {
     const { status, note } = req.body;
@@ -111,4 +120,4 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-export default { createOrder, getMyOrders, getOrderDetail, cancelOrder, confirmOrder, calculateCheckout, updateOrderStatus };
+export default { createOrder, getMyOrders, getOrderDetail, cancelOrder, confirmOrder, calculateCheckout, prepareOrder, updateOrderStatus };

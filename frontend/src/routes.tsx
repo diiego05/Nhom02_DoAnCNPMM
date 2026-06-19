@@ -14,13 +14,13 @@ import ProductListPage from "@/pages/shop/ProductListPage";
 import ProductDetailPage from "@/pages/shop/ProductDetailPage";
 import CartPage from "@/pages/shop/CartPage";
 import CheckoutPage from "@/pages/shop/CheckoutPage";
+import VendorShopPage from "@/pages/shop/VendorShopPage";
 import OrderHistoryPage from "@/pages/user/OrderHistoryPage";
 import OrderDetailPage from "@/pages/user/OrderDetailPage";
 import ReviewPage from "@/pages/user/ReviewPage";
 import VendorDashboard from "@/pages/vendor/VendorDashboard";
 import ManagerDashboard from "@/pages/manager/ManagerDashboard";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
-import VendorShopPage from "@/pages/shop/VendorShopPage";
 
 export const getRoutes = (): RouteObject[] => {
   const role = "ADMIN";

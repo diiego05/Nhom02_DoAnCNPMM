@@ -13,6 +13,11 @@ export default (sequelize, DataTypes) => {
         as: "profile",
       });
 
+      User.hasOne(models.Shop, {
+        foreignKey: "user_id",
+        as: "shop",
+      });
+
       User.hasMany(models.OtpVerification, {
         foreignKey: "user_id",
         as: "otpVerifications",

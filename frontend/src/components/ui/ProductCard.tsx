@@ -15,7 +15,13 @@ interface ProductCardProps {
   category: string;
   rating: number;
   sales: number;
-  badge?: "Mới" | "Hot" | "Sale";
+  badge?: "Mới" | "Hot" | "Sale" | "Nổi bật";
+  shop?: {
+    id: number | string;
+    name: string;
+    avatar_url?: string | null;
+    followers_count?: number;
+  };
 }
 
 const ProductCard = ({
@@ -28,6 +34,7 @@ const ProductCard = ({
   rating,
   sales,
   badge,
+  shop,
 }: ProductCardProps) => {
   const [showModal, setShowModal] = useState(false);
 
@@ -74,6 +81,24 @@ const ProductCard = ({
 
         {/* Info Container */}
         <div className="p-5 flex flex-col space-y-2">
+          {shop && (
+            <Link 
+              to={`/shop/${shop.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-2 pb-2 border-b border-black/5 hover:opacity-80 transition-opacity"
+            >
+              <img 
+                src={shop.avatar_url || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=100"} 
+                alt={shop.name} 
+                className="w-6 h-6 rounded-full border border-black object-cover shrink-0"
+              />
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-black text-black leading-tight truncate">{shop.name}</span>
+                <span className="text-[8px] font-bold text-gray-400 leading-none mt-0.5">{shop.followers_count !== undefined ? `${(shop.followers_count / 1000).toFixed(1)}k` : '0'} followers</span>
+              </div>
+            </Link>
+          )}
+
           <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
             {category}
           </p>

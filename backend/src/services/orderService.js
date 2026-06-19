@@ -372,12 +372,34 @@ const cancelOrder = async (userId, orderId, reason) => {
 };
 
 // Xác nhận đơn hàng (thủ công cho Admin/Vendor)
-const confirmOrder = async (orderId, adminId = null) => {
+const confirmOrder = async (orderId, userId) => {
   const order = await db.Order.findByPk(orderId);
   if (!order) throw new Error("Không tìm thấy đơn hàng");
   
   if (order.status !== "PENDING") {
     throw new Error("Chỉ đơn hàng PENDING mới có thể xác nhận");
+  }
+
+  // Kiểm tra quyền:
+  const user = await db.User.findByPk(userId, { include: [{ model: db.Role, as: "role" }] });
+  if (!user) throw new Error("Không tìm thấy người dùng");
+
+  const isAdmin = user.role?.role_name === "admin" || user.role_id === 1;
+
+  if (!isAdmin) {
+    const userShop = await db.Shop.findOne({ where: { user_id: userId } });
+    if (!userShop) throw new Error("Bạn không có quyền quản lý đơn hàng này");
+
+    const orderItem = await db.OrderItem.findOne({
+      where: { order_id: orderId },
+      include: [{
+        model: db.Product,
+        as: "product",
+        where: { shop_id: userShop.id },
+        required: true
+      }]
+    });
+    if (!orderItem) throw new Error("Bạn không có quyền quản lý đơn hàng này");
   }
 
   await order.update({ status: "CONFIRMED", confirmed_at: new Date() });
@@ -386,8 +408,52 @@ const confirmOrder = async (orderId, adminId = null) => {
     order_id: orderId,
     from_status: "PENDING",
     to_status: "CONFIRMED",
-    changed_by: adminId,
+    changed_by: userId,
     note: "Đơn hàng được xác nhận",
+  });
+
+  return order;
+};
+
+// Chuẩn bị hàng (chuyển CONFIRMED sang PREPARING)
+const prepareOrder = async (orderId, userId) => {
+  const order = await db.Order.findByPk(orderId);
+  if (!order) throw new Error("Không tìm thấy đơn hàng");
+  
+  if (order.status !== "CONFIRMED") {
+    throw new Error("Chỉ đơn hàng CONFIRMED mới có thể chuyển sang chuẩn bị hàng");
+  }
+
+  // Kiểm tra quyền
+  const user = await db.User.findByPk(userId, { include: [{ model: db.Role, as: "role" }] });
+  if (!user) throw new Error("Không tìm thấy người dùng");
+
+  const isAdmin = user.role?.role_name === "admin" || user.role_id === 1;
+
+  if (!isAdmin) {
+    const userShop = await db.Shop.findOne({ where: { user_id: userId } });
+    if (!userShop) throw new Error("Bạn không có quyền quản lý đơn hàng này");
+
+    const orderItem = await db.OrderItem.findOne({
+      where: { order_id: orderId },
+      include: [{
+        model: db.Product,
+        as: "product",
+        where: { shop_id: userShop.id },
+        required: true
+      }]
+    });
+    if (!orderItem) throw new Error("Bạn không có quyền quản lý đơn hàng này");
+  }
+
+  await order.update({ status: "PREPARING" });
+
+  await db.OrderStatusLog.create({
+    order_id: orderId,
+    from_status: "CONFIRMED",
+    to_status: "PREPARING",
+    changed_by: userId,
+    note: "Đơn đóng gói xong, đang chuẩn bị hàng",
   });
 
   return order;
@@ -422,4 +488,4 @@ const autoConfirmOrders = async () => {
   return pendingOrders.length;
 };
 
-export default { calculateCheckout, createOrder, getUserOrders, getOrderDetail, cancelOrder, confirmOrder, autoConfirmOrders };
+export default { calculateCheckout, createOrder, getUserOrders, getOrderDetail, cancelOrder, confirmOrder, prepareOrder, autoConfirmOrders };

@@ -35,6 +35,10 @@ export default (sequelize, DataTypes) => {
         foreignKey: "product_id",
         as: "viewedBy",
       });
+      Product.belongsTo(models.Shop, {
+        foreignKey: "shop_id",
+        as: "shop",
+      });
     }
   }
 
@@ -50,6 +54,10 @@ export default (sequelize, DataTypes) => {
         allowNull: false,
       },
       brand_id: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+      },
+      shop_id: {
         type: DataTypes.BIGINT,
         allowNull: true,
       },

@@ -5,6 +5,10 @@ export default (sequelize, DataTypes) => {
     static associate(models) {
       Coupon.hasMany(models.Order, { foreignKey: "coupon_id", as: "orders" });
       Coupon.hasMany(models.UserCouponUsage, { foreignKey: "coupon_id", as: "usages" });
+      Coupon.belongsTo(models.Shop, {
+        foreignKey: "shop_id",
+        as: "shop",
+      });
     }
   }
 
@@ -68,6 +72,10 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true,
+      },
+      shop_id: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
       },
     },
     {

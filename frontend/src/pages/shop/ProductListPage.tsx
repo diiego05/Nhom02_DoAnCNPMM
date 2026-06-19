@@ -425,6 +425,7 @@ const ProductListPage = () => {
                   rating={5}
                   sales={product.sold_count}
                   badge={product.is_new ? "Mới" : product.sold_count > 15 ? "Hot" : undefined}
+                  shop={product.shop}
                 />
               ))}
             </div>
