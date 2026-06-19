@@ -41,7 +41,29 @@ const registerShop = async (userId, shopData) => {
 };
 
 const getShopProfile = async (shopId) => {
-  return await db.Shop.findByPk(shopId);
+  const shop = await db.Shop.findByPk(shopId);
+  if (!shop) return null;
+
+  const productsCount = await db.Product.count({
+    where: { shop_id: shopId, status: "ACTIVE" },
+  });
+
+  const reviewsCount = await db.ProductReview.count({
+    include: [
+      {
+        model: db.Product,
+        as: "product",
+        where: { shop_id: shopId },
+        required: true,
+      },
+    ],
+  });
+
+  return {
+    ...shop.toJSON(),
+    productsCount,
+    reviewsCount,
+  };
 };
 
 const getShopByUserId = async (userId) => {
