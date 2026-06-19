@@ -128,3 +128,31 @@ h1, h2, h3, .font-serif {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #333333;
 }
+
+/* Swiper Custom Brutalist Styling cho Shop */
+.shop-swiper .swiper-pagination-bullet {
+  border-radius: 4px !important;
+  background: black !important;
+  border: 1px solid black !important;
+  opacity: 0.3 !important;
+  width: 8px !important;
+  height: 8px !important;
+  transition: all 0.3s ease !important;
+}
+
+.shop-swiper .swiper-pagination-bullet-active {
+  background: var(--color-primary, #d97736) !important;
+  opacity: 1 !important;
+  width: 24px !important;
+}
+
+/* Swiper Container Padding & Spacing */
+.shop-swiper.swiper,
+.home-swiper.swiper {
+  padding-bottom: 56px !important;
+}
+
+.shop-swiper .swiper-pagination,
+.home-swiper .swiper-pagination {
+  bottom: 8px !important;
+}

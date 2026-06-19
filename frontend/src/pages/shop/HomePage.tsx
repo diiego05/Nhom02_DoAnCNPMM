@@ -20,7 +20,7 @@ import {
   useMostViewedProducts,
 } from "@/hooks/useProducts";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { Navigation, Pagination } from "swiper/modules";
+import { Navigation, Pagination, Autoplay } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
@@ -230,6 +230,7 @@ const HomePage = () => {
                 rating={5}
                 sales={product.sold_count}
                 badge={product.is_new ? "Mới" : undefined}
+                shop={product.shop}
               />
             ))}
           </div>
@@ -277,12 +278,22 @@ const HomePage = () => {
             </h2>
             <div className="h-1.5 w-24 bg-primary border-2 border-black rounded-full shadow-subtle mt-4"></div>
           </div>
-          <Link
-            to="/products?isFeatured=true"
-            className="btn-brutal-secondary h-14 px-10 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none"
-          >
-            Xem tất cả
-          </Link>
+          <div className="flex items-center gap-4">
+            <div className="flex gap-2">
+              <button type="button" className="featured-prev w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer">
+                <ChevronLeft size={20} />
+              </button>
+              <button type="button" className="featured-next w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer">
+                <ChevronRight size={20} />
+              </button>
+            </div>
+            <Link
+              to="/products?isFeatured=true"
+              className="btn-brutal-secondary h-12 px-8 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none inline-flex items-center"
+            >
+              Xem tất cả
+            </Link>
+          </div>
         </div>
 
         {loadFeatured ? (
@@ -296,10 +307,18 @@ const HomePage = () => {
           </div>
         ) : (
           <Swiper
-            modules={[Navigation, Pagination]}
+            modules={[Navigation, Pagination, Autoplay]}
             spaceBetween={30}
             slidesPerView={1}
-            navigation
+            navigation={{
+              prevEl: ".featured-prev",
+              nextEl: ".featured-next",
+            }}
+            autoplay={{
+              delay: 3000,
+              disableOnInteraction: false,
+              pauseOnMouseEnter: true,
+            }}
             pagination={{ clickable: true }}
             breakpoints={{
               640: { slidesPerView: 2 },
@@ -323,6 +342,7 @@ const HomePage = () => {
                     rating={5}
                     sales={product.sold_count}
                     badge={product.is_featured ? "Sale" : undefined}
+                    shop={product.shop}
                   />
                 </div>
               </SwiperSlide>
@@ -343,12 +363,22 @@ const HomePage = () => {
             </h2>
             <div className="h-1.5 w-24 bg-primary border-2 border-black rounded-full shadow-subtle mt-4"></div>
           </div>
-          <Link
-            to="/products?sort=most_viewed"
-            className="btn-brutal-secondary h-14 px-10 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none"
-          >
-            Xem tất cả
-          </Link>
+          <div className="flex items-center gap-4">
+            <div className="flex gap-2">
+              <button type="button" className="most-viewed-prev w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer">
+                <ChevronLeft size={20} />
+              </button>
+              <button type="button" className="most-viewed-next w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer">
+                <ChevronRight size={20} />
+              </button>
+            </div>
+            <Link
+              to="/products?sort=most_viewed"
+              className="btn-brutal-secondary h-12 px-8 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none inline-flex items-center"
+            >
+              Xem tất cả
+            </Link>
+          </div>
         </div>
 
         {loadMostViewed ? (
@@ -362,10 +392,18 @@ const HomePage = () => {
           </div>
         ) : (
           <Swiper
-            modules={[Navigation, Pagination]}
+            modules={[Navigation, Pagination, Autoplay]}
             spaceBetween={30}
             slidesPerView={1}
-            navigation
+            navigation={{
+              prevEl: ".most-viewed-prev",
+              nextEl: ".most-viewed-next",
+            }}
+            autoplay={{
+              delay: 3000,
+              disableOnInteraction: false,
+              pauseOnMouseEnter: true,
+            }}
             pagination={{ clickable: true }}
             breakpoints={{
               640: { slidesPerView: 2 },
@@ -389,6 +427,7 @@ const HomePage = () => {
                     rating={5}
                     sales={product.sold_count}
                     badge={product.view_count > 100 ? "Hot" : undefined}
+                    shop={product.shop}
                   />
                 </div>
               </SwiperSlide>
@@ -428,12 +467,17 @@ const HomePage = () => {
             </div>
           ) : (
             <Swiper
-              modules={[Navigation, Pagination]}
+              modules={[Navigation, Pagination, Autoplay]}
               spaceBetween={30}
               slidesPerView={1}
               navigation={{
                 prevEl: ".best-seller-prev",
                 nextEl: ".best-seller-next",
+              }}
+              autoplay={{
+                delay: 3000,
+                disableOnInteraction: false,
+                pauseOnMouseEnter: true,
               }}
               pagination={{ clickable: true }}
               breakpoints={{
@@ -456,6 +500,7 @@ const HomePage = () => {
                       rating={5}
                       sales={product.sold_count}
                       badge={product.sold_count > 15 ? "Hot" : undefined}
+                      shop={product.shop}
                     />
                   </div>
                 </SwiperSlide>

@@ -14,6 +14,7 @@ import ProductListPage from "@/pages/shop/ProductListPage";
 import ProductDetailPage from "@/pages/shop/ProductDetailPage";
 import CartPage from "@/pages/shop/CartPage";
 import CheckoutPage from "@/pages/shop/CheckoutPage";
+import VendorShopPage from "@/pages/shop/VendorShopPage";
 import OrderHistoryPage from "@/pages/user/OrderHistoryPage";
 import OrderDetailPage from "@/pages/user/OrderDetailPage";
 import ReviewPage from "@/pages/user/ReviewPage";
@@ -40,6 +41,10 @@ export const getRoutes = (): RouteObject[] => {
         {
           path: "products/:id",
           element: <ProductDetailPage />,
+        },
+        {
+          path: "shop/:id",
+          element: <VendorShopPage />,
         },
         {
           path: "profile",

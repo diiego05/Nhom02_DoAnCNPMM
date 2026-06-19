@@ -22,6 +22,8 @@ import { useProductDetail, useSimilarProducts } from "@/hooks/useProducts";
 import { formatViewCount, formatPrice } from "@/utils/format";
 import { useAddToCart } from "@/hooks/useCart";
 import { useAppSelector } from "@/stores/hooks";
+import { useQuery } from "@tanstack/react-query";
+import { vendorService } from "@/services/vendorService";
 
 const ProductDetailPage = () => {
   const { id: slug } = useParams<{ id: string }>();
@@ -45,6 +47,14 @@ const ProductDetailPage = () => {
   const { data: product, isLoading, error } = useProductDetail(slug || "");
   const { data: similarProducts, isLoading: isLoadingSimilar } =
     useSimilarProducts(slug || "");
+
+  // Gọi API lấy thông tin chi tiết của Shop sở hữu sản phẩm này
+  const { data: shopProfileRes } = useQuery({
+    queryKey: ["shop-profile", product?.shop_id],
+    queryFn: () => vendorService.getShopProfile(product!.shop_id!),
+    enabled: !!product?.shop_id,
+  });
+  const shopInfo = shopProfileRes?.data || product?.shop;
 
   // Tự động chọn biến thể đầu tiên khi load xong sản phẩm
   useEffect(() => {
@@ -487,14 +497,14 @@ const ProductDetailPage = () => {
         <div className="flex items-center gap-6 pr-8 md:border-r-2 md:border-black/5 shrink-0 w-full md:w-auto">
           <div className="w-20 h-20 bg-primary rounded-full border-2 border-black overflow-hidden shadow-subtle relative group shrink-0">
             <img
-              src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=200"
-              alt="Avatar"
+              src={shopInfo?.avatar_url || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=200"}
+              alt={shopInfo?.name || "Avatar"}
               className="w-full h-full object-cover group-hover:scale-110 transition-transform"
             />
           </div>
           <div>
             <h4 className="text-xl font-serif font-black uppercase tracking-tighter mb-1">
-              UTEShop Official
+              {shopInfo?.name || "UTEShop Official"}
             </h4>
             <div className="flex items-center gap-3">
               <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-100 uppercase tracking-widest flex items-center gap-1">
@@ -502,17 +512,28 @@ const ProductDetailPage = () => {
                 Online
               </span>
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                TP. Hồ Chí Minh
+                {shopInfo?.address?.split(',').pop()?.trim() || "TP. Hồ Chí Minh"}
               </span>
             </div>
             <div className="flex gap-2 mt-4">
-              <Link
-                to="/products"
-                className="px-5 py-2 bg-black text-white border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none flex items-center gap-2"
-              >
-                <Store size={14} /> Xem Shop
-              </Link>
+              {shopInfo?.id ? (
+                <Link
+                  to={`/shop/${shopInfo.id}`}
+                  className="px-5 py-2 bg-black text-white border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none flex items-center gap-2"
+                >
+                  <Store size={14} /> Xem Shop
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="px-5 py-2 bg-gray-200 text-gray-400 border-2 border-gray-300 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 cursor-not-allowed"
+                >
+                  <Store size={14} /> Xem Shop
+                </button>
+              )}
               <button
+                type="button"
                 onClick={() => alert("Chức năng chat đang được bảo trì!")}
                 className="px-5 py-2 border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none flex items-center gap-2"
               >
@@ -524,10 +545,10 @@ const ProductDetailPage = () => {
 
         <div className="flex-grow grid grid-cols-2 md:grid-cols-4 gap-6 w-full">
           {[
-            { label: "Đánh giá", value: "4.9/5" },
-            { label: "Sản phẩm", value: "128" },
-            { label: "Tỉ lệ phản hồi", value: "98%" },
-            { label: "Tham gia", value: "4 năm" },
+            { label: "Đánh giá", value: shopInfo?.rating ? `${Number(shopInfo.rating).toFixed(1)}/5` : "4.9/5" },
+            { label: "Sản phẩm", value: shopInfo?.productsCount !== undefined ? String(shopInfo.productsCount) : "128" },
+            { label: "Tỉ lệ phản hồi", value: shopInfo?.response_rate !== undefined ? `${shopInfo.response_rate}%` : "98%" },
+            { label: "Tham gia", value: shopInfo?.created_at ? (new Date().getFullYear() - new Date(shopInfo.created_at).getFullYear() > 0 ? `${new Date().getFullYear() - new Date(shopInfo.created_at).getFullYear()} năm` : "Mới") : "4 năm" },
           ].map((stat, i) => (
             <div
               key={i}
@@ -726,7 +747,7 @@ const ProductDetailPage = () => {
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12">
-            {similarProducts.map((p) => (
+            {similarProducts.map((p: any) => (
               <ProductCard
                 key={p.id}
                 id={p.slug}
@@ -738,6 +759,7 @@ const ProductDetailPage = () => {
                 rating={5}
                 sales={p.sold_count}
                 badge={p.is_new ? "Mới" : p.sold_count > 15 ? "Hot" : undefined}
+                shop={p.shop}
               />
             ))}
           </div>

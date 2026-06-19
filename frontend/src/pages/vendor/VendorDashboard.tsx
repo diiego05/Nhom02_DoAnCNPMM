@@ -172,7 +172,8 @@ const VendorDashboard = () => {
 
   const [productImageType, setProductImageType] = useState<"url" | "file">("url");
   const [isUploadingProductImage, setIsUploadingProductImage] = useState(false);
-  const [shopImageType, setShopImageType] = useState<"url" | "file">("url");
+  const [shopAvatarType, setShopAvatarType] = useState<"url" | "file">("url");
+  const [shopCoverType, setShopCoverType] = useState<"url" | "file">("url");
   const [isUploadingShopImage, setIsUploadingShopImage] = useState(false);
 
   // Orders state
@@ -397,7 +398,7 @@ const VendorDashboard = () => {
     }
   };
 
-  const handleShopImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleShopAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -409,7 +410,25 @@ const VendorDashboard = () => {
       }
     } catch (err) {
       console.error(err);
-      alert("Tải ảnh lên thất bại. Vui lòng thử lại!");
+      alert("Tải ảnh đại diện thất bại. Vui lòng thử lại!");
+    } finally {
+      setIsUploadingShopImage(false);
+    }
+  };
+
+  const handleShopCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploadingShopImage(true);
+      const res = await vendorService.uploadImage(file);
+      if (res && res.url) {
+        setSettingsForm(prev => ({ ...prev, cover_url: res.url }));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Tải ảnh bìa thất bại. Vui lòng thử lại!");
     } finally {
       setIsUploadingShopImage(false);
     }
@@ -2235,28 +2254,29 @@ const VendorDashboard = () => {
                     ></textarea>
                   </div>
 
+                  {/* Shop Avatar */}
                   <div className="space-y-2">
                     <div className="flex justify-between items-center mb-1">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Ảnh đại diện cửa hàng</label>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Ảnh đại diện cửa hàng (Avatar)</label>
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => setShopImageType("url")}
-                          className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest border-2 border-black rounded-lg transition-all ${shopImageType === "url" ? "bg-black text-white shadow-sm" : "bg-white text-black hover:bg-gray-50 active:translate-y-[1px]"}`}
+                          onClick={() => setShopAvatarType("url")}
+                          className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest border-2 border-black rounded-lg transition-all ${shopAvatarType === "url" ? "bg-black text-white shadow-sm" : "bg-white text-black hover:bg-gray-50 active:translate-y-[1px]"}`}
                         >
                           Sử dụng URL
                         </button>
                         <button
                           type="button"
-                          onClick={() => setShopImageType("file")}
-                          className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest border-2 border-black rounded-lg transition-all ${shopImageType === "file" ? "bg-black text-white shadow-sm" : "bg-white text-black hover:bg-gray-50 active:translate-y-[1px]"}`}
+                          onClick={() => setShopAvatarType("file")}
+                          className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest border-2 border-black rounded-lg transition-all ${shopAvatarType === "file" ? "bg-black text-white shadow-sm" : "bg-white text-black hover:bg-gray-50 active:translate-y-[1px]"}`}
                         >
                           Tải ảnh từ máy
                         </button>
                       </div>
                     </div>
 
-                    {shopImageType === "url" ? (
+                    {shopAvatarType === "url" ? (
                       <input
                         type="text"
                         className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-3.5 font-bold focus:outline-none"
@@ -2270,7 +2290,7 @@ const VendorDashboard = () => {
                             type="file"
                             accept="image/*"
                             className="hidden"
-                            onChange={handleShopImageUpload}
+                            onChange={handleShopAvatarUpload}
                             disabled={isUploadingShopImage}
                             id="shop-avatar-file"
                           />
@@ -2280,7 +2300,60 @@ const VendorDashboard = () => {
                         </label>
                         {settingsForm.avatar_url && (
                           <div className="w-12 h-12 rounded-xl border-2 border-black overflow-hidden shrink-0">
-                            <img src={settingsForm.avatar_url} alt="Preview" className="w-full h-full object-cover" />
+                            <img src={settingsForm.avatar_url} alt="Preview Avatar" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Shop Cover */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Ảnh bìa cửa hàng (Cover)</label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShopCoverType("url")}
+                          className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest border-2 border-black rounded-lg transition-all ${shopCoverType === "url" ? "bg-black text-white shadow-sm" : "bg-white text-black hover:bg-gray-50 active:translate-y-[1px]"}`}
+                        >
+                          Sử dụng URL
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShopCoverType("file")}
+                          className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest border-2 border-black rounded-lg transition-all ${shopCoverType === "file" ? "bg-black text-white shadow-sm" : "bg-white text-black hover:bg-gray-50 active:translate-y-[1px]"}`}
+                        >
+                          Tải ảnh từ máy
+                        </button>
+                      </div>
+                    </div>
+
+                    {shopCoverType === "url" ? (
+                      <input
+                        type="text"
+                        className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-3.5 font-bold focus:outline-none"
+                        value={settingsForm.cover_url}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, cover_url: e.target.value })}
+                      />
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <label className="flex-grow flex items-center justify-center border-2 border-dashed border-black rounded-xl py-3 px-5 bg-gray-50 hover:bg-gray-100/50 cursor-pointer transition-colors relative active:translate-y-[1px]">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleShopCoverUpload}
+                            disabled={isUploadingShopImage}
+                            id="shop-cover-file"
+                          />
+                          <span className="text-xs font-bold text-gray-600">
+                            {isUploadingShopImage ? "Đang tải ảnh lên..." : "Chọn ảnh từ thiết bị của bạn"}
+                          </span>
+                        </label>
+                        {settingsForm.cover_url && (
+                          <div className="w-20 h-12 rounded-xl border-2 border-black overflow-hidden shrink-0">
+                            <img src={settingsForm.cover_url} alt="Preview Cover" className="w-full h-full object-cover" />
                           </div>
                         )}
                       </div>
