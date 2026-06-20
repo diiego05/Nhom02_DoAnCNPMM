@@ -31,15 +31,21 @@ const updateUserProfile = (data) => {
       if (userProfile) {
         await userProfile.update({
           full_name: data.full_name,
-          date_of_birth: data.date_of_birth,
+          birthday: data.date_of_birth || null,
           gender: data.gender,
-          id_card: data.id_card,
-          avatar_url: data.avatar_url,
-          cover_photo_url: data.cover_photo_url,
+          avatar_url: data.avatar_url || userProfile.avatar_url,
         });
         resolve(userProfile);
       } else {
-        resolve({});
+        // If not found, create one
+        userProfile = await db.UserProfile.create({
+          user_id: data.user_id,
+          full_name: data.full_name,
+          birthday: data.date_of_birth || null,
+          gender: data.gender,
+          avatar_url: data.avatar_url || null,
+        });
+        resolve(userProfile);
       }
     } catch (error) {
       reject(error);
@@ -64,7 +70,7 @@ const getFavorites = async (userId) => {
         ]
       }
     ],
-    order: [["created_at", "DESC"]],
+    order: [["added_at", "DESC"]],
   });
 };
 

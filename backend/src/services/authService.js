@@ -13,14 +13,21 @@ const register = (data) => {
     try {
       const { email, phone, password, fullName, role_id } = data;
 
-      // Check if user already exists
+      // Check if user already exists (including soft-deleted)
       const existingUser = await db.User.findOne({
         where: {
           [db.Sequelize.Op.or]: [{ email }, { phone }],
         },
+        paranoid: false,
       });
 
       if (existingUser) {
+        if (existingUser.deleted_at) {
+          return resolve({
+            status: 409,
+            message: "Tài khoản với email hoặc số điện thoại này đã bị xóa. Vui lòng liên hệ quản trị viên để khôi phục.",
+          });
+        }
         return resolve({
           status: 409,
           message: "User with this email or phone already exists",
@@ -35,7 +42,7 @@ const register = (data) => {
         email,
         phone,
         password: hashedPassword,
-        role_id: role_id || 2, // Default to user role
+        role_id: role_id || 5, // Default to user role (5)
         status: "PENDING",
       });
 
@@ -166,11 +173,10 @@ const login = (data) => {
             phone: user.phone,
             role: user.role?.role_name,
             fullName: user.profile?.full_name || "",
-            dateOfBirth: user.profile?.date_of_birth || null,
+            dateOfBirth: user.profile?.birthday || null,
             address: user.profile?.address || null,
             gender: user.profile?.gender || null,
             avatarUrl: user.profile?.avatar_url || null,
-            coverPhotoUrl: user.profile?.cover_photo_url || null,
           },
         },
       });

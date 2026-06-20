@@ -21,38 +21,42 @@ export default (sequelize, DataTypes) => {
   Category.init(
     {
       id: {
-        type: DataTypes.BIGINT,
+        type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
       },
       name: {
-        type: DataTypes.STRING(255),
+        type: DataTypes.STRING(200),
         allowNull: false,
       },
       slug: {
-        type: DataTypes.STRING(255),
-        allowNull: false,
+        type: DataTypes.STRING(250),
+        allowNull: true,
         unique: true,
+      },
+      image_url: {
+        type: DataTypes.TEXT,
+        allowNull: true,
       },
       description: {
         type: DataTypes.TEXT,
         allowNull: true,
       },
-      image_url: {
-        type: DataTypes.STRING(255),
+      parent_id: {
+        type: DataTypes.INTEGER,
         allowNull: true,
       },
-      parent_id: {
-        type: DataTypes.BIGINT,
-        allowNull: true,
+      is_active: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
       },
     },
     {
       sequelize,
       modelName: "Category",
       tableName: "categories",
-      createdAt: "created_at",
-      updatedAt: "updated_at",
+      timestamps: false,
     }
   );
 

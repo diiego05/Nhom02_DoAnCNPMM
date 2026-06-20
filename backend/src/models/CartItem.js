@@ -1,58 +1,26 @@
-import { Model } from "sequelize";
+import { Model, DataTypes } from "sequelize";
 
 export default (sequelize, DataTypes) => {
   class CartItem extends Model {
     static associate(models) {
-      CartItem.belongsTo(models.Cart, {
-        foreignKey: "cart_id",
-        as: "cart",
-      });
-      CartItem.belongsTo(models.Product, {
-        foreignKey: "product_id",
-        as: "product",
-      });
-      CartItem.belongsTo(models.ProductVariant, {
-        foreignKey: "product_variant_id",
-        as: "variant",
-      });
+      CartItem.belongsTo(models.User, { foreignKey: "user_id", as: "user" });
+      CartItem.belongsTo(models.ProductVariant, { foreignKey: "variant_id", as: "variant" });
     }
   }
 
   CartItem.init(
     {
-      id: {
-        type: DataTypes.BIGINT,
-        primaryKey: true,
-        autoIncrement: true,
-      },
-      cart_id: {
-        type: DataTypes.BIGINT,
-        allowNull: false,
-      },
-      product_id: {
-        type: DataTypes.BIGINT,
-        allowNull: false,
-      },
-      product_variant_id: {
-        type: DataTypes.BIGINT,
-        allowNull: true,
-      },
-      quantity: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 1,
-      },
-      unit_price: {
-        type: DataTypes.DECIMAL(15, 2),
-        allowNull: false,
-      },
+      id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
+      user_id: { type: DataTypes.BIGINT, allowNull: false },
+      variant_id: { type: DataTypes.BIGINT, allowNull: false },
+      quantity: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
     },
     {
       sequelize,
       modelName: "CartItem",
       tableName: "cart_items",
-      createdAt: "created_at",
-      updatedAt: "updated_at",
+      createdAt: "added_at",
+      updatedAt: false,
     }
   );
 

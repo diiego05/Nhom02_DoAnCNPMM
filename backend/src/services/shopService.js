@@ -16,21 +16,43 @@ const registerShop = async (userId, shopData) => {
       { where: { id: userId }, transaction }
     );
 
-    // 3. Tạo hồ sơ shop
-    const shop = await db.Shop.create(
-      {
-        user_id: userId,
-        name: shopData.name,
-        phone: shopData.phone,
-        address: shopData.address,
-        industry: shopData.industry,
-        description: shopData.description || "",
-        avatar_url: shopData.avatar_url || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=200",
-        cover_url: shopData.cover_url || "https://images.unsplash.com/photo-1469334031218-e382a71b716b?q=80&w=1200",
-        status: "ACTIVE",
+    // 3. Kiểm tra shop đã bị xóa mềm trước đó (cùng vendor hoặc cùng tên)
+    const existingShop = await db.Shop.findOne({
+      where: {
+        [Op.or]: [
+          { vendor_id: userId },
+          { shop_name: shopData.name },
+        ],
       },
-      { transaction }
-    );
+      paranoid: false,
+      transaction,
+    });
+
+    let shop;
+    if (existingShop && existingShop.deleted_at) {
+      // Khôi phục shop đã bị xóa mềm
+      await existingShop.restore({ transaction });
+      shop = await existingShop.update({
+        shop_name: shopData.name,
+        shop_logo: shopData.avatar_url || existingShop.shop_logo,
+        description: shopData.description || existingShop.description,
+        status: "APPROVED",
+      }, { transaction });
+    } else if (existingShop) {
+      throw new Error("Bạn đã có gian hàng hoặc tên gian hàng đã tồn tại");
+    } else {
+      // Tạo hồ sơ shop mới
+      shop = await db.Shop.create(
+        {
+          vendor_id: userId,
+          shop_name: shopData.name,
+          shop_logo: shopData.avatar_url || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=200",
+          description: shopData.description || "",
+          status: "APPROVED",
+        },
+        { transaction }
+      );
+    }
 
     await transaction.commit();
     return shop;
@@ -45,7 +67,7 @@ const getShopProfile = async (shopId) => {
   if (!shop) return null;
 
   const productsCount = await db.Product.count({
-    where: { shop_id: shopId, status: "ACTIVE" },
+    where: { shop_id: shopId, approval_status: "APPROVED" },
   });
 
   const reviewsCount = await db.ProductReview.count({
@@ -67,29 +89,32 @@ const getShopProfile = async (shopId) => {
 };
 
 const getShopByUserId = async (userId) => {
-  return await db.Shop.findOne({ where: { user_id: userId } });
+  return await db.Shop.findOne({ where: { vendor_id: userId } });
+};
+
+const getTopShops = async (limit = 10) => {
+  return await db.Shop.findAll({
+    where: { status: "APPROVED" },
+    order: [["rating", "DESC"]],
+    limit: Number(limit) || 10,
+    attributes: ["id", "shop_name", "shop_logo", "description", "rating", "status"],
+  });
 };
 
 const updateShop = async (userId, shopData) => {
-  const shop = await db.Shop.findOne({ where: { user_id: userId } });
+  const shop = await db.Shop.findOne({ where: { vendor_id: userId } });
   if (!shop) throw new Error("Shop not found");
   return await shop.update(shopData);
 };
 
 const getShopStatistics = async (shopId) => {
-  // 1. Lấy tất cả OrderItems của Shop mà Order không bị hủy
+  // 1. Lấy tất cả OrderItems của Shop mà ShopOrder không bị hủy
   const orderItems = await db.OrderItem.findAll({
     include: [
       {
-        model: db.Product,
-        as: "product",
-        where: { shop_id: shopId },
-        required: true,
-      },
-      {
-        model: db.Order,
-        as: "order",
-        where: { status: { [Op.ne]: "CANCELLED" } },
+        model: db.ShopOrder,
+        as: "shopOrder",
+        where: { shop_id: shopId, status: { [Op.ne]: "CANCELLED" } },
         required: true,
       },
     ],
@@ -99,13 +124,13 @@ const getShopStatistics = async (shopId) => {
   let totalRevenue = 0;
   const orderIds = new Set();
   orderItems.forEach((item) => {
-    totalRevenue += parseFloat(item.total_price || 0);
-    orderIds.add(item.order_id);
+    totalRevenue += parseFloat(item.unit_price * item.quantity || 0);
+    orderIds.add(item.shop_order_id);
   });
 
   // 3. Đếm số lượng sản phẩm của Shop
   const productsCount = await db.Product.count({
-    where: { shop_id: shopId, status: "ACTIVE" },
+    where: { shop_id: shopId, approval_status: "APPROVED" },
   });
 
   // 4. Doanh thu 7 ngày qua
@@ -123,19 +148,18 @@ const getShopStatistics = async (shopId) => {
     dayEnd.setHours(23, 59, 59, 999);
 
     const dayItems = orderItems.filter((item) => {
-      const itemDate = new Date(item.created_at || item.order.created_at);
+      const itemDate = new Date(item.shopOrder.created_at);
       return itemDate >= dayStart && itemDate <= dayEnd;
     });
 
     let daySum = 0;
     dayItems.forEach((item) => {
-      daySum += parseFloat(item.total_price || 0);
+      daySum += parseFloat(item.unit_price * item.quantity || 0);
     });
     dailyRevenue[i] = daySum;
   }
 
-  // 5. Đếm bình luận mới (giả lập hoặc đếm từ ProductReview của shop)
-  // Do product_reviews liên kết tới products, ta có thể lọc theo shop_id
+  // 5. Đếm bình luận mới
   const commentsCount = await db.sequelize.models.ProductReview
     ? await db.sequelize.models.ProductReview.count({
         include: [
@@ -150,8 +174,8 @@ const getShopStatistics = async (shopId) => {
     : 12; // fallback mock
 
   // Tính toán doanh thu sau chiết khấu 10% và số dư khả dụng
-  const approvedWithdrawals = await db.Withdrawal.sum("amount", {
-    where: { shop_id: shopId, status: "APPROVED" }
+  const approvedWithdrawals = await db.ShopPayout.sum("amount", {
+    where: { shop_id: shopId, status: "COMPLETED" }
   }) || 0;
   const netRevenue = totalRevenue * 0.9;
   const availableBalance = Math.max(0, netRevenue - approvedWithdrawals);
@@ -168,34 +192,31 @@ const getShopStatistics = async (shopId) => {
 };
 
 const getShopOrders = async (shopId) => {
-  // Lấy các đơn hàng có sản phẩm thuộc về shop này
-  return await db.Order.findAll({
+  return await db.ShopOrder.findAll({
+    where: { shop_id: shopId },
     include: [
       {
         model: db.OrderItem,
         as: "items",
-        include: [
-          {
-            model: db.Product,
-            as: "product",
-            where: { shop_id: shopId },
-            required: true,
-          },
-        ],
-        required: true,
       },
       {
-        model: db.User,
-        as: "user",
-        attributes: ["id", "email", "phone"],
+        model: db.ParentOrder,
+        as: "parentOrder",
         include: [
           {
-            model: db.UserProfile,
-            as: "profile",
-            attributes: ["full_name"],
-          },
-        ],
-      },
+            model: db.User,
+            as: "user",
+            attributes: ["id", "email"],
+            include: [
+              {
+                model: db.UserProfile,
+                as: "profile",
+                attributes: ["full_name"],
+              },
+            ],
+          }
+        ]
+      }
     ],
     order: [["created_at", "DESC"]],
   });
@@ -207,7 +228,6 @@ const createShopProduct = async (shopId, productData) => {
     const {
       name,
       category_id,
-      brand_id,
       description,
       price,
       sale_price,
@@ -233,8 +253,7 @@ const createShopProduct = async (shopId, productData) => {
     const product = await db.Product.create(
       {
         name,
-        category_id,
-        brand_id: brand_id || null,
+        category_id: category_id || null,
         slug,
         description: description || "",
         price: price || 0,
@@ -242,7 +261,7 @@ const createShopProduct = async (shopId, productData) => {
         gender: gender || "UNISEX",
         material: material || "",
         shop_id: shopId,
-        status: "ACTIVE",
+        approval_status: "APPROVED",
       },
       { transaction }
     );
@@ -288,6 +307,7 @@ const createShopProduct = async (shopId, productData) => {
           image_url: img.image_url,
           alt_text: product.name,
           sort_order: i,
+          is_primary: i === 0,
         })),
         { transaction }
       );
@@ -299,6 +319,7 @@ const createShopProduct = async (shopId, productData) => {
           image_url: "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=400",
           alt_text: product.name,
           sort_order: 0,
+          is_primary: true,
         },
         { transaction }
       );
@@ -324,7 +345,6 @@ const updateShopProduct = async (shopId, productId, productData) => {
     const {
       name,
       category_id,
-      brand_id,
       description,
       price,
       sale_price,
@@ -332,7 +352,7 @@ const updateShopProduct = async (shopId, productId, productData) => {
       material,
       variants,
       images,
-      status,
+      approval_status,
     } = productData;
 
     // Cập nhật thông tin cơ bản
@@ -340,23 +360,23 @@ const updateShopProduct = async (shopId, productId, productData) => {
       {
         name: name || product.name,
         category_id: category_id || product.category_id,
-        brand_id: brand_id !== undefined ? brand_id : product.brand_id,
         description: description !== undefined ? description : product.description,
         price: price !== undefined ? price : product.price,
         sale_price: sale_price !== undefined ? sale_price : product.sale_price,
         gender: gender || product.gender,
         material: material !== undefined ? material : product.material,
-        status: status || product.status,
+        approval_status: approval_status || product.approval_status,
       },
       { transaction }
     );
 
     // Cập nhật variants
     if (variants) {
-      // Xóa tất cả các variants cũ
+      // Xóa tất cả các variants cũ (xóa cứng vì đang thay thế bằng variants mới)
       await db.ProductVariant.destroy({
         where: { product_id: product.id },
         transaction,
+        force: true,
       });
       // Tạo variants mới
       await db.ProductVariant.bulkCreate(
@@ -387,6 +407,7 @@ const updateShopProduct = async (shopId, productId, productData) => {
           image_url: img.image_url,
           alt_text: product.name,
           sort_order: i,
+          is_primary: i === 0,
         })),
         { transaction }
       );
@@ -405,8 +426,9 @@ const deleteShopProduct = async (shopId, productId) => {
     where: { id: productId, shop_id: shopId },
   });
   if (!product) throw new Error("Product not found or not owned by shop");
-  // Thay vì xóa cứng, ta đổi status sang INACTIVE
-  return await product.update({ status: "INACTIVE" });
+  // Soft delete sản phẩm và các variants liên quan
+  await db.ProductVariant.destroy({ where: { product_id: product.id } });
+  return await product.destroy();
 };
 
 const getShopReviews = async (shopId) => {
@@ -422,7 +444,7 @@ const getShopReviews = async (shopId) => {
       {
         model: db.User,
         as: "user",
-        attributes: ["id", "email", "phone"],
+        attributes: ["id", "email"],
         include: [
           {
             model: db.UserProfile,
@@ -430,11 +452,6 @@ const getShopReviews = async (shopId) => {
             attributes: ["full_name"],
           },
         ],
-      },
-      {
-        model: db.ProductVariant,
-        as: "variant",
-        attributes: ["id", "size", "color"],
       },
     ],
     order: [["created_at", "DESC"]],
@@ -452,18 +469,19 @@ const requestWithdrawal = async (shopId, withdrawData) => {
     throw new Error("Số dư khả dụng không đủ để thực hiện giao dịch này");
   }
 
-  return await db.Withdrawal.create({
+  // Create ShopPayout entry
+  return await db.ShopPayout.create({
     shop_id: shopId,
     amount,
     bank_name,
-    account_number,
-    account_name,
+    bank_account_no: account_number,
+    bank_account_name: account_name,
     status: "PENDING"
   });
 };
 
 const getWithdrawals = async (shopId) => {
-  return await db.Withdrawal.findAll({
+  return await db.ShopPayout.findAll({
     where: { shop_id: shopId },
     order: [["created_at", "DESC"]]
   });
@@ -482,4 +500,5 @@ export default {
   getShopReviews,
   requestWithdrawal,
   getWithdrawals,
+  getTopShops,
 };

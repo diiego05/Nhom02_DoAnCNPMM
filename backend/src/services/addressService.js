@@ -1,51 +1,83 @@
 import db from "../models/index.js";
 
+const parseAddress = (addressLine) => {
+  if (!addressLine) return { province: "Unknown", district: "Unknown", ward: "Unknown", street: "" };
+  const parts = addressLine.split(',').map(p => p.trim());
+  const province = parts.length > 0 ? parts[parts.length - 1] : "Unknown";
+  const district = parts.length > 1 ? parts[parts.length - 2] : "Unknown";
+  const ward = parts.length > 2 ? parts[parts.length - 3] : "Unknown";
+  const street = parts.length > 3 ? parts.slice(0, parts.length - 3).join(', ') : addressLine;
+  return { province, district, ward, street };
+};
+
+const formatAddress = (address) => {
+  if (!address) return null;
+  const addressLineParts = [];
+  if (address.street) addressLineParts.push(address.street);
+  if (address.ward && address.ward !== "Unknown") addressLineParts.push(address.ward);
+  if (address.district && address.district !== "Unknown") addressLineParts.push(address.district);
+  if (address.province && address.province !== "Unknown") addressLineParts.push(address.province);
+  
+  return {
+    id: address.id,
+    user_id: address.user_id,
+    recipient_name: address.receiver_name,
+    phone_number: address.phone,
+    address_line: addressLineParts.join(", "),
+    is_default: address.is_default
+  };
+};
+
 const getMyAddresses = async (userId) => {
-  return await db.Address.findAll({
+  const addresses = await db.UserAddress.findAll({
     where: { user_id: userId },
     order: [
       ["is_default", "DESC"],
-      ["created_at", "DESC"],
     ],
   });
+  return addresses.map(formatAddress);
 };
 
 const getAddressById = async (id, userId) => {
-  return await db.Address.findOne({
+  const address = await db.UserAddress.findOne({
     where: { id, user_id: userId },
   });
+  return formatAddress(address);
 };
 
 const createAddress = async (userId, data) => {
   const transaction = await db.sequelize.transaction();
   try {
-    // Nếu đây là địa chỉ mặc định, cập nhật các địa chỉ khác thành false
     if (data.is_default) {
-      await db.Address.update(
+      await db.UserAddress.update(
         { is_default: false },
         { where: { user_id: userId }, transaction }
       );
     } else {
-      // Nếu user chưa có địa chỉ nào, set địa chỉ này thành mặc định
-      const count = await db.Address.count({ where: { user_id: userId } });
+      const count = await db.UserAddress.count({ where: { user_id: userId } });
       if (count === 0) {
         data.is_default = true;
       }
     }
 
-    const newAddress = await db.Address.create(
+    const { province, district, ward, street } = parseAddress(data.address_line);
+
+    const newAddress = await db.UserAddress.create(
       {
         user_id: userId,
-        recipient_name: data.recipient_name,
-        phone_number: data.phone_number,
-        address_line: data.address_line,
+        receiver_name: data.recipient_name,
+        phone: data.phone_number,
+        province,
+        district,
+        ward,
+        street,
         is_default: data.is_default || false,
       },
       { transaction }
     );
 
     await transaction.commit();
-    return newAddress;
+    return formatAddress(newAddress);
   } catch (error) {
     await transaction.rollback();
     throw error;
@@ -55,7 +87,7 @@ const createAddress = async (userId, data) => {
 const updateAddress = async (id, userId, data) => {
   const transaction = await db.sequelize.transaction();
   try {
-    const address = await db.Address.findOne({
+    const address = await db.UserAddress.findOne({
       where: { id, user_id: userId },
     });
     if (!address) {
@@ -63,24 +95,28 @@ const updateAddress = async (id, userId, data) => {
     }
 
     if (data.is_default && !address.is_default) {
-      await db.Address.update(
+      await db.UserAddress.update(
         { is_default: false },
         { where: { user_id: userId }, transaction }
       );
     }
 
-    await address.update(
-      {
-        recipient_name: data.recipient_name ?? address.recipient_name,
-        phone_number: data.phone_number ?? address.phone_number,
-        address_line: data.address_line ?? address.address_line,
-        is_default: data.is_default ?? address.is_default,
-      },
-      { transaction }
-    );
+    const updateData = {};
+    if (data.recipient_name) updateData.receiver_name = data.recipient_name;
+    if (data.phone_number) updateData.phone = data.phone_number;
+    if (data.address_line) {
+      const parsed = parseAddress(data.address_line);
+      updateData.province = parsed.province;
+      updateData.district = parsed.district;
+      updateData.ward = parsed.ward;
+      updateData.street = parsed.street;
+    }
+    if (data.is_default !== undefined) updateData.is_default = data.is_default;
+
+    await address.update(updateData, { transaction });
 
     await transaction.commit();
-    return address;
+    return formatAddress(address);
   } catch (error) {
     await transaction.rollback();
     throw error;
@@ -88,7 +124,7 @@ const updateAddress = async (id, userId, data) => {
 };
 
 const deleteAddress = async (id, userId) => {
-  const address = await db.Address.findOne({
+  const address = await db.UserAddress.findOne({
     where: { id, user_id: userId },
   });
   if (!address) {
@@ -98,9 +134,8 @@ const deleteAddress = async (id, userId) => {
   const wasDefault = address.is_default;
   await address.destroy();
 
-  // Nếu xóa địa chỉ mặc định, set một địa chỉ khác làm mặc định
   if (wasDefault) {
-    const anotherAddress = await db.Address.findOne({
+    const anotherAddress = await db.UserAddress.findOne({
       where: { user_id: userId },
     });
     if (anotherAddress) {

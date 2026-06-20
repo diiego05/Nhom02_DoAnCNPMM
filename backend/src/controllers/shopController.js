@@ -26,6 +26,17 @@ const getShopProfile = async (req, res) => {
   }
 };
 
+const getTopShops = async (req, res) => {
+  try {
+    const { limit } = req.query;
+    const shops = await shopService.getTopShops(limit);
+    return res.status(200).json({ message: "Success", data: shops });
+  } catch (error) {
+    console.error("Error getting top shops:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 const getMyShop = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -286,4 +297,5 @@ export default {
   uploadImage,
   requestWithdrawal,
   getWithdrawals,
+  getTopShops,
 };

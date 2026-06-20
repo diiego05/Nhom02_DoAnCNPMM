@@ -14,7 +14,6 @@ import orderRouter from "./routes/orderRoute.js";
 import addressRouter from "./routes/addressRoute.js";
 import couponRouter from "./routes/couponRoute.js";
 import shopRouter from "./routes/shopRoute.js";
-import brandRouter from "./routes/brandRoute.js";
 import chatRouter from "./routes/chatRoute.js";
 import cron from "node-cron";
 import orderService from "./services/orderService.js";
@@ -52,7 +51,6 @@ app.use("/orders", orderRouter);
 app.use("/addresses", addressRouter);
 app.use("/coupons", couponRouter);
 app.use("/shops", shopRouter);
-app.use("/brands", brandRouter);
 app.use("/chats", chatRouter);
 
 let port = process.env.PORT || 8080;
@@ -62,19 +60,7 @@ connectDB()
     app.listen(port, () => {
       console.log("Backend nodejs is running on the port: " + port);
 
-      // Khởi động Cron Job kiểm tra đơn hàng tự động xác nhận sau 30 phút
-      cron.schedule("* * * * *", async () => {
-        try {
-          const updatedCount = await orderService.autoConfirmOrders();
-          if (updatedCount > 0) {
-            console.log(
-              `[CRON] Tự động xác nhận ${updatedCount} đơn hàng thành công.`,
-            );
-          }
-        } catch (error) {
-          console.error("[CRON] Lỗi khi chạy auto confirm orders:", error);
-        }
-      });
+
     });
   })
   .catch((error) => {

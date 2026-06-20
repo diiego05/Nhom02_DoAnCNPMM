@@ -6,6 +6,7 @@ import upload from "../middleware/upload.js";
 const router = express.Router();
 
 // Routes công khai (Public)
+router.get("/top", shopController.getTopShops);
 router.get("/:id", shopController.getShopProfile);
 router.get("/:id/vouchers", shopController.getShopVouchers);
 

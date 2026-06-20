@@ -18,16 +18,13 @@ const getProducts = async (filters) => {
   } = filters;
 
   // 1. Xây dựng where clause động
-  const where = { status: "ACTIVE" };
+  const where = { approval_status: "APPROVED" };
 
   if (keyword) {
     where.name = { [Op.like]: `%${keyword}%` };
   }
   if (shopId) {
     where.shop_id = shopId;
-  }
-  if (brandId) {
-    where.brand_id = brandId;
   }
   if (gender) where.gender = gender;
   if (isNew !== undefined) where.is_new = isNew === "true";
@@ -42,7 +39,6 @@ const getProducts = async (filters) => {
 
   // 2. Xây dựng include (JOIN) động
   const include = [
-    { model: db.Brand, as: "brand", attributes: ["id", "name", "slug"] },
     {
       model: db.ProductImage,
       as: "images",
@@ -52,7 +48,7 @@ const getProducts = async (filters) => {
     {
       model: db.Shop,
       as: "shop",
-      attributes: ["id", "name", "status", "rating", "followers_count", "avatar_url"],
+      attributes: ["id", "shop_name", "status", "rating", "shop_logo"],
       required: false,
     },
   ];
@@ -144,13 +140,11 @@ const getProducts = async (filters) => {
 
 const getProductBySlug = async (slug) => {
   const product = await db.Product.findOne({
-    where: { slug, status: "ACTIVE" },
+    where: { slug, approval_status: "APPROVED" },
     include: [
       { model: db.Category, as: "category" },
-      { model: db.Brand, as: "brand" },
       { model: db.ProductImage, as: "images", order: [["sort_order", "ASC"]] },
       { model: db.ProductVariant, as: "variants" },
-      { model: db.ProductAttribute, as: "attributes" },
       { model: db.Shop, as: "shop" },
     ],
   });
@@ -173,17 +167,12 @@ const getSimilarProducts = async (categoryId, excludeProductId, limit = 6) => {
     where: {
       category_id: categoryId,
       id: { [Op.ne]: excludeProductId }, // Loại trừ sản phẩm hiện tại
-      status: "ACTIVE",
+      approval_status: "APPROVED",
     },
     include: [
       {
         model: db.Category,
         as: "category",
-        attributes: ["id", "name", "slug"]
-      },
-      {
-        model: db.Brand,
-        as: "brand",
         attributes: ["id", "name", "slug"]
       },
       {
@@ -204,7 +193,7 @@ const getFeaturedProducts = async (limit = 10) => {
 
   return await db.Product.findAll({
     where: {
-      status: "ACTIVE",
+      approval_status: "APPROVED",
       is_featured: true,
     },
 
@@ -214,19 +203,12 @@ const getFeaturedProducts = async (limit = 10) => {
       "slug",
       "price",
       "sale_price",
-      "stock_quantity",
       "sold_count",
       "is_new",
       "created_at",
     ],
 
     include: [
-      {
-        model: db.Brand,
-        as: "brand",
-
-        attributes: ["id", "name", "slug"],
-      },
 
       {
         model: db.ProductImage,
@@ -244,9 +226,9 @@ const getFeaturedProducts = async (limit = 10) => {
       {
         model: db.Shop,
         as: "shop",
-        attributes: ["id", "name", "status", "rating", "followers_count", "avatar_url"],
+        attributes: ["id", "shop_name", "status", "rating", "shop_logo"],
         where: {
-          status: "ACTIVE",
+          status: "APPROVED",
           rating: { [Op.gte]: 4.0 },
         },
       },
@@ -268,7 +250,7 @@ const getNewestProducts = async (limit = 10) => {
 
   return await db.Product.findAll({
     where: {
-      status: "ACTIVE",
+      approval_status: "APPROVED",
       is_new: true,
     },
 
@@ -278,19 +260,12 @@ const getNewestProducts = async (limit = 10) => {
       "slug",
       "price",
       "sale_price",
-      "stock_quantity",
       "sold_count",
       "is_new",
       "created_at",
     ],
 
     include: [
-      {
-        model: db.Brand,
-        as: "brand",
-
-        attributes: ["id", "name", "slug"],
-      },
 
       {
         model: db.ProductImage,
@@ -308,9 +283,9 @@ const getNewestProducts = async (limit = 10) => {
       {
         model: db.Shop,
         as: "shop",
-        attributes: ["id", "name", "status", "rating", "followers_count", "avatar_url"],
+        attributes: ["id", "shop_name", "status", "rating", "shop_logo"],
         where: {
-          status: "ACTIVE",
+          status: "APPROVED",
           rating: { [Op.gte]: 4.0 },
         },
       },
@@ -331,7 +306,7 @@ const getBestSellerProducts = async (limit = 10) => {
 
   return await db.Product.findAll({
     where: {
-      status: "ACTIVE",
+      approval_status: "APPROVED",
     },
 
     attributes: [
@@ -340,19 +315,12 @@ const getBestSellerProducts = async (limit = 10) => {
       "slug",
       "price",
       "sale_price",
-      "stock_quantity",
       "sold_count",
       "is_new",
       "created_at",
     ],
 
     include: [
-      {
-        model: db.Brand,
-        as: "brand",
-
-        attributes: ["id", "name", "slug"],
-      },
 
       {
         model: db.ProductImage,
@@ -370,9 +338,9 @@ const getBestSellerProducts = async (limit = 10) => {
       {
         model: db.Shop,
         as: "shop",
-        attributes: ["id", "name", "status", "rating", "followers_count", "avatar_url"],
+        attributes: ["id", "shop_name", "status", "rating", "shop_logo"],
         where: {
-          status: "ACTIVE",
+          status: "APPROVED",
           rating: { [Op.gte]: 4.0 },
         },
       },
@@ -391,7 +359,7 @@ const getMostViewedProducts = async (limit = 10) => {
 
   return await db.Product.findAll({
     where: {
-      status: "ACTIVE",
+      approval_status: "APPROVED",
     },
 
     attributes: [
@@ -400,7 +368,6 @@ const getMostViewedProducts = async (limit = 10) => {
       "slug",
       "price",
       "sale_price",
-      "stock_quantity",
       "sold_count",
       "view_count",
       "is_new",
@@ -408,11 +375,6 @@ const getMostViewedProducts = async (limit = 10) => {
     ],
 
     include: [
-      {
-        model: db.Brand,
-        as: "brand",
-        attributes: ["id", "name", "slug"],
-      },
       {
         model: db.ProductImage,
         as: "images",
@@ -425,9 +387,9 @@ const getMostViewedProducts = async (limit = 10) => {
       {
         model: db.Shop,
         as: "shop",
-        attributes: ["id", "name", "status", "rating", "followers_count", "avatar_url"],
+        attributes: ["id", "shop_name", "status", "rating", "shop_logo"],
         where: {
-          status: "ACTIVE",
+          status: "APPROVED",
           rating: { [Op.gte]: 4.0 },
         },
       },
@@ -458,19 +420,17 @@ const toggleFavorite = async (userId, productId) => {
 const recordView = async (userId, productId) => {
   // Tăng view_count của Product
   await db.Product.increment('view_count', { by: 1, where: { id: productId } });
-
-  // Nếu đã đăng nhập, lưu vào UserViewedProduct
+  
   if (userId) {
-    const existingView = await db.UserViewedProduct.findOne({
-      where: { user_id: userId, product_id: productId }
+    const [viewed, created] = await db.UserViewedProduct.findOrCreate({
+      where: { user_id: userId, product_id: productId },
+      defaults: { viewed_at: new Date() }
     });
-    if (existingView) {
-      existingView.viewed_at = new Date();
-      await existingView.save();
-    } else {
-      await db.UserViewedProduct.create({ user_id: userId, product_id: productId });
+    if (!created) {
+      await viewed.update({ viewed_at: new Date() });
     }
   }
+
   return true;
 };
 

@@ -3,129 +3,35 @@ import { Model, DataTypes } from "sequelize";
 export default (sequelize, DataTypes) => {
   class Product extends Model {
     static associate(models) {
-      Product.belongsTo(models.Category, {
-        foreignKey: "category_id",
-        as: "category",
-      });
-      Product.belongsTo(models.Brand, {
-        foreignKey: "brand_id",
-        as: "brand",
-      });
-      Product.hasMany(models.ProductVariant, {
-        foreignKey: "product_id",
-        as: "variants",
-      });
-      Product.hasMany(models.ProductImage, {
-        foreignKey: "product_id",
-        as: "images",
-      });
-      Product.hasMany(models.ProductAttribute, {
-        foreignKey: "product_id",
-        as: "attributes",
-      });
-      Product.hasMany(models.ProductReview, {
-        foreignKey: "product_id",
-        as: "reviews",
-      });
-      Product.hasMany(models.Wishlist, {
-        foreignKey: "product_id",
-        as: "wishlistedBy",
-      });
-      Product.hasMany(models.UserViewedProduct, {
-        foreignKey: "product_id",
-        as: "viewedBy",
-      });
-      Product.belongsTo(models.Shop, {
-        foreignKey: "shop_id",
-        as: "shop",
-      });
+      Product.belongsTo(models.Shop, { foreignKey: "shop_id", as: "shop" });
+      Product.belongsTo(models.Category, { foreignKey: "category_id", as: "category" });
+      Product.hasMany(models.ProductImage, { foreignKey: "product_id", as: "images" });
+      Product.hasMany(models.ProductVariant, { foreignKey: "product_id", as: "variants" });
+      Product.hasMany(models.ProductReview, { foreignKey: "product_id", as: "reviews" });
+      Product.hasMany(models.Wishlist, { foreignKey: "product_id", as: "wishlistedBy" });
     }
   }
 
   Product.init(
     {
-      id: {
-        type: DataTypes.BIGINT,
-        primaryKey: true,
-        autoIncrement: true,
-      },
-      category_id: {
-        type: DataTypes.BIGINT,
-        allowNull: false,
-      },
-      brand_id: {
-        type: DataTypes.BIGINT,
-        allowNull: true,
-      },
-      shop_id: {
-        type: DataTypes.BIGINT,
-        allowNull: true,
-      },
-      name: {
-        type: DataTypes.STRING(255),
-        allowNull: false,
-      },
-      slug: {
-        type: DataTypes.STRING(255),
-        allowNull: false,
-        unique: true,
-      },
-      description: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      },
-      material: {
-        type: DataTypes.STRING(255),
-        allowNull: true,
-      },
-      gender: {
-        type: DataTypes.ENUM("MALE", "FEMALE", "UNISEX"),
-        defaultValue: "UNISEX",
-      },
-      price: {
-        type: DataTypes.DECIMAL(15, 2),
-        allowNull: false,
-      },
-      sale_price: {
-        type: DataTypes.DECIMAL(15, 2),
-        allowNull: true,
-      },
-      stock_quantity: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0,
-      },
-      sold_count: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0,
-      },
-      status: {
-        type: DataTypes.ENUM("ACTIVE", "INACTIVE"),
-        defaultValue: "ACTIVE",
-      },
-      is_featured: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false,
-      },
-      is_new: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: true,
-      },
-      view_count: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0,
-      },
-      review_count: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0,
-      },
-      rating_average: {
-        type: DataTypes.DECIMAL(3, 2),
-        allowNull: false,
-        defaultValue: 0.00,
+      id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
+      shop_id: { type: DataTypes.BIGINT, allowNull: false },
+      category_id: { type: DataTypes.INTEGER, allowNull: true },
+      name: { type: DataTypes.STRING(300), allowNull: false },
+      slug: { type: DataTypes.STRING(350), unique: true, allowNull: true },
+      description: { type: DataTypes.TEXT, allowNull: true },
+      price: { type: DataTypes.DECIMAL(15, 2), allowNull: false, defaultValue: 0 },
+      sale_price: { type: DataTypes.DECIMAL(15, 2), allowNull: true },
+      sold_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+      view_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+      is_new: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+      is_featured: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+      gender: { type: DataTypes.ENUM("MALE", "FEMALE", "UNISEX"), allowNull: false, defaultValue: "UNISEX" },
+      material: { type: DataTypes.STRING(100), allowNull: true },
+      approval_status: { 
+        type: DataTypes.ENUM("PENDING", "APPROVED", "REJECTED", "HIDDEN"), 
+        allowNull: false, 
+        defaultValue: "PENDING" 
       },
     },
     {
@@ -134,6 +40,8 @@ export default (sequelize, DataTypes) => {
       tableName: "products",
       createdAt: "created_at",
       updatedAt: "updated_at",
+      paranoid: true,
+      deletedAt: "deleted_at",
     }
   );
 

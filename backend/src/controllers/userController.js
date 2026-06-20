@@ -12,10 +12,9 @@ const getUserProfile = async (req, res) => {
       message: "Profile retrieved successfully",
       data: {
         fullName: user.full_name,
-        dateOfBirth: user.date_of_birth,
+        dateOfBirth: user.birthday,
         gender: user.gender,
         avatarUrl: user.avatar_url,
-        coverPhotoUrl: user.cover_photo_url,
         loyalty_points: user.loyalty_points,
       },
     });
@@ -38,10 +37,9 @@ const updateUserProfile = async (req, res) => {
       message: "Profile updated successfully",
       data: {
         fullName: user.full_name,
-        dateOfBirth: user.date_of_birth,
+        dateOfBirth: user.birthday,
         gender: user.gender,
         avatarUrl: user.avatar_url,
-        coverPhotoUrl: user.cover_photo_url,
       },
     });
   } catch (error) {

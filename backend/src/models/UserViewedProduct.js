@@ -10,24 +10,10 @@ export default (sequelize, DataTypes) => {
 
   UserViewedProduct.init(
     {
-      id: {
-        type: DataTypes.BIGINT,
-        primaryKey: true,
-        autoIncrement: true,
-      },
-      user_id: {
-        type: DataTypes.BIGINT,
-        allowNull: false,
-      },
-      product_id: {
-        type: DataTypes.BIGINT,
-        allowNull: false,
-      },
-      viewed_at: {
-        type: DataTypes.DATE,
-        allowNull: false,
-        defaultValue: DataTypes.NOW,
-      },
+      id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
+      user_id: { type: DataTypes.BIGINT, allowNull: false },
+      product_id: { type: DataTypes.BIGINT, allowNull: false },
+      viewed_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
     },
     {
       sequelize,

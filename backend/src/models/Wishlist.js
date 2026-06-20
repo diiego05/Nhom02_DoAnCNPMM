@@ -28,7 +28,7 @@ export default (sequelize, DataTypes) => {
       sequelize,
       modelName: "Wishlist",
       tableName: "wishlists",
-      createdAt: "created_at",
+      createdAt: "added_at",
       updatedAt: false,
     }
   );

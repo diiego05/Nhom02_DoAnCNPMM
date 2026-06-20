@@ -1,10 +1,13 @@
 {
   "development": {
     "username": "root",
-    "password": "1042005trungall",
-    "database": "UTEShop",
+    "password": "123456",
+    "database": "fashion_marketplace",
     "host": "127.0.0.1",
     "dialect": "mysql",
+    "dialectOptions": {
+      "multipleStatements": true
+    },
     "timezone": "+07:00"
   },
   "test": {

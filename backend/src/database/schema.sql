@@ -13,11 +13,6 @@
 --   + Thêm bảng messages / conversations (Chat User <-> Vendor)
 -- ============================================================
 
-CREATE DATABASE IF NOT EXISTS `fashion_marketplace`
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-USE `fashion_marketplace`;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -76,8 +71,12 @@ CREATE TABLE `users` (
   `password`   VARCHAR(255) DEFAULT NULL,
   `role_id`    INT          NOT NULL,
   `status`     ENUM('PENDING','ACTIVE','LOCKED') NOT NULL DEFAULT 'PENDING',
+  `auth_provider` VARCHAR(50) DEFAULT 'local',
+  `auth_provider_id` VARCHAR(255) DEFAULT NULL,
+  `loyalty_points` INT NOT NULL DEFAULT 0,
   `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` DATETIME     DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_users_email` (`email`),
   UNIQUE KEY `uk_users_phone` (`phone`),
@@ -185,6 +184,7 @@ CREATE TABLE `shops` (
   `rating`      DECIMAL(3,2) NOT NULL DEFAULT 0.00,
   `created_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at`  DATETIME     DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_shop_name` (`shop_name`),
   KEY `idx_shop_vendor` (`vendor_id`),
@@ -201,6 +201,9 @@ CREATE TABLE `shops` (
 CREATE TABLE `categories` (
   `id`        INT          NOT NULL AUTO_INCREMENT,
   `name`      VARCHAR(200) NOT NULL,
+  `slug`      VARCHAR(250) UNIQUE DEFAULT NULL,
+  `image_url` TEXT         DEFAULT NULL,
+  `description` TEXT       DEFAULT NULL,
   `parent_id` INT          DEFAULT NULL COMMENT 'NULL = Root category. Admin quản lý.',
   `is_active` TINYINT(1)   NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`),
@@ -216,11 +219,21 @@ CREATE TABLE `products` (
   `shop_id`         BIGINT       NOT NULL,
   `category_id`     INT          DEFAULT NULL,
   `name`            VARCHAR(300) NOT NULL,
+  `slug`            VARCHAR(350) UNIQUE DEFAULT NULL,
   `description`     TEXT         DEFAULT NULL,
+  `price`           DECIMAL(15,2) NOT NULL DEFAULT 0,
+  `sale_price`      DECIMAL(15,2) DEFAULT NULL,
+  `sold_count`      INT          NOT NULL DEFAULT 0,
+  `view_count`      INT          NOT NULL DEFAULT 0,
+  `is_new`          TINYINT(1)   NOT NULL DEFAULT 0,
+  `is_featured`     TINYINT(1)   NOT NULL DEFAULT 0,
+  `gender`          ENUM('MALE','FEMALE','UNISEX') NOT NULL DEFAULT 'UNISEX',
+  `material`        VARCHAR(100) DEFAULT NULL,
   `approval_status` ENUM('PENDING','APPROVED','REJECTED','HIDDEN') NOT NULL DEFAULT 'PENDING'
                     COMMENT 'Manager kiểm duyệt trước khi hiển thị',
   `created_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at`      DATETIME     DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_prod_shop`     (`shop_id`),
   KEY `idx_prod_category` (`category_id`),
@@ -239,7 +252,9 @@ CREATE TABLE `product_images` (
   `id`         BIGINT   NOT NULL AUTO_INCREMENT,
   `product_id` BIGINT   NOT NULL,
   `image_url`  TEXT     NOT NULL,
-  `sort_order` SMALLINT NOT NULL DEFAULT 0 COMMENT '0 = ảnh bìa chính',
+  `alt_text`   VARCHAR(200) DEFAULT NULL,
+  `sort_order` SMALLINT NOT NULL DEFAULT 0,
+  `is_primary` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `idx_pi_product` (`product_id`),
   CONSTRAINT `fk_pi_product`
@@ -255,8 +270,12 @@ CREATE TABLE `product_variants` (
   `sku`        VARCHAR(100)  NOT NULL,
   `size`       VARCHAR(20)   NOT NULL,
   `color`      VARCHAR(50)   NOT NULL,
+  `color_hex`  VARCHAR(20)   NOT NULL DEFAULT '#888888',
   `price`      DECIMAL(15,2) NOT NULL,
-  `stock`      INT           NOT NULL DEFAULT 0,
+  `sale_price` DECIMAL(15,2) DEFAULT NULL,
+  `stock_quantity` INT       NOT NULL DEFAULT 0,
+  `is_active`  TINYINT(1)    NOT NULL DEFAULT 1,
+  `deleted_at` DATETIME      DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_pv_sku` (`sku`),
   KEY `idx_pv_product` (`product_id`),
@@ -275,6 +294,7 @@ CREATE TABLE `product_reviews` (
   `rating`         TINYINT  NOT NULL COMMENT '1–5 sao',
   `comment`        TEXT     DEFAULT NULL,
   `created_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `deleted_at`     DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_review_order_product` (`shop_order_id`, `product_id`)
     COMMENT 'Mỗi đơn hàng chỉ được review 1 lần cho mỗi sản phẩm',
@@ -336,6 +356,7 @@ CREATE TABLE `coupons` (
   `used_count`       INT           NOT NULL DEFAULT 0,
   `start_date`       DATETIME      NOT NULL,
   `end_date`         DATETIME      NOT NULL,
+  `deleted_at`       DATETIME      DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_coupon_code` (`code`),
   KEY `idx_coupon_shop` (`shop_id`),
@@ -428,6 +449,7 @@ CREATE TABLE `parent_orders` (
   `payment_status`  ENUM('UNPAID','PAID','REFUNDED') NOT NULL DEFAULT 'UNPAID',
   `shipping_address` TEXT         NOT NULL COMMENT 'Snapshot địa chỉ tại thời điểm đặt hàng',
   `platform_coupon_id` BIGINT     DEFAULT NULL COMMENT 'Mã giảm giá toàn sàn áp dụng cho đơn này',
+  `note`            TEXT          DEFAULT NULL COMMENT 'Ghi chú cho đơn hàng',
   `created_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_checkout_code` (`checkout_code`),
@@ -462,6 +484,8 @@ CREATE TABLE `shop_orders` (
   `cod_amount_collected` DECIMAL(15,2) DEFAULT NULL
                          COMMENT 'Số tiền COD Shipper thực thu từ khách. NULL nếu chưa thu hoặc không phải COD.',
   `shop_coupon_id`       BIGINT        DEFAULT NULL COMMENT 'Mã giảm giá của Shop áp dụng cho đơn con này',
+  `points_used`          INT           NOT NULL DEFAULT 0 COMMENT 'Số điểm tiêu thụ cho đơn nhỏ này',
+  `points_earned`        INT           NOT NULL DEFAULT 0 COMMENT 'Số điểm sẽ được cộng khi giao thành công',
   `status`               ENUM(
                            'PENDING',           -- Chờ Shop xác nhận
                            'PREPARING',         -- Shop đang đóng gói

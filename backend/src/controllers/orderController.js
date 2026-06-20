@@ -1,34 +1,31 @@
 import orderService from "../services/orderService.js";
-import orderStatusService from "../services/orderStatusService.js";
 
 const createOrder = async (req, res) => {
   try {
     const {
       paymentMethod,
-      shippingAddress,
-      recipientName,
-      recipientPhone,
-      note,
+      addressId,
+      platformCouponCode,
+      shopCoupons,
       items,
-      coupon_code,
-      use_points,
-      is_cart_checkout
+      usePoints,
+      is_cart_checkout,
+      note,
     } = req.body;
 
-    if (!shippingAddress || !recipientName || !recipientPhone) {
-      return res.status(400).json({ message: "Thiếu thông tin giao hàng" });
+    if (!addressId) {
+      return res.status(400).json({ message: "Thiếu thông tin giao hàng (addressId)" });
     }
 
     const order = await orderService.createOrder(req.user.id, {
       paymentMethod,
-      shippingAddress,
-      recipientName,
-      recipientPhone,
-      note,
+      addressId,
+      platformCouponCode,
+      shopCoupons,
       items,
-      couponCode: coupon_code,
-      usePoints: use_points,
-      isCartCheckout: is_cart_checkout
+      usePoints,
+      is_cart_checkout,
+      note,
     });
 
     return res
@@ -41,7 +38,6 @@ const createOrder = async (req, res) => {
 
 const getMyOrders = async (req, res) => {
   try {
-    console.log(req.query);
     const result = await orderService.getUserOrders(req.user.id, req.query);
     return res.status(200).json({ message: "Success", data: result });
   } catch (error) {
@@ -49,49 +45,13 @@ const getMyOrders = async (req, res) => {
   }
 };
 
-const getOrderDetail = async (req, res) => {
-  try {
-    const order = await orderService.getOrderDetail(
-      req.user.id,
-      req.params.orderId,
-    );
-    return res.status(200).json({ message: "Success", data: order });
-  } catch (error) {
-    return res.status(404).json({ message: error.message });
-  }
-};
-
-const cancelOrder = async (req, res) => {
-  try {
-    const { reason } = req.body;
-    const result = await orderService.cancelOrder(
-      req.user.id,
-      req.params.orderId,
-      reason,
-    );
-    return res
-      .status(200)
-      .json({ message: "Yêu cầu hủy đơn thành công", data: result });
-  } catch (error) {
-    return res.status(400).json({ message: error.message });
-  }
-};
-
-const confirmOrder = async (req, res) => {
-  try {
-    const order = await orderService.confirmOrder(req.params.orderId, req.user?.id);
-    return res.status(200).json({ message: "Xác nhận đơn hàng thành công", data: order });
-  } catch (error) {
-    return res.status(400).json({ message: error.message });
-  }
-};
-
 const calculateCheckout = async (req, res) => {
   try {
-    const { items, couponCode, usePoints } = req.body;
+    const { items, platformCouponCode, shopCoupons, usePoints } = req.body;
     const result = await orderService.calculateCheckout(req.user.id, {
       items,
-      couponCode,
+      platformCouponCode,
+      shopCoupons,
       usePoints,
     });
     return res.status(200).json({ message: "Success", data: result });
@@ -100,24 +60,49 @@ const calculateCheckout = async (req, res) => {
   }
 };
 
-const prepareOrder = async (req, res) => {
-  try {
-    const order = await orderService.prepareOrder(req.params.orderId, req.user?.id);
-    return res.status(200).json({ message: "Chuẩn bị hàng thành công", data: order });
-  } catch (error) {
-    return res.status(400).json({ message: error.message });
-  }
-};
-
 const updateOrderStatus = async (req, res) => {
   try {
-    const { status, note } = req.body;
-    const { orderId } = req.params;
-    const order = await orderStatusService.updateOrderStatus(orderId, status, req.user?.id, note);
+    const { status } = req.body;
+    const { orderId } = req.params; // this is shop_order_id
+    
+    let role = "user";
+    if (req.user.role && req.user.role.role_name) {
+       role = req.user.role.role_name;
+    }
+    
+    const order = await orderService.updateOrderStatus(orderId, req.user.id, status, role);
     return res.status(200).json({ message: "Cập nhật trạng thái thành công", data: order });
   } catch (error) {
     return res.status(400).json({ message: error.message });
   }
 };
 
-export default { createOrder, getMyOrders, getOrderDetail, cancelOrder, confirmOrder, calculateCheckout, prepareOrder, updateOrderStatus };
+const getOrderDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await orderService.getOrderDetail(id, req.user.id);
+    return res.status(200).json({ message: "Success", data: result });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+const cancelOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const result = await orderService.cancelOrder(id, req.user.id, reason);
+    return res.status(200).json({ message: "Success", data: result });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+export default {
+  createOrder,
+  getMyOrders,
+  calculateCheckout,
+  updateOrderStatus,
+  getOrderDetail,
+  cancelOrder,
+};

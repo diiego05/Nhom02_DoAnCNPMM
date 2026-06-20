@@ -5,7 +5,7 @@ dotenv.config();
 
 export const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(" ")[1]; // Bearer <token>
+  const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
     return res.status(401).json({ message: "Vui lòng đăng nhập để thực hiện" });
@@ -42,14 +42,14 @@ export const optionalVerifyToken = (req, res, next) => {
   });
 };
 
-export const isVendor = async (req, res, next) => {
+const checkRole = (allowedRoles) => async (req, res, next) => {
   try {
     const user = await db.User.findByPk(req.user.id, {
       include: [{ model: db.Role, as: "role" }]
     });
 
-    if (!user || user.role?.role_name !== "vendor") {
-      return res.status(403).json({ message: "Quyền truy cập bị từ chối. Chỉ dành cho vai trò Vendor." });
+    if (!user || !user.role || !allowedRoles.includes(user.role.role_name)) {
+      return res.status(403).json({ message: `Quyền truy cập bị từ chối. Cần quyền: ${allowedRoles.join(", ")}` });
     }
 
     next();
@@ -57,3 +57,8 @@ export const isVendor = async (req, res, next) => {
     return res.status(500).json({ message: "Lỗi kiểm tra quyền hạn" });
   }
 };
+
+export const isVendor = checkRole(["vendor"]);
+export const isAdmin = checkRole(["admin"]);
+export const isManager = checkRole(["admin", "manager"]);
+export const isShipper = checkRole(["shipper"]);
