@@ -1,4 +1,4 @@
-import { MapPin, Truck, CreditCard, Wallet, ShieldCheck, ChevronLeft, Package, Loader2 } from 'lucide-react';
+import { MapPin, Truck, CreditCard, Wallet, ShieldCheck, ChevronLeft, Package, Loader2, Store } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAppSelector } from '@/stores/hooks';
 import { useCart } from '@/hooks/useCart';
@@ -11,9 +11,7 @@ import { useForm } from 'react-hook-form';
 import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { CreateOrderPayload } from '@/types/order.types';
-import { Tag, Check } from 'lucide-react';
-import { CartItem } from '@/types/cart.types';
-
+import { Tag, Check, Ticket } from 'lucide-react';
 const addressSchema = yup.object().shape({
   recipient_name: yup.string().required('Vui lòng nhập tên người nhận'),
   phone_number: yup.string().required('Vui lòng nhập số điện thoại'),
@@ -43,15 +41,19 @@ const CheckoutPage = () => {
   const calculateMutation = useCalculateCheckout();
 
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
-  const [isAddingNewAddress, setIsAddingNewAddress] = useState(false);
-  const [shippingFee] = useState(30000);
   const [paymentMethod, setPaymentMethod] = useState<"COD" | "VNPAY">("COD");
+  const [isAddingNewAddress, setIsAddingNewAddress] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
 
   // Coupon and Points state
   const [couponCode, setCouponCode] = useState("");
   const [inputCoupon, setInputCoupon] = useState("");
+  const [shopCoupons, setShopCoupons] = useState<Record<string, string>>({});
   const [usePoints, setUsePoints] = useState(false);
   const [calculatedData, setCalculatedData] = useState<any>(null);
+
+  const platformCoupons = validCoupons?.filter((c: any) => !c.shop_id) || [];
+  const availableShopCoupons = validCoupons?.filter((c: any) => c.shop_id) || [];
 
   const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm({
     resolver: yupResolver(addressSchema),
@@ -110,18 +112,17 @@ const CheckoutPage = () => {
     }
 
     const payload: CreateOrderPayload = {
-      recipientName: data.recipient_name,
-      recipientPhone: data.phone_number,
-      shippingAddress: data.address_line,
+      addressId: selectedAddressId || undefined,
       note: data.note,
       paymentMethod: paymentMethod,
-      coupon_code: couponCode || undefined,
-      use_points: usePoints,
+      platformCouponCode: couponCode || undefined,
+      shopCoupons: shopCoupons,
+      usePoints: usePoints,
       items: checkoutItems.map((item: any) => ({
-        product_id: item.product_id,
-        product_variant_id: item.product_variant_id || undefined,
+        product_id: item.product_id || item.variant?.product?.id || item.product?.id,
+        variant_id: item.product_variant_id || item.variant_id || item.variant?.id || undefined,
         quantity: item.quantity,
-        unit_price: item.unit_price,
+        unit_price: item.variant?.sale_price || item.variant?.price || item.unit_price,
       })),
       is_cart_checkout: !buyNowItem,
     };
@@ -129,7 +130,7 @@ const CheckoutPage = () => {
     console.log(payload);
     createOrderMutation.mutate(payload, {
       onSuccess: () => {
-        navigate("/orders"); // Chuyển đến trang lịch sử đơn hàng
+        setCurrentStep(3); // Chuyển đến trang Hoàn tất
       },
       onError: (error) => {
         console.error("Lỗi khi đặt hàng", error);
@@ -141,17 +142,34 @@ const CheckoutPage = () => {
   const cartItems = buyNowItem ? [buyNowItem] : (cart?.items || []);
   const subtotal = buyNowItem ? (buyNowItem.unit_price * buyNowItem.quantity) : (cart?.totalAmount || 0);
 
+  const groupedCartItems = cartItems.reduce((acc: any, item: any) => {
+    const product = item.variant?.product || item.product;
+    const shopId = product?.shop?.id || product?.shop_id || 'unknown';
+    if (!acc[shopId]) {
+      acc[shopId] = {
+        shop: product?.shop || { id: product?.shop_id },
+        items: []
+      };
+    }
+    acc[shopId].items.push(item);
+    return acc;
+  }, {});
+  
+  const shopGroups: any[] = Object.values(groupedCartItems);
+  const fallbackShippingFee = shopGroups.length > 0 ? shopGroups.length * 30000 : 0;
+
   // Trigger calculate API when dependencies change
   useEffect(() => {
     if (cartItems.length > 0) {
       calculateMutation.mutate({
         items: cartItems.map((item: any) => ({
-          product_id: item.product_id,
-          product_variant_id: item.product_variant_id || undefined,
+          product_id: item.product_id || item.variant?.product?.id || item.product?.id,
+          variant_id: item.product_variant_id || item.variant_id || item.variant?.id || undefined,
           quantity: item.quantity,
-          unit_price: item.unit_price,
+          unit_price: item.variant?.sale_price || item.variant?.price || item.unit_price,
         })),
-        couponCode: couponCode || undefined,
+        platformCouponCode: couponCode || undefined,
+        shopCoupons: shopCoupons,
         usePoints
       }, {
         onSuccess: (data) => setCalculatedData(data),
@@ -165,7 +183,7 @@ const CheckoutPage = () => {
         }
       });
     }
-  }, [cart, buyNowItem, couponCode, usePoints]);
+  }, [cart, buyNowItem, couponCode, shopCoupons, usePoints]);
 
   if (isCartLoading || isAddressesLoading) {
     return (
@@ -175,10 +193,10 @@ const CheckoutPage = () => {
     );
   }
 
-  const displaySubtotal = calculatedData ? calculatedData.subtotal : subtotal;
-  const discountAmount = calculatedData ? calculatedData.discountAmount : 0;
-  const pointsDiscount = calculatedData ? calculatedData.pointsDiscount : 0;
-  const currentShippingFee = calculatedData ? calculatedData.shippingFee : shippingFee;
+  const displaySubtotal = calculatedData ? calculatedData.parentSubtotal : subtotal;
+  const discountAmount = calculatedData ? (calculatedData.totalShopDiscount + calculatedData.platformDiscount) : 0;
+  const pointsDiscount = calculatedData ? (calculatedData.pointsDiscount || 0) : 0;
+  const currentShippingFee = calculatedData ? calculatedData.totalShippingFee : fallbackShippingFee;
   const displayTotal = calculatedData ? calculatedData.totalAmount : subtotal + currentShippingFee;
 
   const handleApplyCoupon = () => {
@@ -189,23 +207,45 @@ const CheckoutPage = () => {
     <div className="min-h-screen bg-[#F4F4F0] pt-24 pb-32 px-6">
       <div className="max-w-7xl mx-auto">
         {/* Navigation / Progress */}
+        {currentStep < 3 && (
         <div className="mb-12 flex items-center justify-between">
           <Link to="/cart" className="flex items-center gap-2 text-sm font-black uppercase tracking-widest hover:text-primary transition-all">
             <ChevronLeft size={20} /> Quay lại giỏ hàng
           </Link>
           <div className="flex gap-4 items-center">
-            <span className="text-[10px] font-black uppercase tracking-widest text-primary border-b-2 border-primary">01 Thông tin</span>
+            <span className={`text-[10px] font-black uppercase tracking-widest ${currentStep >= 1 ? 'text-primary border-b-2 border-primary' : 'text-gray-400'}`}>01 Thông tin</span>
             <span className="w-8 h-[2px] bg-gray-200"></span>
-            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">02 Thanh toán</span>
+            <span className={`text-[10px] font-black uppercase tracking-widest ${currentStep >= 2 ? 'text-primary border-b-2 border-primary' : 'text-gray-400'}`}>02 Thanh toán</span>
             <span className="w-8 h-[2px] bg-gray-200"></span>
-            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">03 Hoàn tất</span>
+            <span className={`text-[10px] font-black uppercase tracking-widest ${currentStep === 3 ? 'text-primary border-b-2 border-primary' : 'text-gray-400'}`}>03 Hoàn tất</span>
           </div>
         </div>
+        )}
 
+        {currentStep === 3 ? (
+          <div className="max-w-2xl mx-auto mt-20 text-center space-y-8">
+            <div className="w-32 h-32 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-8 border-4 border-primary">
+              <Check size={64} strokeWidth={3} />
+            </div>
+            <h1 className="text-5xl font-serif font-black tracking-tighter uppercase text-primary">Đặt hàng thành công!</h1>
+            <p className="text-gray-500 font-medium text-lg">
+              Cảm ơn bạn đã mua sắm tại UTEShop. Đơn hàng của bạn đang được xử lý và sẽ sớm được giao đến bạn.
+            </p>
+            <div className="flex justify-center gap-4 mt-8">
+              <Link to="/orders" className="bg-black text-white px-8 py-4 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-primary transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1">
+                Xem đơn hàng
+              </Link>
+              <Link to="/" className="bg-white border-2 border-black text-black px-8 py-4 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-gray-50 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1">
+                Tiếp tục mua sắm
+              </Link>
+            </div>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* Column 1: Shipping Info (4/12) */}
-          <div className="lg:col-span-4 space-y-6">
+          {/* Column 1: Shipping Info (Step 1) */}
+          {currentStep === 1 && (
+          <div className="lg:col-span-8 space-y-6">
             <div className="card-brutal !p-8 !rounded-[2rem]">
               <div className="flex justify-between items-center mb-8">
                 <h3 className="text-xl font-black uppercase tracking-tighter flex items-center gap-3">
@@ -263,11 +303,37 @@ const CheckoutPage = () => {
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Ghi chú cho đơn hàng</p>
                 <textarea {...register('note')} rows={2} placeholder="Ví dụ: Giao giờ hành chính..." className="input-brutal text-sm resize-none"></textarea>
               </div>
+
+              <div className="mt-8 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(2)}
+                  disabled={!selectedAddressId}
+                  className="bg-black text-white px-10 py-4 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-primary transition-all disabled:opacity-50"
+                >
+                  Tiếp tục thanh toán
+                </button>
+              </div>
             </div>
           </div>
+          )}
 
-          {/* Column 2: Shipping & Payment Methods (4/12) */}
-          <div className="lg:col-span-4 space-y-8">
+          {/* Column 2: Shipping & Payment Methods (Step 2) */}
+          {currentStep === 2 && (
+          <div className="lg:col-span-8 space-y-8">
+            <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border-2 border-black shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                  <MapPin size={20} />
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase text-gray-500">Giao đến</p>
+                  <p className="text-sm font-bold truncate max-w-sm">{addresses?.find(a => a.id === selectedAddressId)?.address_line || "Chưa có địa chỉ"}</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setCurrentStep(1)} className="text-[10px] font-black text-primary hover:underline uppercase">Thay đổi</button>
+            </div>
+
             {/* Shipping Methods */}
             <div className="card-brutal !p-8 !rounded-[2rem]">
               <h3 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
@@ -361,9 +427,9 @@ const CheckoutPage = () => {
                   )}
 
                   {/* Available Coupons */}
-                  {validCoupons && validCoupons.length > 0 && (
+                  {platformCoupons && platformCoupons.length > 0 && (
                     <div className="mt-4 flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                      {validCoupons.map((coupon: any) => (
+                      {platformCoupons.map((coupon: any) => (
                         <button
                           key={coupon.id}
                           type="button"
@@ -371,7 +437,7 @@ const CheckoutPage = () => {
                           className={`shrink-0 border-2 rounded-xl p-3 text-left transition-all ${couponCode === coupon.code ? 'border-primary bg-primary/5' : 'border-black/10 hover:border-black/30'}`}
                         >
                           <p className="font-black text-sm uppercase">{coupon.code}</p>
-                          <p className="text-[10px] font-bold text-gray-500">Giảm {coupon.discount_type === 'PERCENTAGE' ? `${coupon.discount_value}%` : `${Number(coupon.discount_value).toLocaleString()}₫`}</p>
+                          <p className="text-[10px] font-bold text-gray-500">Giảm {coupon.discount_type === 'PERCENT' ? `${coupon.discount_value}%` : `${Number(coupon.discount_value).toLocaleString()}₫`}</p>
                         </button>
                       ))}
                     </div>
@@ -400,7 +466,26 @@ const CheckoutPage = () => {
                 </div>
               </div>
             </div>
+
+            {/* Order Action Buttons */}
+            <div className="flex gap-4 pt-4">
+              <button
+                type="button"
+                onClick={() => setCurrentStep(1)}
+                className="bg-white border-2 border-black text-black px-8 py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-gray-50 transition-all shadow-[6px_6px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1"
+              >
+                Quay lại
+              </button>
+              <button
+                type="submit"
+                disabled={createOrderMutation.isPending || cartItems.length === 0}
+                className="flex-1 bg-primary text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all active:scale-95 flex items-center justify-center disabled:opacity-50"
+              >
+                {createOrderMutation.isPending ? <Loader2 className="animate-spin" size={24} /> : 'ĐẶT HÀNG NGAY'}
+              </button>
+            </div>
           </div>
+          )}
 
           {/* Column 3: Order Summary (4/12) */}
           <div className="lg:col-span-4 space-y-6">
@@ -410,25 +495,57 @@ const CheckoutPage = () => {
               </h3>
 
               <div className="space-y-6">
-                {cartItems.map(item => {
-                  const imageUrl = item.product?.images?.find(img => img.is_primary)?.image_url || item.product?.images?.[0]?.image_url || '';
-                  return (
-                  <div key={item.id} className="flex gap-4 items-center">
-                    <div className="w-16 h-20 bg-white/10 rounded-xl overflow-hidden border border-white/20 flex-shrink-0">
-                       <img src={imageUrl.startsWith('http') ? imageUrl : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${imageUrl}`} alt={item.product?.name} className="w-full h-full object-cover" />
+                {shopGroups.map(group => (
+                  <div key={group.shop?.id || 'unknown'} className="space-y-4">
+                    <div className="flex items-center gap-2 border-b border-white/10 pb-2">
+                       <Store className="text-primary w-4 h-4" />
+                       <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">{group.shop?.name || 'UTEShop Official'}</h4>
                     </div>
-                    <div className="flex-grow">
-                       <p className="text-xs font-black uppercase truncate max-w-[120px]">{item.product?.name}</p>
-                       <p className="text-[10px] font-bold text-gray-400">
-                         {item.variant ? `Size ${item.variant.size} / ${item.variant.color}` : 'Mặc định'}
-                       </p>
-                       <div className="flex justify-between items-center mt-1">
-                         <p className="text-xs font-black text-primary">{(Number(item.unit_price)).toLocaleString()}₫</p>
-                         <p className="text-[10px] font-black text-gray-400">x{item.quantity}</p>
-                       </div>
-                    </div>
+                    {group.items.map((item: any) => {
+                      const product = item.variant?.product || item.product;
+                      const imageUrl = product?.images?.find((img: any) => img.is_primary)?.image_url || product?.images?.[0]?.image_url || '';
+                      const unitPrice = item.variant?.sale_price || item.variant?.price || item.unit_price || 0;
+                      return (
+                      <div key={item.id} className="flex gap-4 items-center pl-2">
+                        <div className="w-16 h-20 bg-white/10 rounded-xl overflow-hidden border border-white/20 flex-shrink-0">
+                           <img src={imageUrl.startsWith('http') ? imageUrl : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${imageUrl}`} alt={product?.name} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-grow">
+                           <p className="text-xs font-black uppercase truncate max-w-[120px]">{product?.name}</p>
+                           <p className="text-[10px] font-bold text-gray-400">
+                             {item.variant ? `Size ${item.variant.size} / ${item.variant.color}` : 'Mặc định'}
+                           </p>
+                           <div className="flex justify-between items-center mt-1">
+                             <p className="text-xs font-black text-primary">{(Number(unitPrice)).toLocaleString()}₫</p>
+                             <p className="text-[10px] font-black text-gray-400">x{item.quantity}</p>
+                           </div>
+                        </div>
+                      </div>
+                    )})}
+
+                    {/* Shop Coupon Section */}
+                    {availableShopCoupons.filter((c: any) => c.shop_id === group.shop?.id).length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Ticket size={16} className="text-primary" />
+                          <span className="text-xs font-bold text-gray-400 uppercase">Mã của Shop</span>
+                        </div>
+                        <select 
+                          value={shopCoupons[group.shop?.id] || ""}
+                          onChange={(e) => setShopCoupons(prev => ({ ...prev, [group.shop?.id]: e.target.value }))}
+                          className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
+                        >
+                          <option value="" className="text-black">Chọn mã giảm giá</option>
+                          {availableShopCoupons.filter((c: any) => c.shop_id === group.shop?.id).map((c: any) => (
+                            <option key={c.id} value={c.code} className="text-black">
+                              {c.code} - Giảm {c.discount_type === 'PERCENT' ? `${c.discount_value}%` : `${Number(c.discount_value).toLocaleString()}đ`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
-                )})}
+                ))}
               </div>
 
               <div className="space-y-4 pt-6 border-t border-white/10">
@@ -461,20 +578,13 @@ const CheckoutPage = () => {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={createOrderMutation.isPending || cartItems.length === 0}
-                className="w-full bg-primary text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all active:scale-95 flex items-center justify-center disabled:opacity-50"
-              >
-                {createOrderMutation.isPending ? <Loader2 className="animate-spin" size={24} /> : 'ĐẶT HÀNG NGAY'}
-              </button>
-
               <div className="flex items-center gap-3 text-[9px] font-bold text-gray-500 uppercase tracking-widest justify-center">
                 <ShieldCheck size={14} className="text-green-500" /> Thanh toán được bảo mật
               </div>
             </div>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

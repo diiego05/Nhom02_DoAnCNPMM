@@ -51,32 +51,27 @@ const ProductListPage = () => {
     minPrice,
     maxPrice,
     isFeatured: isFeatured || undefined,
-    isNew: isNew || undefined,
+    isNew: isNew === "true" ? true : undefined,
     sortBy: sortBy as any,
     limit: 9, // Hiển thị 9 sản phẩm mỗi trang cho khớp lưới 3 cột
   });
 
-  const BRANDS = [
-    { id: 1, name: "Nike" },
-    { id: 2, name: "Adidas" },
-    { id: 3, name: "Uniqlo" },
-    { id: 4, name: "Zara" },
-  ];
 
-  // Hàm cập nhật filter URL
+
   const updateFilters = (newParams: Record<string, string | number | undefined | null>) => {
     setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev);
       // Reset về trang 1 khi đổi bộ lọc
-      prev.set("page", "1");
+      nextParams.set("page", "1");
       
       Object.entries(newParams).forEach(([key, val]) => {
         if (val === undefined || val === null || val === "") {
-          prev.delete(key);
+          nextParams.delete(key);
         } else {
-          prev.set(key, val.toString());
+          nextParams.set(key, val.toString());
         }
       });
-      return prev;
+      return nextParams;
     });
   };
 
@@ -275,28 +270,7 @@ const ProductListPage = () => {
               </div>
             </form>
 
-            {/* 4. Thương hiệu (Độc quyền Brutalist) */}
-            <div>
-              <h3 className="font-black text-xs uppercase tracking-widest mb-6 border-b-2 border-black pb-2">Thương hiệu</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {BRANDS.map((brand) => {
-                  const isSelected = brandId === brand.id;
-                  return (
-                    <button
-                      key={brand.id}
-                      onClick={() => updateFilters({ brandId: brandId === brand.id ? "" : brand.id })}
-                      className={"h-11 border-2 border-black rounded-2xl text-xs font-black transition-all active:scale-95 " + (
-                        isSelected
-                          ? "bg-black text-white shadow-subtle"
-                          : "bg-white hover:border-primary hover:text-primary hover:bg-primary/5 active:shadow-none"
-                      )}
-                    >
-                      {brand.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+
 
             {/* 5. Bộ sưu tập */}
             <div>

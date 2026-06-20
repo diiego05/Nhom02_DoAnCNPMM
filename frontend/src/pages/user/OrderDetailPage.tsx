@@ -2,8 +2,8 @@ import { useParams, Link } from 'react-router-dom';
 import { useState } from 'react';
 import { 
   ChevronLeft, Package, MapPin, CreditCard, 
-  CheckCircle, Calendar, Hash, Truck, Loader2, DollarSign,
-  Star, X
+  CheckCircle, Calendar, Hash, Loader2, DollarSign,
+  Star, X, Store
 } from 'lucide-react';
 import { useOrderDetail } from '@/hooks/useOrders';
 import { useCreateReview } from '@/hooks/useReviews';
@@ -151,11 +151,20 @@ const OrderDetailPage = () => {
                 <Package className="text-primary" size={32} /> Chi tiết đơn hàng
               </h1>
               <div className="flex items-center gap-6 flex-wrap">
-                <div className="flex flex-col">
+                <div className="flex items-center gap-2 border-r-2 border-gray-200 pr-6">
+                   <Store size={24} className="text-primary" />
+                   <div className="flex flex-col">
+                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
+                       Shop
+                     </span>
+                     <span className="font-black text-sm text-black uppercase">{order.shop?.name || 'UTEShop Official'}</span>
+                   </div>
+                </div>
+                <div className="flex flex-col hidden md:flex">
                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
                     <Hash size={12} /> Mã đơn hàng
                   </span>
-                  <span className="font-mono font-black text-lg text-black">{order.order_code}</span>
+                  <span className="font-mono font-black text-sm text-black">{order.shop_order_code || order.order_code}</span>
                 </div>
                 <div className="w-[2px] h-8 bg-gray-200 hidden md:block"></div>
                 <div className="flex flex-col">
@@ -182,13 +191,11 @@ const OrderDetailPage = () => {
                 <MapPin className="text-primary" /> Thông tin nhận hàng
               </h3>
               <div className="bg-white p-6 rounded-2xl border-2 border-black/5 shadow-sm">
-                <p className="font-black text-sm uppercase mb-1">{order.recipient_name}</p>
-                <p className="font-bold text-gray-500 text-sm mb-4">{order.recipient_phone}</p>
-                <p className="text-sm font-medium text-gray-600 leading-relaxed">{order.shipping_address}</p>
-                {order.note && (
+                <p className="text-sm font-medium text-gray-600 leading-relaxed">{order.parentOrder?.shipping_address || order.shipping_address || "Chưa có thông tin nhận hàng"}</p>
+                {order.parentOrder?.note && (
                   <div className="mt-4 pt-4 border-t border-dashed border-gray-200">
                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Ghi chú</p>
-                    <p className="text-sm font-medium italic text-gray-600">{order.note}</p>
+                    <p className="text-sm font-medium italic text-gray-600">{order.parentOrder.note}</p>
                   </div>
                 )}
               </div>
@@ -201,12 +208,12 @@ const OrderDetailPage = () => {
               <div className="bg-white p-6 rounded-2xl border-2 border-black/5 shadow-sm space-y-4">
                 <div className="flex justify-between items-center pb-4 border-b border-dashed border-gray-200">
                   <span className="text-xs font-black uppercase text-gray-500">Phương thức</span>
-                  <span className="text-sm font-black uppercase">{order.payment_method === 'COD' ? 'Thanh toán khi nhận hàng' : order.payment_method}</span>
+                  <span className="text-sm font-black uppercase">{(order.parentOrder?.payment_method || order.payment_method) === 'COD' ? 'Thanh toán khi nhận hàng' : (order.parentOrder?.payment_method || order.payment_method)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-black uppercase text-gray-500">Trạng thái</span>
-                  <span className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${order.payment_status === 'PAID' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                    {order.payment_status === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                  <span className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${(order.parentOrder?.payment_status || order.payment_status) === 'PAID' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                    {(order.parentOrder?.payment_status || order.payment_status) === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán'}
                   </span>
                 </div>
               </div>
@@ -220,8 +227,8 @@ const OrderDetailPage = () => {
             
             <div className="space-y-4">
               {order.items?.map((item, idx) => {
-                const product = item.product;
-                const imageUrl = item.product_image_url || product?.images?.find(img => img.is_primary)?.image_url || product?.images?.[0]?.image_url || '/placeholder.jpg';
+                const product = item.variant?.product || item.product;
+                const imageUrl = item.product_image_url || product?.images?.find((img: any) => img.is_primary)?.image_url || product?.images?.[0]?.image_url || '/placeholder.jpg';
                 
                 return (
                 <div key={idx} className="flex gap-6 items-center p-4 bg-gray-50 rounded-2xl border-2 border-black/5 hover:border-black/20 transition-colors">
@@ -281,7 +288,7 @@ const OrderDetailPage = () => {
                 )}
                 <div className="flex justify-between items-end pt-4 border-t border-white/20">
                   <span className="text-sm font-black uppercase tracking-widest">Tổng cộng</span>
-                  <span className="text-4xl font-black text-primary tracking-tighter">{(Number(order.total_amount)).toLocaleString()}₫</span>
+                  <span className="text-4xl font-black text-primary tracking-tighter">{(Number(order.final_amount || order.total_amount || 0)).toLocaleString()}₫</span>
                 </div>
              </div>
           </div>

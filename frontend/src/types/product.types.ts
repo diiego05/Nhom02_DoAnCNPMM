@@ -49,6 +49,8 @@ export interface Product {
   attributes?: ProductAttribute[];
   totalStock?: number; // Được Backend tính toán trả về trong chi tiết
   view_count: number;
+  rating_average?: number | string;
+  review_count?: number;
   created_at: string;
   shop_id?: number;
   shop?: Shop;

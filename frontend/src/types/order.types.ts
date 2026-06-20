@@ -40,6 +40,7 @@ export interface Order {
   id: number;
   user_id: number;
   total_amount: number;
+  subtotal?: number;
   discount_amount: number;
   shipping_fee: number;
   recipient_name: string;
@@ -53,17 +54,25 @@ export interface Order {
   updated_at: string;
   items?: OrderItem[];
   statusLogs?: OrderStatusLog[];
+  shop?: { id: number; name: string; avatar_url?: string; shop_name?: string };
+  shop_order_code?: string;
+  order_code?: string;
 }
 
 export interface CreateOrderPayload {
-  recipientName: string;
-  recipientPhone: string;
-  shippingAddress: string;
+  recipientName?: string;
+  recipientPhone?: string;
+  shippingAddress?: string;
+  addressId?: number;
   note?: string;
   paymentMethod: PaymentMethod;
+  platformCouponCode?: string;
+  shopCoupons?: Record<string, string>;
+  usePoints?: boolean;
+  is_cart_checkout?: boolean;
   items?: {
     product_id: number;
-    product_variant_id?: number;
+    variant_id?: number;
     quantity: number;
     unit_price: number;
   }[];

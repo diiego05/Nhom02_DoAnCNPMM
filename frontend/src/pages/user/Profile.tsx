@@ -412,15 +412,22 @@ const Profile = () => {
                           <Controller
                             control={control}
                             name="date_of_birth"
-                            render={({ field }) => (
-                              <Input
-                                label="Ngày sinh"
-                                id="dob"
-                                name="date_of_birth"
-                                type="date"
-                                value={field.value}
-                                onChange={field.onChange}
-                              />
+                            render={({ field, fieldState }) => (
+                              <div>
+                                <Input
+                                  label="Ngày sinh"
+                                  id="dob"
+                                  name="date_of_birth"
+                                  type="date"
+                                  value={field.value}
+                                  onChange={field.onChange}
+                                />
+                                {fieldState.error?.message && (
+                                  <p className="text-red-500 text-sm mt-1">
+                                    {fieldState.error.message}
+                                  </p>
+                                )}
+                              </div>
                             )}
                           />
                         </div>

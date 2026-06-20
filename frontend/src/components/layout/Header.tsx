@@ -1,8 +1,10 @@
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { ShoppingBag, ShoppingCart, Search, ChevronDown, User } from "lucide-react";
 import { useAppSelector } from "@/stores/hooks";
 import useAuth from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
+import { useCategories, useProducts } from "@/hooks/useProducts";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8088";
 
@@ -10,17 +12,36 @@ const Header = () => {
   const user = useAppSelector((state) => state.auth.user);
   const itemCount = useAppSelector((state) => state.cart.itemCount);
   const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   
   // Gọi useCart để fetch data (enabled: isAuthenticated được set trong hook nếu cần)
-  // Vì không thể call hook trong điều kiện if, ta có thể dùng useEffect hoặc enabled prop trong react query
-  const cartQuery = useCart();
+  useCart();
 
-  const categories = [
-    { name: "Áo", items: ["Áo thun", "Áo sơ mi", "Áo khoác", "Áo len", "Áo hoodie"] },
-    { name: "Quần", items: ["Quần jeans", "Quần tây", "Quần short", "Quần kaki"] },
-    { name: "Phụ kiện", items: ["Túi xách", "Thắt lưng", "Mũ", "Vớ", "Trang sức"] },
-    { name: "Bộ sưu tập", items: ["Mùa hè rực rỡ", "Thu đông 2024", "Tối giản", "Cổ điển"] },
-  ];
+  // Categories
+  const { data: categoryList } = useCategories();
+  const parentCategories = categoryList?.filter((c: any) => !c.parent_id) || [];
+
+  // Search state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const { data: searchResults } = useProducts({ keyword: debouncedSearch, limit: 5 });
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      setShowSuggestions(false);
+      navigate(`/products?keyword=${encodeURIComponent(searchTerm.trim())}`);
+    }
+  };
 
   return (
     <header className="w-full bg-white/90 backdrop-blur-md border-b border-black/10 sticky top-0 z-50 shadow-sm">
@@ -35,8 +56,8 @@ const Header = () => {
 
         {/* Navigation */}
         <nav className="hidden lg:flex items-center space-x-8">
-          <Link to="/products" className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors">NAM</Link>
-          <Link to="/products" className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors">NỮ</Link>
+          <Link to="/products?page=1&gender=MALE" className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors">NAM</Link>
+          <Link to="/products?page=1&gender=FEMALE" className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors">NỮ</Link>
           
           <div className="relative group py-8">
             <button className="flex items-center gap-1 text-xs font-black uppercase tracking-widest hover:text-primary transition-colors">
@@ -44,38 +65,67 @@ const Header = () => {
             </button>
             <div className="mega-menu left-[-250px] w-[900px]">
               <div className="grid grid-cols-4 gap-12 p-10 max-w-6xl mx-auto">
-                {categories.map((cat) => (
-                  <div key={cat.name}>
-                    <h4 className="font-black text-black mb-6 pb-2 border-b border-black/10 uppercase text-[10px] tracking-widest">
-                      {cat.name}
+                {parentCategories.map((parent: any) => {
+                  const subCats = categoryList?.filter((c: any) => c.parent_id === parent.id) || [];
+                  return (
+                  <div key={parent.id}>
+                    <h4 className="font-black text-black mb-6 pb-2 border-b border-black/10 uppercase text-[10px] tracking-widest hover:text-primary transition-colors">
+                      <Link to={`/products?page=1&category=${parent.slug}`}>{parent.name}</Link>
                     </h4>
                     <ul className="space-y-4">
-                      {cat.items.map((item) => (
-                        <li key={item}>
-                          <Link to="/products" className="text-sm font-bold text-gray-500 hover:text-primary transition-colors flex items-center gap-2">
+                      {subCats.map((sub: any) => (
+                        <li key={sub.id}>
+                          <Link to={`/products?page=1&category=${sub.slug}`} className="text-sm font-bold text-gray-500 hover:text-primary transition-colors flex items-center gap-2">
                             <div className="w-1 h-1 bg-gray-300 rounded-full group-hover:bg-primary transition-all"></div>
-                            {item}
+                            {sub.name}
                           </Link>
                         </li>
                       ))}
                     </ul>
                   </div>
-                ))}
+                )})}
               </div>
             </div>
           </div>
 
-          <Link to="#" className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors">BỘ SƯU TẬP</Link>
+          <Link to="/products" className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors">BỘ SƯU TẬP</Link>
         </nav>
 
         {/* Search Bar */}
         <div className="flex-1 max-w-md relative hidden md:block group/search">
-          <input
-            type="text"
-            placeholder="Tìm kiếm sản phẩm..."
-            className="input-brutal h-11 pl-12"
-          />
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-primary transition-colors" size={18} strokeWidth={2.5} />
+          <form onSubmit={handleSearchSubmit}>
+            <input
+              type="text"
+              placeholder="Tìm kiếm sản phẩm..."
+              className="input-brutal w-full h-11 pl-12"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+            />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-primary transition-colors cursor-pointer" size={18} strokeWidth={2.5} onClick={handleSearchSubmit} />
+          </form>
+
+          {/* Suggestions Dropdown */}
+          {showSuggestions && searchTerm.trim() && searchResults?.products && searchResults.products.length > 0 && (
+            <div className="absolute top-full left-0 w-full mt-2 bg-white border-2 border-black rounded-xl shadow-brutal p-2 z-50">
+              {searchResults.products.map((product: any) => (
+                <Link key={product.id} to={`/products/${product.slug}`} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors border-b border-gray-100 last:border-0">
+                  <img src={product.images?.[0]?.image_url || "/placeholder.jpg"} alt={product.name} className="w-10 h-10 object-cover rounded-md border border-gray-200" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-black truncate">{product.name}</p>
+                    <p className="text-[10px] text-primary font-bold">{product.sale_price ? product.sale_price.toLocaleString() : product.price.toLocaleString()}₫</p>
+                  </div>
+                </Link>
+              ))}
+              <Link to={`/products?keyword=${encodeURIComponent(searchTerm.trim())}`} className="block w-full text-center py-2 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/5 rounded-lg mt-2">
+                Xem tất cả kết quả
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Right Icons */}

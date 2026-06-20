@@ -30,4 +30,5 @@ export interface AddToCartPayload {
 export interface UpdateCartItemPayload {
   quantity?: number;
   product_variant_id?: number;
+  newVariantId?: number;
 }

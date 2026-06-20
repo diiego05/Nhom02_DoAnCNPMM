@@ -144,6 +144,11 @@ export const vendorService = {
     return response.data;
   },
 
+  getTopShops: async (limit: number = 10) => {
+    const response = await publicAxios.get(`/shops/top?limit=${limit}`);
+    return response.data;
+  },
+
   uploadImage: async (file: File) => {
     const formData = new FormData();
     formData.append("image", file);

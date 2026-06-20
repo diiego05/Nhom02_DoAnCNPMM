@@ -10,6 +10,7 @@ import {
   Star,
   Sparkles,
   Eye,
+  Store,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
@@ -19,6 +20,7 @@ import {
   useBestSellerProducts,
   useMostViewedProducts,
 } from "@/hooks/useProducts";
+import { useTopShops } from "@/hooks/useShops";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation, Pagination, Autoplay } from "swiper/modules";
 import "swiper/css";
@@ -37,6 +39,8 @@ const HomePage = () => {
     useFeaturedProducts(10);
   const { data: mostViewed, isLoading: loadMostViewed } =
     useMostViewedProducts(10);
+  const { data: topShopsData, isLoading: loadTopShops } = useTopShops(8);
+  const topShops = topShopsData?.data || [];
 
   const slides = [
     {
@@ -190,6 +194,74 @@ const HomePage = () => {
         </div>
       </section>
 
+      {/* ================= BỔ SUNG 0: GIAN HÀNG NỔI BẬT (TOP SHOPS) ================= */}
+      <section className="max-w-7xl mx-auto px-6">
+        <div className="flex justify-between items-end mb-12">
+          <div>
+            <span className="text-xs font-black uppercase tracking-widest text-primary flex items-center gap-1.5 mb-2">
+              <Store size={14} /> Mua sắm chính hãng
+            </span>
+            <h2 className="text-5xl font-serif font-black tracking-tighter uppercase">
+              Gian Hàng Nổi Bật
+            </h2>
+            <div className="h-1.5 w-24 bg-primary border-2 border-black rounded-full shadow-subtle mt-4"></div>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link
+              to="/shops"
+              className="btn-brutal-secondary h-12 px-8 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none inline-flex items-center"
+            >
+              Xem tất cả
+            </Link>
+          </div>
+        </div>
+
+        {loadTopShops ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 animate-pulse">
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <div
+                key={n}
+                className="aspect-square bg-gray-200 border-2 border-black rounded-full"
+              ></div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-8">
+            {topShops.map((shop: any) => (
+              <Link
+                key={shop.id}
+                to={`/shop/${shop.id}`}
+                className="group flex flex-col items-center gap-4"
+              >
+                <div className="w-32 h-32 rounded-full border-2 border-black overflow-hidden shadow-subtle group-hover:shadow-none group-hover:translate-x-1 group-hover:translate-y-1 transition-all relative">
+                  <img
+                    src={shop.shop_logo || "/placeholder.jpg"}
+                    alt={shop.shop_name}
+                    className="w-full h-full object-cover"
+                  />
+                  {shop.rating >= 4.5 && (
+                    <div className="absolute bottom-0 inset-x-0 bg-primary text-white text-[10px] font-black uppercase text-center py-1">
+                      Uy tín
+                    </div>
+                  )}
+                </div>
+                <div className="text-center">
+                  <h4 className="font-black text-sm uppercase tracking-tight group-hover:text-primary transition-colors">
+                    {shop.shop_name}
+                  </h4>
+                  <div className="flex items-center justify-center gap-1 mt-1">
+                    <Star className="w-3 h-3 fill-primary text-primary" />
+                    <span className="text-xs font-bold">
+                      {shop.rating || 5.0}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* New Arrivals Section */}
       <section className="max-w-7xl mx-auto px-6">
         <div className="flex justify-between items-end mb-12">
@@ -280,10 +352,16 @@ const HomePage = () => {
           </div>
           <div className="flex items-center gap-4">
             <div className="flex gap-2">
-              <button type="button" className="featured-prev w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer">
+              <button
+                type="button"
+                className="featured-prev w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer"
+              >
                 <ChevronLeft size={20} />
               </button>
-              <button type="button" className="featured-next w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer">
+              <button
+                type="button"
+                className="featured-next w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer"
+              >
                 <ChevronRight size={20} />
               </button>
             </div>
@@ -365,10 +443,16 @@ const HomePage = () => {
           </div>
           <div className="flex items-center gap-4">
             <div className="flex gap-2">
-              <button type="button" className="most-viewed-prev w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer">
+              <button
+                type="button"
+                className="most-viewed-prev w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer"
+              >
                 <ChevronLeft size={20} />
               </button>
-              <button type="button" className="most-viewed-next w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer">
+              <button
+                type="button"
+                className="most-viewed-next w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer"
+              >
                 <ChevronRight size={20} />
               </button>
             </div>
@@ -494,8 +578,12 @@ const HomePage = () => {
                       id={product.slug}
                       name={product.name}
                       price={product.sale_price || product.price}
-                      originalPrice={product.sale_price ? product.price : undefined}
-                      image={product.images?.[0]?.image_url || "/placeholder.jpg"}
+                      originalPrice={
+                        product.sale_price ? product.price : undefined
+                      }
+                      image={
+                        product.images?.[0]?.image_url || "/placeholder.jpg"
+                      }
                       category={product.category?.name || "Danh mục"}
                       rating={5}
                       sales={product.sold_count}

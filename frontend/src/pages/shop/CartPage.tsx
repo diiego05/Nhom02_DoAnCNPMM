@@ -1,4 +1,4 @@
-import { Trash2, Plus, Minus, Ticket, ArrowRight, ShoppingBag, Loader2, ChevronDown } from 'lucide-react';
+import { Trash2, Plus, Minus, Ticket, ArrowRight, ShoppingBag, Loader2, ChevronDown, Store } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart, useRemoveCartItem, useUpdateCartItem } from '@/hooks/useCart';
 import { useState } from 'react';
@@ -15,8 +15,24 @@ const CartPage = () => {
 
   const cartItems = cart?.items || [];
   const subtotal = cart?.totalAmount || 0;
-  const shipping = subtotal > 2000000 ? 0 : 30000;
-  const total = subtotal + (cartItems.length > 0 ? shipping : 0);
+  
+  const groupedCartItems = cartItems.reduce((acc: any, item: any) => {
+    const shop = item.variant?.product?.shop || item.product?.shop;
+    const shopId = shop?.id || 'unknown';
+    if (!acc[shopId]) {
+      acc[shopId] = {
+        shop: shop,
+        items: []
+      };
+    }
+    acc[shopId].items.push(item);
+    return acc;
+  }, {});
+  
+  const shopGroups: any[] = Object.values(groupedCartItems);
+  
+  const shipping = shopGroups.length * 30000;
+  const total = subtotal + shipping;
 
   const handleUpdateQuantity = (itemId: number, currentQty: number, change: number) => {
     const newQty = currentQty + change;
@@ -66,12 +82,20 @@ const CartPage = () => {
           
           {/* Main Content - Left Column (7/10) */}
           <div className="lg:col-span-7 space-y-6">
-            <div className="bg-white border-2 border-black rounded-[2.5rem] p-8 shadow-sm overflow-hidden">
-              <div className="space-y-8">
-                {cartItems.map((item) => {
-                  const product = item.product;
+            <div className="space-y-6">
+              {shopGroups.map((group) => (
+                <div key={group.shop?.id || 'unknown'} className="bg-white border-2 border-black rounded-[2.5rem] p-8 shadow-sm overflow-hidden">
+                  <div className="flex items-center gap-3 border-b-2 border-black pb-4 mb-6">
+                     <Store className="text-primary" />
+                     <h2 className="text-xl font-black uppercase tracking-tighter">{group.shop?.shop_name || 'UTEShop Official'}</h2>
+                  </div>
+                  <div className="space-y-8">
+                    {group.items.map((item: any) => {
                   const variant = item.variant;
-                  const imageUrl = product?.images?.find(img => img.is_primary)?.image_url || product?.images?.[0]?.image_url || '';
+                  const product = variant?.product || item.product;
+                  const imageUrl = product?.images?.find((img: any) => img.is_primary)?.image_url || product?.images?.[0]?.image_url || '';
+                  const currentPrice = Number(variant?.sale_price || variant?.price || 0);
+                  const originalPrice = Number(variant?.price || 0);
                   
                   return (
                   <div key={item.id} className="flex items-center gap-8 py-6 first:pt-0 last:pb-0 border-b border-gray-100 last:border-0 group">
@@ -97,8 +121,8 @@ const CartPage = () => {
                                       {Array.from(new Set(product?.variants?.map((v: any) => v.color).filter(Boolean))).map((color: any) => (
                                         <button 
                                           key={color}
-                                          onClick={() => setEditingItem({ ...editingItem, color })}
-                                          className={`px-3 py-1 rounded-lg border-2 text-xs font-bold transition-all ${editingItem.color === color ? 'border-black bg-black text-white' : 'border-gray-200 bg-white hover:border-black'}`}
+                                          onClick={() => setEditingItem(editingItem ? { ...editingItem, color } : null)}
+                                          className={`px-3 py-1 rounded-lg border-2 text-xs font-bold transition-all ${editingItem?.color === color ? 'border-black bg-black text-white' : 'border-gray-200 bg-white hover:border-black'}`}
                                         >
                                           {color}
                                         </button>
@@ -109,8 +133,8 @@ const CartPage = () => {
                                       {Array.from(new Set(product?.variants?.map((v: any) => v.size).filter(Boolean))).map((size: any) => (
                                         <button 
                                           key={size}
-                                          onClick={() => setEditingItem({ ...editingItem, size })}
-                                          className={`px-3 py-1 rounded-lg border-2 text-xs font-bold transition-all ${editingItem.size === size ? 'border-black bg-black text-white' : 'border-gray-200 bg-white hover:border-black'}`}
+                                          onClick={() => setEditingItem(editingItem ? { ...editingItem, size } : null)}
+                                          className={`px-3 py-1 rounded-lg border-2 text-xs font-bold transition-all ${editingItem?.size === size ? 'border-black bg-black text-white' : 'border-gray-200 bg-white hover:border-black'}`}
                                         >
                                           {size}
                                         </button>
@@ -119,9 +143,9 @@ const CartPage = () => {
                                     <div className="flex gap-2 mt-2">
                                       <button 
                                         onClick={() => {
-                                          const matchedVariant = product?.variants?.find((v: any) => v.color === editingItem.color && v.size === editingItem.size);
+                                          const matchedVariant = product?.variants?.find((v: any) => v.color === editingItem?.color && v.size === editingItem?.size);
                                           if (matchedVariant && matchedVariant.id !== variant.id) {
-                                            updateItemMutation.mutate({ itemId: item.id, payload: { product_variant_id: matchedVariant.id } });
+                                            updateItemMutation.mutate({ itemId: item.id, payload: { newVariantId: matchedVariant.id, product_variant_id: matchedVariant.id } });
                                           }
                                           setEditingItem(null);
                                         }}
@@ -176,16 +200,18 @@ const CartPage = () => {
 
                         {/* Price */}
                         <div className="text-right">
-                          {product?.sale_price && (
-                            <p className="text-sm font-bold text-gray-400 line-through">{(Number(product.price)).toLocaleString()}₫</p>
+                          {variant?.sale_price && (
+                            <p className="text-sm font-bold text-gray-400 line-through">{originalPrice.toLocaleString()}₫</p>
                           )}
-                          <p className="text-xl font-black text-black">{(Number(item.unit_price)).toLocaleString()}₫</p>
+                          <p className="text-xl font-black text-black">{currentPrice.toLocaleString()}₫</p>
                         </div>
                       </div>
                     </div>
                   </div>
                 )})}
-              </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Empty Cart Placeholder (hidden if items exist) */}
@@ -249,7 +275,10 @@ const CartPage = () => {
                 </div>
                 <div className="flex justify-between items-center text-sm">
                    <span className="text-gray-500 font-bold uppercase tracking-widest">Phí giao hàng</span>
-                   <span className="font-black text-green-600">{shipping === 0 ? 'Miễn phí' : `${shipping.toLocaleString()}₫`}</span>
+                   <div className="text-right">
+                     <span className="font-black text-black">{shipping.toLocaleString()}₫</span>
+                     <p className="text-[10px] text-gray-400 font-bold">({shopGroups.length} kiện hàng)</p>
+                   </div>
                 </div>
                 <div className="pt-4 border-t border-gray-100 flex justify-between items-end">
                    <span className="text-gray-500 font-bold uppercase tracking-widest">Tổng cộng</span>

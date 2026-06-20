@@ -1,4 +1,4 @@
-import { Package, Truck, CheckCircle, XCircle, Search, RefreshCcw, Star, ChevronRight, Calendar, Hash, Loader2 } from 'lucide-react';
+import { Package, Truck, CheckCircle, XCircle, Search, Star, ChevronRight, Calendar, Hash, Loader2, Store } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMyOrders, useCancelOrder } from '@/hooks/useOrders';
@@ -150,11 +150,20 @@ const OrderHistoryPage = () => {
                 {/* Card Header */}
                 <div className="bg-gray-50/50 border-b-2 border-black/5 p-8 flex flex-col md:flex-row justify-between items-center gap-4">
                   <div className="flex items-center gap-6">
-                    <div className="flex flex-col">
+                    <div className="flex items-center gap-2 border-r-2 border-gray-200 pr-6">
+                       <Store size={24} className="text-primary" />
+                       <div className="flex flex-col">
+                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
+                           Shop
+                         </span>
+                         <span className="font-black text-sm text-black uppercase">{order.shop?.name || 'UTEShop Official'}</span>
+                       </div>
+                    </div>
+                    <div className="flex flex-col hidden md:flex">
                       <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
                         <Hash size={12} /> Mã đơn hàng
                       </span>
-                      <span className="font-mono font-black text-lg text-black">{order.order_code}</span>
+                      <span className="font-mono font-black text-sm text-black">{order.shop_order_code || order.order_code}</span>
                     </div>
                     <div className="w-[2px] h-10 bg-gray-200 hidden md:block"></div>
                     <div className="flex flex-col">
@@ -173,29 +182,44 @@ const OrderHistoryPage = () => {
                 {/* Card Body */}
                 <div className="p-8">
                   <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-                    <div className="flex items-center gap-4 flex-wrap">
+                    <div className="flex flex-col gap-4 flex-grow max-w-xl">
                       {order.items?.slice(0, 2).map((item, idx) => {
-                        const product = item.product;
-                        const imageUrl = item.product_image_url || product?.images?.find(img => img.is_primary)?.image_url || product?.images?.[0]?.image_url || '/placeholder.jpg';
+                        const product = item.variant?.product || item.product;
+                        const imageUrl = item.product_image_url || product?.images?.find((img: any) => img.is_primary)?.image_url || product?.images?.[0]?.image_url || '/placeholder.jpg';
                         
                         return (
-                        <div key={idx} className="w-20 h-24 bg-gray-50 rounded-xl overflow-hidden border-2 border-black/5 hover:border-black transition-all cursor-pointer relative group/item">
-                          <img src={imageUrl.startsWith('http') || imageUrl.startsWith('data:') ? imageUrl : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${imageUrl}`} alt={item.product_name || product?.name} className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/item:opacity-100 flex items-center justify-center transition-all">
-                             <ChevronRight className="text-white" size={20} />
+                        <div key={idx} onClick={() => navigate(`/products/${product?.slug || product?.id || item.product_id}`)} className="flex items-center gap-4 cursor-pointer group/item">
+                          <div className="w-20 h-24 bg-gray-50 rounded-xl overflow-hidden border-2 border-black/5 group-hover/item:border-primary transition-all relative shrink-0">
+                            <img src={imageUrl.startsWith('http') || imageUrl.startsWith('data:') ? imageUrl : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${imageUrl}`} alt={item.product_name || product?.name} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/item:opacity-100 flex items-center justify-center transition-all">
+                               <ChevronRight className="text-white" size={20} />
+                            </div>
+                          </div>
+                          <div className="flex flex-col">
+                            <p className="text-sm font-black uppercase tracking-tight group-hover/item:text-primary transition-colors line-clamp-2">{item.product_name || product?.name}</p>
+                            {item.size || item.color ? (
+                              <p className="text-[10px] font-bold text-gray-400 mt-1 uppercase">Phân loại: {item.size || 'Mặc định'} {item.color ? `/ ${item.color}` : ''}</p>
+                            ) : null}
+                            <div className="flex items-center gap-3 mt-2">
+                              <span className="text-sm font-black text-primary">{(Number(item.unit_price)).toLocaleString()}₫</span>
+                              <span className="text-[10px] font-black text-gray-400">x{item.quantity}</span>
+                            </div>
                           </div>
                         </div>
                       )})}
                       {(order.items?.length || 0) > 2 && (
-                        <div className="w-20 h-24 bg-gray-50 rounded-xl border-2 border-dashed border-black/10 flex items-center justify-center text-xs font-black text-gray-400">
-                          +{(order.items?.length || 0) - 2}
+                        <div className="flex items-center gap-4 pl-2 cursor-pointer" onClick={() => navigate(`/orders/${order.id}`)}>
+                          <div className="w-10 h-10 bg-gray-50 rounded-full border-2 border-dashed border-black/20 flex items-center justify-center text-xs font-black text-gray-500">
+                            +{(order.items?.length || 0) - 2}
+                          </div>
+                          <span className="text-xs font-black text-gray-500 uppercase hover:text-primary transition-colors hover:underline">Xem thêm sản phẩm</span>
                         </div>
                       )}
                     </div>
 
                     <div className="text-center md:text-right">
                       <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Tổng thanh toán</p>
-                      <p className="text-3xl font-black text-black tracking-tighter">{(Number(order.total_amount)).toLocaleString()}₫</p>
+                      <p className="text-3xl font-black text-black tracking-tighter">{(Number(order.final_amount || order.total_amount || 0)).toLocaleString()}₫</p>
                     </div>
                   </div>
                   {/* Status Timeline */}

@@ -6,14 +6,10 @@ import {
   ShieldCheck,
   Truck,
   RefreshCw,
-  Minus,
-  Plus,
   ChevronRight,
   ChevronLeft,
-  Shield,
   Store,
   MessageCircle,
-  ArrowRight,
   AlertTriangle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -47,7 +43,7 @@ const ProductDetailPage = () => {
 
   // Gọi API lấy thông tin chi tiết sản phẩm và sản phẩm tương tự
   const { data: product, isLoading, error } = useProductDetail(slug || "");
-  const { data: similarProducts, isLoading: isLoadingSimilar } =
+  const { data: similarProducts } =
     useSimilarProducts(slug || "");
 
   // Khởi tạo các hook API mới
@@ -739,7 +735,7 @@ const ProductDetailPage = () => {
                   <div className="flex flex-col">
                     <div className="flex gap-1">
                       {[...Array(5)].map((_, i) => (
-                        <Star key={i} size={20} className={i < Math.round(product.rating_average || 0) ? "fill-yellow-500 text-yellow-500" : "fill-gray-200 text-gray-200"} />
+                        <Star key={i} size={20} className={i < Math.round(Number(product.rating_average || 0)) ? "fill-yellow-500 text-yellow-500" : "fill-gray-200 text-gray-200"} />
                       ))}
                     </div>
                     <span className="text-sm font-bold text-gray-500">{product.review_count || 0} lượt đánh giá</span>
