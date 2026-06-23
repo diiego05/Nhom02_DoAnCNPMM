@@ -5,7 +5,7 @@ import {
   CheckCircle, Calendar, Hash, Loader2, DollarSign,
   Star, X, Store
 } from 'lucide-react';
-import { useOrderDetail } from '@/hooks/useOrders';
+import { useOrderDetail, useRetryPayment } from '@/hooks/useOrders';
 import { useCreateReview } from '@/hooks/useReviews';
 import { OrderStatus } from '@/types/order.types';
 
@@ -19,6 +19,22 @@ const OrderDetailPage = () => {
   const [comment, setComment] = useState('');
   
   const createReviewMutation = useCreateReview();
+  const retryPaymentMutation = useRetryPayment();
+
+  const handleRetryPayment = (parentOrderId: number) => {
+    retryPaymentMutation.mutate(parentOrderId, {
+      onSuccess: (data) => {
+        if (data.paymentUrl) {
+          window.location.href = data.paymentUrl;
+        }
+      },
+      onError: (error: any) => {
+        alert(error.response?.data?.message || "Không thể tạo lại thanh toán VNPay");
+      }
+    });
+  };
+
+
 
   const handleOpenReviewModal = (item: any) => {
     setSelectedProductToReview(item);
@@ -216,6 +232,14 @@ const OrderDetailPage = () => {
                     {(order.parentOrder?.payment_status || order.payment_status) === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán'}
                   </span>
                 </div>
+                {((order.parentOrder?.payment_method || order.payment_method) === 'VNPAY' && (order.parentOrder?.payment_status || order.payment_status) === 'UNPAID') && (
+                  <button
+                    onClick={() => handleRetryPayment(order.parentOrder?.id || order.parent_order_id || 0)}
+                    className="w-full mt-2 py-3 bg-primary text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-black transition-colors"
+                  >
+                    Thanh toán lại bằng VNPAY
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -286,10 +310,22 @@ const OrderDetailPage = () => {
                     <span className="text-red-400">-{(Number(order.discount_amount)).toLocaleString()}₫</span>
                   </div>
                 )}
+                {Number(order.points_used) > 0 && (
+                  <div className="flex justify-between text-sm font-bold text-gray-400">
+                    <span>Điểm đã dùng</span>
+                    <span className="text-red-400">-{(Number(order.points_used) * 100).toLocaleString()}₫ ({order.points_used} điểm)</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-end pt-4 border-t border-white/20">
                   <span className="text-sm font-black uppercase tracking-widest">Tổng cộng</span>
                   <span className="text-4xl font-black text-primary tracking-tighter">{(Number(order.final_amount || order.total_amount || 0)).toLocaleString()}₫</span>
                 </div>
+                {Number(order.points_earned) > 0 && (
+                  <div className="flex justify-between text-xs font-bold text-gray-400 mt-2">
+                    <span>Điểm thưởng nhận được</span>
+                    <span className="text-green-400">+{order.points_earned} điểm</span>
+                  </div>
+                )}
              </div>
           </div>
         </div>

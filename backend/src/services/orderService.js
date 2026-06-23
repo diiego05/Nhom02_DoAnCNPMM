@@ -323,7 +323,8 @@ const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
           }
         ]
       }, 
-      { model: db.Shop, as: "shop", paranoid: false }
+      { model: db.Shop, as: "shop", paranoid: false },
+      { model: db.ParentOrder, as: "parentOrder", paranoid: false }
     ],
     order: [["created_at", "DESC"]],
     limit: parseInt(limit),
@@ -554,7 +555,7 @@ const getShipperOrders = async (userId, { page = 1, limit = 10, status }) => {
       {
         model: db.ParentOrder,
         as: "parentOrder",
-        attributes: ['shipping_address', 'payment_method', 'payment_status', 'user_id', 'note']
+        attributes: ['id', 'shipping_address', 'payment_method', 'payment_status', 'user_id', 'note']
       }
     ],
     order: [["updated_at", "DESC"]],
@@ -595,7 +596,7 @@ const getOrderDetail = async (shopOrderId, userId) => {
         ]
       }, 
       { model: db.Shop, as: "shop", paranoid: false },
-      { model: db.ParentOrder, as: "parentOrder", attributes: ['shipping_address', 'payment_method', 'payment_status', 'user_id', 'note'] }
+      { model: db.ParentOrder, as: "parentOrder", attributes: ['id', 'shipping_address', 'payment_method', 'payment_status', 'user_id', 'note'] }
     ]
   });
 

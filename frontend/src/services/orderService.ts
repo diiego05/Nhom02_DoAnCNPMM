@@ -30,6 +30,11 @@ const orderService = {
     const response = await axiosClient.post(`/orders/${id}/cancel`, { reason });
     return response.data.data as Order;
   },
+
+  retryPayment: async (orderId: number) => {
+    const response = await axiosClient.post("/payment/vnpay_retry", { orderId });
+    return response.data.data as { paymentUrl: string };
+  },
 };
 
 export default orderService;

@@ -14,6 +14,7 @@ import ProductListPage from "@/pages/shop/ProductListPage";
 import ProductDetailPage from "@/pages/shop/ProductDetailPage";
 import CartPage from "@/pages/shop/CartPage";
 import CheckoutPage from "@/pages/shop/CheckoutPage";
+import VNPayReturn from "@/pages/shop/VNPayReturn";
 import VendorShopPage from "@/pages/shop/VendorShopPage";
 import OrderHistoryPage from "@/pages/user/OrderHistoryPage";
 import OrderDetailPage from "@/pages/user/OrderDetailPage";
@@ -65,6 +66,10 @@ export const getRoutes = (): RouteObject[] => {
               <CheckoutPage />
             </AuthGuard>
           ),
+        },
+        {
+          path: "payment/vnpay-return",
+          element: <VNPayReturn />,
         },
         {
           path: "orders",

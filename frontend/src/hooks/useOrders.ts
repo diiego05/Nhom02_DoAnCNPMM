@@ -52,3 +52,9 @@ export const useCalculateCheckout = () => {
     mutationFn: (payload: any) => orderService.calculateCheckout(payload),
   });
 };
+
+export const useRetryPayment = () => {
+  return useMutation({
+    mutationFn: (orderId: number) => orderService.retryPayment(orderId),
+  });
+};

@@ -94,6 +94,7 @@ CREATE TABLE `user_profiles` (
   `avatar_url` TEXT         DEFAULT NULL,
   `gender`     ENUM('MALE','FEMALE','OTHER') DEFAULT NULL,
   `birthday`   DATE         DEFAULT NULL,
+  `shipper_shop_id` BIGINT       DEFAULT NULL,
   PRIMARY KEY (`user_id`),
   CONSTRAINT `fk_profiles_user`
     FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)

@@ -19,6 +19,7 @@ import chatRouter from "./routes/chatRoute.js";
 import adminRouter from "./routes/adminRoute.js";
 import managerRouter from "./routes/managerRoute.js";
 import notificationRouter from "./routes/notificationRoute.js";
+import paymentRouter from "./routes/paymentRoute.js";
 import cron from "node-cron";
 import orderService from "./services/orderService.js";
 import morgan from "morgan";
@@ -59,6 +60,7 @@ app.use("/chats", chatRouter);
 app.use("/admin", adminRouter);
 app.use("/manager", managerRouter);
 app.use("/notifications", notificationRouter);
+app.use("/payment", paymentRouter);
 app.get("/brands", (req, res) => {
   return res.status(200).json({
     message: "Success",

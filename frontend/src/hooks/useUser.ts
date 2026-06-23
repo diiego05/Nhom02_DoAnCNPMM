@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { userService } from "@/services/userService";
+import { userService, UserProfile } from "@/services/userService";
 
 export const useProfile = (options?: any) => {
-  return useQuery({
+  return useQuery<UserProfile>({
     queryKey: ["profile"],
     queryFn: () => userService.getProfile().then(res => res.data.data),
     ...options
@@ -10,7 +10,7 @@ export const useProfile = (options?: any) => {
 };
 
 export const useFavorites = (options?: any) => {
-  return useQuery({
+  return useQuery<any[]>({
     queryKey: ["favorites"],
     queryFn: () => userService.getFavorites().then(res => res.data.data),
     ...options
@@ -18,7 +18,7 @@ export const useFavorites = (options?: any) => {
 };
 
 export const useViewedProducts = (options?: any) => {
-  return useQuery({
+  return useQuery<any[]>({
     queryKey: ["viewed-products"],
     queryFn: () => userService.getViewedProducts().then(res => res.data.data),
     ...options

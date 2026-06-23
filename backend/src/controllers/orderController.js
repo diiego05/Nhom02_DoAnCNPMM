@@ -1,4 +1,5 @@
 import orderService from "../services/orderService.js";
+import vnpayService from "../services/vnpayService.js";
 
 const createOrder = async (req, res) => {
   try {
@@ -28,9 +29,22 @@ const createOrder = async (req, res) => {
       note,
     });
 
+    let paymentUrl = null;
+    if (paymentMethod === "VNPAY") {
+      let ipAddr =
+        req.headers["x-forwarded-for"] ||
+        req.connection?.remoteAddress ||
+        req.socket?.remoteAddress ||
+        req.connection?.socket?.remoteAddress ||
+        "127.0.0.1";
+      
+      const orderInfo = `Thanh toan don hang ${order.checkout_code}`;
+      paymentUrl = vnpayService.createPaymentUrl(ipAddr, order.checkout_code, order.total_amount, orderInfo);
+    }
+
     return res
       .status(201)
-      .json({ message: "Đặt hàng thành công", data: order });
+      .json({ message: "Đặt hàng thành công", data: { ...order.toJSON(), paymentUrl } });
   } catch (error) {
     return res.status(400).json({ message: error.message });
   }

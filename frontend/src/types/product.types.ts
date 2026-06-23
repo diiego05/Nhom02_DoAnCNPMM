@@ -21,6 +21,7 @@ export interface ProductVariant {
   size: string;
   price: number | null;
   stock_quantity: number;
+  product?: Product;
 }
 
 export interface ProductAttribute {
@@ -87,7 +88,12 @@ export interface ProductFilters {
   maxPrice?: number;
   isNew?: boolean;
   isFeatured?: boolean | string;
-  sortBy?: "newest" | "price_asc" | "price_desc" | "best_sellers" | "most_viewed";
+  sortBy?:
+    | "newest"
+    | "price_asc"
+    | "price_desc"
+    | "best_sellers"
+    | "most_viewed";
   page?: number;
   limit?: number;
 }

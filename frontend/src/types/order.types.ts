@@ -21,6 +21,8 @@ export interface OrderItem {
   product_image_url?: string;
   variant_color?: string;
   variant_size?: string;
+  color?: string;
+  size?: string;
   quantity: number;
   unit_price: number;
   subtotal: number;
@@ -57,6 +59,17 @@ export interface Order {
   shop?: { id: number; name: string; avatar_url?: string; shop_name?: string };
   shop_order_code?: string;
   order_code?: string;
+  parentOrder?: {
+    id: number;
+    payment_method: PaymentMethod;
+    payment_status: PaymentStatus;
+    shipping_address: string;
+    note: string | null;
+  };
+  parent_order_id?: number;
+  points_used?: number;
+  points_earned?: number;
+  final_amount?: number;
 }
 
 export interface CreateOrderPayload {
