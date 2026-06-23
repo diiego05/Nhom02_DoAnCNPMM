@@ -1,4 +1,5 @@
-import express from "express";
+import express from "express"; // Restart
+
 import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -15,6 +16,7 @@ import addressRouter from "./routes/addressRoute.js";
 import couponRouter from "./routes/couponRoute.js";
 import shopRouter from "./routes/shopRoute.js";
 import chatRouter from "./routes/chatRoute.js";
+import adminRouter from "./routes/adminRoute.js";
 import managerRouter from "./routes/managerRoute.js";
 import cron from "node-cron";
 import orderService from "./services/orderService.js";
@@ -53,7 +55,9 @@ app.use("/addresses", addressRouter);
 app.use("/coupons", couponRouter);
 app.use("/shops", shopRouter);
 app.use("/chats", chatRouter);
+app.use("/admin", adminRouter);
 app.use("/manager", managerRouter);
+
 
 let port = process.env.PORT || 8080;
 

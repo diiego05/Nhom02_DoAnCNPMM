@@ -18,3 +18,11 @@ export const formatPrice = (price: number): string => {
     maximumFractionDigits: 0,
   }).format(price);
 };
+
+export const getAvatarUrl = (url: string | undefined | null) => {
+   if (!url) return "";
+   if (url.startsWith("http")) return url;
+   const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8088";
+   return `${baseUrl}${url}`;
+};
+

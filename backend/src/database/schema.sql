@@ -19,6 +19,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- ************************************************************
 -- PHẦN 1: XOÁ BẢNG (DROP TABLES — đúng thứ tự phụ thuộc)
 -- ************************************************************
+DROP TABLE IF EXISTS `payment_logs`;
 DROP TABLE IF EXISTS `campaign_products`;
 DROP TABLE IF EXISTS `campaigns`;
 DROP TABLE IF EXISTS `banners`;
@@ -145,7 +146,9 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`) VA
   ('payment_gateway_momo',    'enabled',     'Trạng thái cổng thanh toán MoMo'),
   ('payment_gateway_card',    'enabled',     'Trạng thái cổng thanh toán Thẻ tín dụng'),
   ('platform_name',           'FashionHub',  'Tên thương hiệu sàn thương mại'),
-  ('min_payout_amount',       '100000',      'Số tiền tối thiểu Vendor được rút (VNĐ)');
+  ('min_payout_amount',       '100000',      'Số tiền tối thiểu Vendor được rút (VNĐ)'),
+  ('payment_gateway_fee',     '5.00',        'Phí cổng thanh toán trực tuyến (%)'),
+  ('tax_rate',                '1.50',        'Thuế giao dịch thành công (%)');
 
 -- ============================================================
 -- Chiết khấu riêng theo từng Shop (ghi đè default_commission_rate)
@@ -182,6 +185,9 @@ CREATE TABLE `shops` (
   `description` TEXT         DEFAULT NULL,
   `status`      ENUM('PENDING','APPROVED','REJECTED','BANNED') NOT NULL DEFAULT 'PENDING',
   `rating`      DECIMAL(3,2) NOT NULL DEFAULT 0.00,
+  `bank_name`   VARCHAR(100) DEFAULT NULL,
+  `bank_account_no` VARCHAR(50) DEFAULT NULL,
+  `bank_account_name` VARCHAR(200) DEFAULT NULL,
   `created_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at`  DATETIME     DEFAULT NULL,
@@ -671,6 +677,27 @@ CREATE TABLE `messages` (
     FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_msg_sender`
     FOREIGN KEY (`sender_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `payment_logs`;
+
+-- ************************************************************
+-- PHẦN 18: LỊCH SỬ THANH TOÁN (PAYMENT LOGS)
+-- ************************************************************
+
+CREATE TABLE `payment_logs` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `order_code` VARCHAR(50) NOT NULL,
+  `gateway_name` VARCHAR(50) NOT NULL,
+  `amount` DECIMAL(15,2) NOT NULL,
+  `status` ENUM('PAID','UNPAID','FAILED','REFUNDED') NOT NULL DEFAULT 'UNPAID',
+  `trans_id` VARCHAR(100) DEFAULT NULL,
+  `message` TEXT DEFAULT NULL,
+  `transaction_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_payment_logs_order_code` (`order_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 

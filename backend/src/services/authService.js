@@ -157,7 +157,7 @@ const login = (data) => {
         is_revoked: false,
       });
       let redirectUrl = "/";
-      if (user.role_id === 1 || user.role?.role_name === "admin") {
+      if (user.role_id === 1 || user.role?.role_name === "admin") {////
         redirectUrl = "/admin";
       }
       resolve({
@@ -353,7 +353,7 @@ const googleLogin = (accessTokenFromGoogle) => {
       });
 
       let redirectUrl = "/";
-      if (user.role_id === 1 || user.role?.role_name === "admin") {
+      if (user.role_id === 1 || user.role?.role_name === "admin" || user.role?.role_name === "manager") {
         redirectUrl = "/admin";
       }
 
