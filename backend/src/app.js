@@ -17,6 +17,7 @@ import couponRouter from "./routes/couponRoute.js";
 import shopRouter from "./routes/shopRoute.js";
 import chatRouter from "./routes/chatRoute.js";
 import adminRouter from "./routes/adminRoute.js";
+import managerRouter from "./routes/managerRoute.js";
 import cron from "node-cron";
 import orderService from "./services/orderService.js";
 import morgan from "morgan";
@@ -55,6 +56,8 @@ app.use("/coupons", couponRouter);
 app.use("/shops", shopRouter);
 app.use("/chats", chatRouter);
 app.use("/admin", adminRouter);
+app.use("/manager", managerRouter);
+
 
 let port = process.env.PORT || 8080;
 
