@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingBag, ShoppingCart, Search, ChevronDown, User } from "lucide-react";
+import { ShoppingBag, ShoppingCart, Search, ChevronDown, User, ShieldCheck } from "lucide-react";
 import { useAppSelector } from "@/stores/hooks";
 import useAuth from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
@@ -13,6 +13,16 @@ const Header = () => {
   const itemCount = useAppSelector((state) => state.cart.itemCount);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  const isManager =
+    (typeof user?.role === "string"
+      ? user.role.toLowerCase() === "manager"
+      : user?.role?.role_name?.toLowerCase() === "manager") || user?.email?.includes("manager");
+
+  const isAdmin =
+    (typeof user?.role === "string"
+      ? user.role.toLowerCase() === "admin"
+      : user?.role?.role_name?.toLowerCase() === "admin") || user?.email?.includes("admin");
   
   // Gọi useCart để fetch data (enabled: isAuthenticated được set trong hook nếu cần)
   useCart();
@@ -141,6 +151,16 @@ const Header = () => {
               </span>
             )}
           </Link>
+          
+          {isAuthenticated && (isManager || isAdmin) && (
+            <Link
+              to="/manager"
+              title="Manager Dashboard"
+              className="w-11 h-11 bg-black text-white border-2 border-black rounded-xl flex items-center justify-center hover:bg-primary transition-all shadow-sm hover:shadow-subtle hover:-translate-y-1 active:scale-95 shrink-0"
+            >
+              <ShieldCheck size={22} strokeWidth={2.5} />
+            </Link>
+          )}
           
           {isAuthenticated ? (
             <Link
