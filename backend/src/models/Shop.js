@@ -27,6 +27,9 @@ export default (sequelize, DataTypes) => {
         defaultValue: "PENDING",
       },
       rating: { type: DataTypes.DECIMAL(3, 2), allowNull: false, defaultValue: 0.0 },
+      bank_name: { type: DataTypes.STRING(100), allowNull: true },
+      bank_account_no: { type: DataTypes.STRING(50), allowNull: true },
+      bank_account_name: { type: DataTypes.STRING(200), allowNull: true },
     },
     {
       sequelize,

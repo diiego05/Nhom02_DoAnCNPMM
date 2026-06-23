@@ -36,7 +36,7 @@ const registerShop = async (userId, shopData) => {
         shop_name: shopData.name,
         shop_logo: shopData.avatar_url || existingShop.shop_logo,
         description: shopData.description || existingShop.description,
-        status: "APPROVED",
+        status: "PENDING",
       }, { transaction });
     } else if (existingShop) {
       throw new Error("Bạn đã có gian hàng hoặc tên gian hàng đã tồn tại");
@@ -48,7 +48,7 @@ const registerShop = async (userId, shopData) => {
           shop_name: shopData.name,
           shop_logo: shopData.avatar_url || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=200",
           description: shopData.description || "",
-          status: "APPROVED",
+          status: "PENDING",
         },
         { transaction }
       );

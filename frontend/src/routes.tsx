@@ -120,7 +120,7 @@ export const getRoutes = (): RouteObject[] => {
     {
       path: "vendor",
       element: (
-        <AuthGuard>
+        <AuthGuard allowedRoles={["vendor", "admin"]}>
           <VendorDashboard />
         </AuthGuard>
       ),
@@ -128,7 +128,7 @@ export const getRoutes = (): RouteObject[] => {
     {
       path: "manager",
       element: (
-        <AuthGuard>
+        <AuthGuard allowedRoles={["manager", "admin"]}>
           <ManagerDashboard />
         </AuthGuard>
       ),
@@ -136,7 +136,7 @@ export const getRoutes = (): RouteObject[] => {
     {
       path: "admin",
       element: (
-        <AuthGuard>
+        <AuthGuard allowedRoles={["admin"]}>
           <AdminDashboard />
         </AuthGuard>
       ),
