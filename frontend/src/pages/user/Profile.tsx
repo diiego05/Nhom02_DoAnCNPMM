@@ -13,6 +13,7 @@ import {
   Ticket,
   Map,
   Store,
+  ShieldCheck,
 } from "lucide-react";
 import useAuth from "@/hooks/useAuth";
 import { userService } from "@/services/userService";
@@ -50,6 +51,16 @@ const Profile = () => {
     (typeof user?.role === "string"
       ? user.role.toLowerCase() === "vendor"
       : user?.role?.role_name?.toLowerCase() === "vendor") || user?.isVendor; // Giả lập kiểm tra quyền
+
+  const isManager =
+    (typeof user?.role === "string"
+      ? user.role.toLowerCase() === "manager"
+      : user?.role?.role_name?.toLowerCase() === "manager") || user?.email?.includes("manager");
+
+  const isAdmin =
+    (typeof user?.role === "string"
+      ? user.role.toLowerCase() === "admin"
+      : user?.role?.role_name?.toLowerCase() === "admin") || user?.email?.includes("admin");
 
   const schema = yup.object({
     full_name: yup.string().required("Tên không được để trống"),
@@ -314,6 +325,19 @@ const Profile = () => {
                   />
                   {hasShop ? "Kênh Người Bán" : "Đăng ký mở shop"}
                 </Link>
+
+                {(isManager || isAdmin) && (
+                  <Link
+                    to="/manager"
+                    className="flex items-center gap-3 px-6 py-4 hover:bg-primary hover:text-white border-b border-black text-primary font-black transition-all group"
+                  >
+                    <ShieldCheck
+                      size={18}
+                      className="group-hover:scale-110 transition-transform"
+                    />
+                    Hệ thống Manager
+                  </Link>
+                )}
 
                 <a
                   href="#"
