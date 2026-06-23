@@ -23,7 +23,10 @@ import { useProductReviews } from "@/hooks/useReviews";
 import { useQuery } from "@tanstack/react-query";
 import { vendorService } from "@/services/vendorService";
 
+const DEFAULT_SHOP_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='128' height='128'><rect width='100' height='100' fill='%23FFE4D6' stroke='black' stroke-width='4'/><path d='M20 40 L50 15 L80 40 L80 85 L20 85 Z' fill='white' stroke='black' stroke-width='4'/><rect x='40' y='55' width='20' height='30' fill='%23D97736' stroke='black' stroke-width='4'/><path d='M15 40 L85 40' stroke='black' stroke-width='4'/></svg>";
+
 const ProductDetailPage = () => {
+
   const { id: slug } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [activeImgIndex, setActiveImgIndex] = useState(0);
@@ -34,6 +37,11 @@ const ProductDetailPage = () => {
   const [addMessage, setAddMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const isAuthenticated = useAppSelector((state) => !!state.auth.accessToken);
+  const user = useAppSelector((state) => state.auth.user);
+  const isShipper =
+    (typeof user?.role === "string"
+      ? user.role.toLowerCase() === "shipper"
+      : user?.role?.role_name?.toLowerCase() === "shipper") || user?.email?.includes("shipper");
   const addToCartMutation = useAddToCart();
 
   // Scroll to top when page loads
@@ -424,9 +432,15 @@ const ProductDetailPage = () => {
                   </div>
                 )}
 
+                {isShipper && (
+                  <div className="p-4 rounded-2xl border-2 border-red-500 bg-red-50 text-red-600 text-xs font-black uppercase tracking-widest text-center shadow-subtle">
+                    Tài khoản Shipper không thể mua sắm trên cửa hàng
+                  </div>
+                )}
+
                 <div className="flex gap-4">
                   <button
-                    disabled={currentStock === 0 || addToCartMutation.isPending}
+                    disabled={currentStock === 0 || addToCartMutation.isPending || isShipper}
                     onClick={() => {
                       addToCartMutation.mutate(
                         {
@@ -438,7 +452,9 @@ const ProductDetailPage = () => {
                         },
                         {
                           onSuccess: () => {
-                            navigate("/cart");
+                            window.dispatchEvent(new CustomEvent("cart-item-added"));
+                            setAddMessage({ type: "success", text: "Đã thêm sản phẩm vào giỏ hàng thành công!" });
+                            setTimeout(() => setAddMessage(null), 3000);
                           },
                           onError: (err: any) => {
                             setAddMessage({ type: "error", text: err?.response?.data?.message || "Thêm vào giỏ hàng thất bại!" });
@@ -452,7 +468,7 @@ const ProductDetailPage = () => {
                     {addToCartMutation.isPending ? "Đang thêm..." : "Thêm vào giỏ"}
                   </button>
                   <button
-                    disabled={currentStock === 0}
+                    disabled={currentStock === 0 || isShipper}
                     type="button"
                     onClick={() => {
                       if (!isAuthenticated) {
@@ -528,15 +544,16 @@ const ProductDetailPage = () => {
         <div className="flex items-center gap-6 pr-8 md:border-r-2 md:border-black/5 shrink-0 w-full md:w-auto">
           <div className="w-20 h-20 bg-primary rounded-full border-2 border-black overflow-hidden shadow-subtle relative group shrink-0">
             <img
-              src={shopInfo?.avatar_url || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=200"}
-              alt={shopInfo?.name || "Avatar"}
+              src={shopInfo?.shop_logo || shopInfo?.avatar_url || DEFAULT_SHOP_LOGO}
+              alt={shopInfo?.shop_name || shopInfo?.name || "Avatar"}
               className="w-full h-full object-cover group-hover:scale-110 transition-transform"
             />
           </div>
           <div>
             <h4 className="text-xl font-serif font-black uppercase tracking-tighter mb-1">
-              {shopInfo?.name || "UTEShop Official"}
+              {shopInfo?.shop_name || shopInfo?.name || "UTEShop Official"}
             </h4>
+
             <div className="flex items-center gap-3">
               <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-100 uppercase tracking-widest flex items-center gap-1">
                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>{" "}
@@ -565,11 +582,25 @@ const ProductDetailPage = () => {
               )}
               <button
                 type="button"
-                onClick={() => alert("Chức năng chat đang được bảo trì!")}
+                onClick={() => {
+                  if (shopInfo?.id) {
+                    window.dispatchEvent(
+                      new CustomEvent("openChat", {
+                        detail: {
+                          shopId: shopInfo.id,
+                          shopName: shopInfo.shop_name || shopInfo.name || "UTEShop Official",
+                          shopLogo: shopInfo.shop_logo || shopInfo.avatar_url || "",
+                        },
+                      })
+                    );
+                  }
+                }}
                 className="px-5 py-2 border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none flex items-center gap-2"
               >
                 <MessageCircle size={14} /> Chat ngay
               </button>
+
+
             </div>
           </div>
         </div>

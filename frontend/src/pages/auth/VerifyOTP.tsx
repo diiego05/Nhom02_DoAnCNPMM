@@ -88,9 +88,9 @@ const VerifyOTP = () => {
     <div className="min-h-screen flex flex-col bg-[#faf9f6]">
       <main className="flex-grow flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full">
-          <Card className="p-10 border-[3px] shadow-brutal rounded-xl">
+          <div className="card-modern p-10">
             <div className="mb-8 text-center">
-              <div className="w-16 h-16 bg-black text-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-brutal">
+              <div className="w-16 h-16 bg-primary text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] border-2 border-slate-900 transition-transform hover:-translate-y-1">
                 <Mail size={32} />
               </div>
               <h1 className="font-serif text-3xl font-bold mb-3">
@@ -98,13 +98,13 @@ const VerifyOTP = () => {
               </h1>
               <p className="text-gray-600 text-sm leading-relaxed">
                 Chúng tôi đã gửi mã OTP đến email <br />
-                <span className="font-bold text-black underline decoration-2">{email}</span>. <br />
+                <span className="font-bold text-slate-900 underline decoration-2">{email}</span>. <br />
                 Vui lòng nhập mã để kích hoạt tài khoản.
               </p>
             </div>
 
             {error && (
-              <div className="mb-6 p-4 bg-red-50 border-2 border-red-600 text-red-700 text-sm font-bold shadow-[4px_4px_0px_0px_rgba(220,38,38,1)]">
+              <div className="mb-6 p-4 bg-red-50 border-2 border-red-600 text-red-700 text-sm font-bold shadow-[4px_4px_0px_0px_rgba(220,38,38,1)] rounded-xl">
                 {error}
               </div>
             )}
@@ -134,19 +134,19 @@ const VerifyOTP = () => {
                       value={value}
                       onChange={(e) => handleInputChange(index, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(index, e)}
-                      className="w-12 h-16 text-center text-2xl font-black bg-white border-[3px] border-black rounded-lg focus:outline-none focus:bg-primary/20 transition-colors shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+                      className="w-12 h-16 text-center text-2xl font-black bg-white border-2 border-slate-200 rounded-xl focus:outline-none focus:border-slate-900 focus:shadow-[4px_4px_0px_0px_rgba(15,23,42,0.15)] transition-all duration-300 hover:border-slate-300"
                       required
                     />
                   ))}
                 </div>
 
-                <Button
-                  className="w-full uppercase tracking-widest py-5 text-lg font-black border-[3px] border-black transition-all rounded-lg active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+                <button
+                  className="btn-auth-modern w-full h-14"
                   type="submit"
                   disabled={loading || fullOtp.length !== 6}
                 >
                   {loading ? "ĐANG XÁC THỰC..." : "KÍCH HOẠT TÀI KHOẢN"}
-                </Button>
+                </button>
 
                 <div className="text-center mt-6">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
@@ -163,15 +163,15 @@ const VerifyOTP = () => {
               </form>
             )}
 
-            <div className="mt-10 text-center pt-8 border-t-2 border-black border-dashed">
+            <div className="mt-10 text-center pt-8 border-t-2 border-slate-200 border-dashed">
               <button
                 onClick={() => navigate("/auth/register")}
-                className="text-xs font-black text-gray-500 hover:text-black flex items-center justify-center gap-2 mx-auto uppercase tracking-widest"
+                className="text-xs font-black text-gray-500 hover:text-slate-900 transition-colors flex items-center justify-center gap-2 mx-auto uppercase tracking-widest"
               >
                 <ArrowRight size={14} className="rotate-180" /> Quay lại đăng ký
               </button>
             </div>
-          </Card>
+          </div>
         </div>
       </main>
     </div>

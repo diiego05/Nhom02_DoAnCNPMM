@@ -1,12 +1,14 @@
 import db from "../models/index.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
+import { sendShipperAccountCreated } from "../utils/emailService.js";
+import notificationService from "./notificationService.js";
 
 // ============================================================
 // 1. QUẢN LÝ TÀI KHOẢN MANAGER
 // ============================================================
 
-const createUser = async (adminId, { email, password, full_name, role }) => {
+const createUser = async (adminId, { email, password, full_name, role, phone, gender, shipper_shop_id }) => {
   const transaction = await db.sequelize.transaction();
   try {
     // Kiểm tra email đã tồn tại
@@ -19,17 +21,38 @@ const createUser = async (adminId, { email, password, full_name, role }) => {
       targetRoleName = "user";
     }
 
+    // Kiểm tra số điện thoại đã tồn tại
+    if (phone) {
+      const existingPhone = await db.User.findOne({ where: { phone }, transaction });
+      if (existingPhone) throw new Error("Số điện thoại đã được sử dụng");
+    }
+
     // Tìm role
     const dbRole = await db.Role.findOne({ where: { role_name: targetRoleName }, transaction });
     if (!dbRole) throw new Error(`Không tìm thấy vai trò ${role} trong hệ thống`);
 
+    // Tạo mật khẩu ngẫu nhiên cho shipper
+    let finalPassword = password;
+    if (targetRoleName === "shipper") {
+      const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      finalPassword = "";
+      for (let i = 0; i < 8; i++) {
+        finalPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+    }
+
+    if (!finalPassword) {
+      throw new Error("Mật khẩu là bắt buộc");
+    }
+
     // Hash password
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const hashedPassword = await bcrypt.hash(finalPassword, salt);
 
     // Tạo user
     const user = await db.User.create({
       email,
+      phone: phone || null,
       password: hashedPassword,
       role_id: dbRole.id,
       status: "ACTIVE",
@@ -41,6 +64,8 @@ const createUser = async (adminId, { email, password, full_name, role }) => {
       user_id: user.id,
       full_name: full_name || null,
       avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=150",
+      gender: gender || null,
+      shipper_shop_id: shipper_shop_id || null,
     }, { transaction });
 
     // Nếu role là vendor, tạo thêm shop mặc định
@@ -55,6 +80,30 @@ const createUser = async (adminId, { email, password, full_name, role }) => {
     }
 
     await transaction.commit();
+
+    // Gửi thông báo cho Admin (chính chủ)
+    if (adminId) {
+      try {
+        await notificationService.createNotification(
+          adminId,
+          "Tạo tài khoản thành công",
+          `Bạn đã tạo thành công tài khoản email ${email} vai trò ${targetRoleName}.`,
+          "USER_MANAGEMENT"
+        );
+      } catch (notifErr) {
+        console.error("Failed to create admin create user notification:", notifErr);
+      }
+    }
+
+    // Gửi email cho shipper sau khi commit thành công
+    if (targetRoleName === "shipper") {
+      try {
+        await sendShipperAccountCreated(email, full_name, finalPassword);
+      } catch (emailError) {
+        console.error("Failed to send shipper creation email:", emailError);
+      }
+    }
+
     return {
       id: user.id,
       email: user.email,
@@ -84,7 +133,12 @@ const getUsersByRole = async (roleName) => {
     include: [{
       model: db.UserProfile,
       as: "profile",
-      attributes: ["full_name", "avatar_url", "birthday", "gender"],
+      attributes: ["full_name", "avatar_url", "birthday", "gender", "shipper_shop_id"],
+      include: [{
+        model: db.Shop,
+        as: "shipperShop",
+        attributes: ["id", "shop_name"],
+      }],
     }],
     order: [["created_at", "DESC"]],
   });
@@ -99,6 +153,21 @@ const lockUser = async (adminId, userId) => {
   if (user.status === "LOCKED") throw new Error("Tài khoản đã bị khóa trước đó");
 
   await user.update({ status: "LOCKED" });
+
+  // Gửi thông báo cho Admin (chính chủ)
+  if (adminId) {
+    try {
+      await notificationService.createNotification(
+        adminId,
+        "Khóa tài khoản thành công",
+        `Bạn đã khóa thành công tài khoản của người dùng ${user.email}.`,
+        "USER_MANAGEMENT"
+      );
+    } catch (notifErr) {
+      console.error("Failed to create admin lock user notification:", notifErr);
+    }
+  }
+
   return user;
 };
 
@@ -111,6 +180,21 @@ const unlockUser = async (adminId, userId) => {
   if (user.status === "ACTIVE") throw new Error("Tài khoản đang hoạt động bình thường");
 
   await user.update({ status: "ACTIVE" });
+
+  // Gửi thông báo cho Admin (chính chủ)
+  if (adminId) {
+    try {
+      await notificationService.createNotification(
+        adminId,
+        "Mở khóa tài khoản thành công",
+        `Bạn đã mở khóa thành công tài khoản của người dùng ${user.email}.`,
+        "USER_MANAGEMENT"
+      );
+    } catch (notifErr) {
+      console.error("Failed to create admin unlock user notification:", notifErr);
+    }
+  }
+
   return user;
 };
 
@@ -168,7 +252,12 @@ const updateUserProfileByAdmin = async (userId, { email, phone, full_name, gende
       include: [{
         model: db.UserProfile,
         as: "profile",
-        attributes: ["full_name", "avatar_url", "birthday", "gender"],
+        attributes: ["full_name", "avatar_url", "birthday", "gender", "shipper_shop_id"],
+        include: [{
+          model: db.Shop,
+          as: "shipperShop",
+          attributes: ["id", "shop_name"],
+        }],
       }],
     });
   } catch (error) {
@@ -212,6 +301,35 @@ const approveShop = async (adminId, shopId) => {
   if (shop.status === "APPROVED") throw new Error("Gian hàng đã được duyệt trước đó");
 
   await shop.update({ status: "APPROVED" });
+
+  // Gửi thông báo cho Vendor
+  if (shop.vendor_id) {
+    try {
+      await notificationService.createNotification(
+        shop.vendor_id,
+        "Gian hàng đã được duyệt",
+        `Gian hàng "${shop.shop_name}" của bạn đã được quản trị viên phê duyệt hoạt động.`,
+        "SHOP_STATUS"
+      );
+    } catch (notifErr) {
+      console.error("Failed to create shop approval notification:", notifErr);
+    }
+  }
+
+  // Gửi thông báo cho Admin (chính chủ)
+  if (adminId) {
+    try {
+      await notificationService.createNotification(
+        adminId,
+        "Duyệt gian hàng thành công",
+        `Bạn đã phê duyệt hoạt động thành công cho gian hàng "${shop.shop_name}".`,
+        "SHOP_STATUS"
+      );
+    } catch (notifErr) {
+      console.error("Failed to create admin shop approval notification:", notifErr);
+    }
+  }
+
   return shop;
 };
 
@@ -221,6 +339,35 @@ const rejectShop = async (adminId, shopId, reason) => {
   if (shop.status === "REJECTED") throw new Error("Gian hàng đã bị từ chối trước đó");
 
   await shop.update({ status: "REJECTED" });
+
+  // Gửi thông báo cho Vendor
+  if (shop.vendor_id) {
+    try {
+      await notificationService.createNotification(
+        shop.vendor_id,
+        "Yêu cầu đăng ký gian hàng bị từ chối",
+        `Đơn đăng ký gian hàng "${shop.shop_name}" của bạn đã bị từ chối. Lý do: ${reason || "Không có lý do cụ thể"}.`,
+        "SHOP_STATUS"
+      );
+    } catch (notifErr) {
+      console.error("Failed to create shop rejection notification:", notifErr);
+    }
+  }
+
+  // Gửi thông báo cho Admin (chính chủ)
+  if (adminId) {
+    try {
+      await notificationService.createNotification(
+        adminId,
+        "Từ chối gian hàng thành công",
+        `Bạn đã từ chối đơn đăng ký gian hàng "${shop.shop_name}". Lý do: ${reason || "Không có lý do cụ thể"}.`,
+        "SHOP_STATUS"
+      );
+    } catch (notifErr) {
+      console.error("Failed to create admin shop rejection notification:", notifErr);
+    }
+  }
+
   // Trả về reason để frontend hiển thị (reason lưu ở frontend notification)
   return { ...shop.toJSON(), reject_reason: reason };
 };
@@ -595,6 +742,31 @@ const approveShopPayout = async (adminId, payoutId) => {
     status: "COMPLETED",
     processed_by: adminId,
   });
+
+  // Gửi thông báo cho Vendor & Admin
+  try {
+    const shop = await db.Shop.findByPk(payout.shop_id);
+    if (shop) {
+      if (shop.vendor_id) {
+        await notificationService.createNotification(
+          shop.vendor_id,
+          "Lệnh rút tiền đã được duyệt",
+          `Lệnh rút tiền trị giá ${Number(payout.amount).toLocaleString()}₫ từ ví gian hàng "${shop.shop_name}" đã được duyệt thành công.`,
+          "PAYOUT_STATUS"
+        );
+      }
+      if (adminId) {
+        await notificationService.createNotification(
+          adminId,
+          "Duyệt rút tiền thành công",
+          `Bạn đã duyệt thành công lệnh rút tiền trị giá ${Number(payout.amount).toLocaleString()}₫ của gian hàng "${shop.shop_name}".`,
+          "PAYOUT_STATUS"
+        );
+      }
+    }
+  } catch (notifErr) {
+    console.error("Failed to create payout approval notification:", notifErr);
+  }
 
   return payout;
 };

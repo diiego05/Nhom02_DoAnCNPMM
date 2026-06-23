@@ -62,7 +62,7 @@ const calculateCheckout = async (req, res) => {
 
 const updateOrderStatus = async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, note } = req.body;
     const { orderId } = req.params; // this is shop_order_id
     
     let role = "user";
@@ -70,8 +70,17 @@ const updateOrderStatus = async (req, res) => {
        role = req.user.role.role_name;
     }
     
-    const order = await orderService.updateOrderStatus(orderId, req.user.id, status, role);
+    const order = await orderService.updateOrderStatus(orderId, req.user.id, status, role, note);
     return res.status(200).json({ message: "Cập nhật trạng thái thành công", data: order });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+const getShipperOrders = async (req, res) => {
+  try {
+    const result = await orderService.getShipperOrders(req.user.id, req.query);
+    return res.status(200).json({ message: "Success", data: result });
   } catch (error) {
     return res.status(400).json({ message: error.message });
   }
@@ -105,4 +114,5 @@ export default {
   updateOrderStatus,
   getOrderDetail,
   cancelOrder,
+  getShipperOrders,
 };

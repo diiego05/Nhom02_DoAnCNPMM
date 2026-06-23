@@ -144,7 +144,7 @@ const getShopVouchers = async (req, res) => {
   try {
     const { id } = req.params; // Lấy shopId từ params
     const vouchers = await db.Coupon.findAll({
-      where: { shop_id: id, is_active: true },
+      where: { shop_id: id },
     });
     return res.status(200).json({ message: "Success", data: vouchers });
   } catch (error) {
@@ -168,24 +168,27 @@ const createShopVoucher = async (req, res) => {
       min_order_amount,
       max_discount,
       usage_limit,
-      per_user_limit,
       start_date,
       end_date,
     } = req.body;
 
+    // Map discount_type từ frontend sang model enum (PERCENT, FIXED)
+    let finalDiscountType = "PERCENT";
+    if (discount_type === "FIXED_AMOUNT" || discount_type === "FIXED" || discount_type === "FIXED_VALUE") {
+      finalDiscountType = "FIXED";
+    }
+
     const voucher = await db.Coupon.create({
       code,
       description,
-      discount_type: discount_type || "PERCENTAGE",
+      discount_type: finalDiscountType,
       discount_value,
       min_order_amount: min_order_amount || 0.00,
       max_discount: max_discount || null,
       usage_limit: usage_limit || null,
-      per_user_limit: per_user_limit || 1,
       used_count: 0,
       start_date: start_date || new Date(),
       end_date: end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-      is_active: true,
       shop_id: shop.id,
     });
 
@@ -211,8 +214,8 @@ const deleteShopVoucher = async (req, res) => {
       return res.status(404).json({ message: "Voucher not found" });
     }
 
-    // Soft delete bằng cách set is_active = false
-    await voucher.update({ is_active: false });
+    // Thực hiện soft delete qua paranoid của Sequelize
+    await voucher.destroy();
     return res.status(200).json({ message: "Delete voucher successfully" });
   } catch (error) {
     console.error("Error deleting voucher:", error);

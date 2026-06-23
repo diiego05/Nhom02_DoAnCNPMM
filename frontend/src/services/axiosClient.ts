@@ -67,11 +67,9 @@ axiosClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    const isExpiredToken =
-      error.response?.status === 401 &&
-      (error.response?.data?.message === "Invalid or expired token" || error.response?.data?.message === "accessToken jwt expired");
+    const isUnauthorized = error.response?.status === 401;
 
-    if (isExpiredToken) {
+    if (isUnauthorized) {
       originalRequest._retry = true;
 
       try {
@@ -82,14 +80,14 @@ axiosClient.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
 
         return axiosClient(originalRequest);
-      } catch (error) {
+      } catch (refreshError) {
         const { store } = await import("@/stores/store");
         const { logout } = await import("@/stores/slices/authSlice");
 
         await publicAxios.post("/auth/logout").catch(() => {});
         store.dispatch(logout());
 
-        return Promise.reject(error);
+        return Promise.reject(refreshError);
       } finally {
         refreshTokenRequest = null;
       }

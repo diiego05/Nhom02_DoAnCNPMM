@@ -13,11 +13,11 @@ function App() {
   const routing = useRoutes(getRoutes());
 
   useEffect(() => {
-    // Nếu có accessToken trong store (từ redux-persist) nhưng chưa verify → verify
-    if (accessToken && !isAuthenticated) {
+    // Luôn verify token khi ứng dụng khởi chạy nếu có accessToken trong store
+    if (accessToken) {
       dispatch(initAuthThunk());
     }
-  }, [dispatch, accessToken, isAuthenticated]);
+  }, [dispatch]);
 
   // Đang verify token → hiện loading
   if (!initialized) {

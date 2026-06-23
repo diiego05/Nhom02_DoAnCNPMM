@@ -28,7 +28,10 @@ import { Pagination, Autoplay } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/pagination';
 
+const DEFAULT_SHOP_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='128' height='128'><rect width='100' height='100' fill='%23FFE4D6' stroke='black' stroke-width='4'/><path d='M20 40 L50 15 L80 40 L80 85 L20 85 Z' fill='white' stroke='black' stroke-width='4'/><rect x='40' y='55' width='20' height='30' fill='%23D97736' stroke='black' stroke-width='4'/><path d='M15 40 L85 40' stroke='black' stroke-width='4'/></svg>";
+
 const VendorShopPage: React.FC = () => {
+
   const { id } = useParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState("home");
   const [isFollowed, setIsFollowed] = useState(false);
@@ -180,7 +183,7 @@ const VendorShopPage: React.FC = () => {
           <div className="flex-grow flex items-center gap-6 pr-8 md:border-r-2 md:border-black/5 relative z-10">
             <div className="relative shrink-0">
                <div className="w-28 h-28 bg-primary rounded-full border-[3px] border-black overflow-hidden shadow-subtle">
-                  <img src={shop.avatar_url || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=200"} alt="Avatar Shop" className="w-full h-full object-cover" />
+                  <img src={shop.shop_logo || shop.avatar_url || DEFAULT_SHOP_LOGO} alt="Avatar Shop" className="w-full h-full object-cover" />
                </div>
                <div className="absolute -bottom-2 -right-2 bg-black text-white px-3 py-1 rounded-full border-2 border-white text-[8px] font-black uppercase tracking-widest shadow-sm">
                   Official
@@ -189,7 +192,7 @@ const VendorShopPage: React.FC = () => {
             
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-4xl font-serif font-black tracking-tighter uppercase">{shop.name}</h1>
+                <h1 className="text-4xl font-serif font-black tracking-tighter uppercase">{shop.shop_name || shop.name}</h1>
                 <span className="bg-primary text-white text-[10px] font-black px-3 py-1 rounded-lg border-2 border-black shadow-subtle uppercase tracking-widest">
                    Yêu Thích
                 </span>
@@ -208,9 +211,11 @@ const VendorShopPage: React.FC = () => {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => window.dispatchEvent(new CustomEvent('openChat', { detail: { partnerId: shop.user_id } }))}
+                  onClick={() => window.dispatchEvent(new CustomEvent('openChat', { detail: { shopId: shop.id, shopName: shop.shop_name || shop.name, shopLogo: shop.shop_logo || shop.avatar_url } }))}
                   className="px-6 py-3 border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest bg-white hover:bg-primary hover:text-white transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none flex items-center gap-2"
                 >
+
+
                   <MessageCircle size={16} /> Chat ngay
                 </button>
                 <button type="button" className="p-3 border-2 border-black rounded-xl hover:bg-primary hover:text-white transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
@@ -337,7 +342,7 @@ const VendorShopPage: React.FC = () => {
                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                    <div className="absolute bottom-12 left-12 text-white">
                       <span className="bg-primary px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-4 inline-block">BỘ SƯU TẬP MỚI</span>
-                      <h2 className="text-6xl font-serif font-black tracking-tighter uppercase leading-none mb-6">{shop.name}</h2>
+                      <h2 className="text-6xl font-serif font-black tracking-tighter uppercase leading-none mb-6">{shop.shop_name || shop.name}</h2>
                       <button 
                         type="button" 
                         onClick={() => setActiveTab("all")}
@@ -670,7 +675,7 @@ const VendorShopPage: React.FC = () => {
             <div className="col-span-1 md:col-span-2 space-y-6">
                <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-black text-white rounded-xl flex items-center justify-center font-black">UT</div>
-                  <h3 className="text-2xl font-serif font-black uppercase tracking-tighter">{shop.name}</h3>
+                  <h3 className="text-2xl font-serif font-black uppercase tracking-tighter">{shop.shop_name || shop.name}</h3>
                </div>
                <p className="text-gray-500 text-sm max-w-md leading-relaxed">
                   Chúng tôi mang đến những giải pháp thời trang tối giản nhưng đầy cá tính. Mỗi sản phẩm đều được chăm chút kỹ lưỡng từ chất liệu đến đường may để mang lại trải nghiệm tốt nhất cho bạn.

@@ -14,6 +14,7 @@ export default (sequelize, DataTypes) => {
       User.hasMany(models.Conversation, { foreignKey: "user_id", as: "conversations" });
       User.hasMany(models.Message, { foreignKey: "sender_id", as: "messages" });
       User.hasMany(models.ReturnRequest, { foreignKey: "user_id", as: "returnRequests" });
+      User.hasMany(models.Notification, { foreignKey: "user_id", as: "notifications" });
     }
   }
 

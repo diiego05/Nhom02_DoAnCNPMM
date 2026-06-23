@@ -2,9 +2,10 @@ import { forwardRef, ComponentPropsWithoutRef } from 'react';
 
 export interface InputProps extends ComponentPropsWithoutRef<'input'> {
   label?: string;
+  inputClassName?: string;
 }
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(({ label, id, className = '', ...props }, ref) => {
+export const Input = forwardRef<HTMLInputElement, InputProps>(({ label, id, className = '', inputClassName = '', ...props }, ref) => {
   return (
     <div className={`flex flex-col ${className}`}>
       {label && (
@@ -15,7 +16,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({ label, id, clas
       <input
         id={id}
         ref={ref}
-        className="border-2 border-black px-4 py-3 w-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-200 focus:shadow-subtle bg-white rounded-lg"
+        className={`input-modern ${inputClassName}`}
         {...props}
       />
     </div>

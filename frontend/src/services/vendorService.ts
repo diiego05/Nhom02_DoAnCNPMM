@@ -12,6 +12,8 @@ export interface ShopProfileData extends ShopRegistrationData {
   id: number;
   user_id: number;
   avatar_url?: string;
+  shop_logo?: string;
+  shop_name?: string;
   cover_url?: string;
   rating: number;
   followers_count: number;

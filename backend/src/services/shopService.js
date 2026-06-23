@@ -1,5 +1,6 @@
 import db from "../models/index.js";
 import { Op } from "sequelize";
+import notificationService from "./notificationService.js";
 
 const registerShop = async (userId, shopData) => {
   const transaction = await db.sequelize.transaction();
@@ -470,7 +471,7 @@ const requestWithdrawal = async (shopId, withdrawData) => {
   }
 
   // Create ShopPayout entry
-  return await db.ShopPayout.create({
+  const payout = await db.ShopPayout.create({
     shop_id: shopId,
     amount,
     bank_name,
@@ -478,6 +479,23 @@ const requestWithdrawal = async (shopId, withdrawData) => {
     bank_account_name: account_name,
     status: "PENDING"
   });
+
+  // Gửi thông báo cho Vendor (chính chủ)
+  try {
+    const shop = await db.Shop.findByPk(shopId);
+    if (shop && shop.vendor_id) {
+      await notificationService.createNotification(
+        shop.vendor_id,
+        "Yêu cầu rút tiền thành công",
+        `Bạn đã gửi yêu cầu rút tiền trị giá ${Number(amount).toLocaleString()}₫ về tài khoản ngân hàng ${bank_name}. Vui lòng chờ quản trị viên phê duyệt.`,
+        "PAYOUT_STATUS"
+      );
+    }
+  } catch (notifErr) {
+    console.error("Failed to create withdrawal request notification:", notifErr);
+  }
+
+  return payout;
 };
 
 const getWithdrawals = async (shopId) => {

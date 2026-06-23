@@ -1,64 +1,70 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #d97736;
-  --color-primary-dark: #b85e2a;
-  --color-secondary: #4a5d50;
-  --color-accent: #1a1a1a;
+  --color-primary: #f97316; /* Tươi sáng hơn, màu cam Tailwind orange-500 */
+  --color-primary-dark: #ea580c;
+  --color-primary-light: #ffedd5;
+  --color-secondary: #0f172a; /* Slate 900 */
+  --color-accent: #334155;
   
   --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
-  --shadow-subtle: 3px 3px 0px 0px rgba(0, 0, 0, 1);
-  --shadow-brutal: 5px 5px 0px 0px rgba(0, 0, 0, 1);
+  --shadow-premium: 0 10px 30px -5px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 0 15px rgba(249, 115, 22, 0.3);
 }
 
 :root {
-  --color-bg-main: #faf9f6;
+  --color-bg-main: #f8fafc; /* Nền nhạt hơn, sang trọng hơn (slate-50) */
 }
 
 body {
   background-color: var(--color-bg-main);
-  color: #1a1a1a;
-  font-family: 'Be Vietnam Pro', sans-serif;
+  color: #0f172a;
+  font-family: 'Inter', 'Be Vietnam Pro', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, h3, .font-serif {
   font-family: 'Playfair Display', serif;
+  letter-spacing: -0.02em;
 }
 
 @layer components {
-  /* Input & Search: Mượt mà kiểu SaaS, focus có ring */
-  .input-brutal {
-    @apply border border-black/20 px-4 py-2.5 w-full focus:outline-none focus:ring-4 focus:ring-primary/20 focus:border-primary transition-all duration-300 rounded-xl bg-white font-medium shadow-sm hover:border-black/40;
+  /* Input & Search: Hybrid (Crisp borders, soft focus to hard focus) */
+  .input-modern {
+    @apply w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl focus:outline-none focus:border-secondary focus:shadow-[4px_4px_0px_0px_rgba(15,23,42,0.15)] transition-all duration-300 text-sm font-medium placeholder-slate-400 hover:border-slate-300;
   }
 
-  /* Buttons: Mặc định bo góc, hover bật bóng cứng (Hybrid) */
-  .btn-brutal {
-    @apply bg-black text-white font-bold py-3.5 px-8 border-2 border-black transition-all duration-300 rounded-xl inline-flex items-center justify-center hover:bg-primary hover:shadow-subtle hover:-translate-y-1 active:scale-95 active:shadow-none;
+  .input-modern:disabled {
+    @apply bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed opacity-80 shadow-none;
   }
 
-  .btn-brutal-secondary {
-    @apply bg-white text-black font-bold py-3.5 px-8 border-2 border-black transition-all duration-300 rounded-xl inline-flex items-center justify-center hover:bg-primary hover:text-white hover:shadow-subtle hover:-translate-y-1 active:scale-95 active:shadow-none;
+  /* Buttons: Hybrid Neo-Brutalism + Soft */
+  .btn-modern {
+    @apply inline-flex items-center justify-center font-bold py-3.5 px-8 rounded-xl transition-all duration-300 text-white bg-primary border-2 border-primary hover:border-secondary hover:shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:-translate-y-1 active:translate-y-0 active:shadow-none;
   }
 
-  .btn-auth {
-    @apply w-full bg-black text-white font-bold h-14 border-2 border-black transition-all duration-300 rounded-xl inline-flex items-center justify-center hover:bg-primary hover:shadow-subtle hover:-translate-y-1 active:scale-95 active:shadow-none uppercase tracking-widest text-xs;
+  .btn-modern-secondary {
+    @apply inline-flex items-center justify-center font-bold py-3.5 px-8 rounded-xl transition-all duration-300 bg-white text-secondary border-2 border-slate-200 hover:border-secondary hover:shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:-translate-y-1 active:translate-y-0 active:shadow-none;
   }
 
-  /* Card & Containers: Soft SaaS mặc định, hover Neo-Brutal */
-  .card-brutal {
-    @apply border-2 border-black/10 shadow-sm bg-white p-6 rounded-2xl transition-all duration-300 hover:border-black hover:shadow-subtle hover:-translate-y-1;
+  .btn-auth-modern {
+    @apply w-full inline-flex items-center justify-center h-14 font-bold text-sm uppercase tracking-wider rounded-xl transition-all duration-300 text-white bg-secondary border-2 border-secondary hover:bg-black hover:shadow-[4px_4px_0px_0px_rgba(249,115,22,1)] hover:-translate-y-1 active:translate-y-0 active:shadow-none;
+  }
+
+  /* Card & Containers: Glass to Brutal on hover */
+  .card-modern {
+    @apply bg-white/95 backdrop-blur-md border-2 border-slate-100 rounded-2xl shadow-sm transition-all duration-300 hover:border-slate-800 hover:shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] hover:-translate-y-1 p-6;
   }
 
   /* Badge */
-  .badge-brutal {
-    @apply border-2 border-black px-3 py-1 text-[10px] font-black uppercase tracking-wider bg-white rounded-lg shadow-subtle;
+  .badge-modern {
+    @apply px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-primary/10 text-primary border-2 border-primary/20;
   }
 
-  /* Dropdown Select tùy chỉnh phong cách Neo-Brutalist: mũi tên to, đậm, căn lề phải rộng rãi */
-  .select-brutal {
+  /* Dropdown Select tùy chỉnh phong cách hiện đại */
+  .select-modern {
     appearance: none !important;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>") !important;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%230f172a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>") !important;
     background-repeat: no-repeat !important;
     background-position: right 16px center !important;
     background-size: 16px !important;
@@ -67,83 +73,115 @@ h1, h2, h3, .font-serif {
 
   /* Mega Menu: Hiệu ứng trượt mượt mà SaaS */
   .mega-menu {
-    @apply absolute top-full left-0 w-full bg-white border border-black/10 shadow-xl opacity-0 invisible translate-y-2 transition-all duration-300 z-50 rounded-b-2xl;
+    @apply absolute top-full left-0 w-full bg-white/95 backdrop-blur-xl border-t-2 border-slate-800 shadow-[0_10px_30px_-5px_rgba(15,23,42,0.2)] opacity-0 invisible translate-y-2 transition-all duration-300 z-50 rounded-b-2xl;
   }
   
   .group:hover .mega-menu {
     @apply opacity-100 visible translate-y-0;
   }
+  
+  /* Glass effect chung */
+  .glass {
+    @apply bg-white/80 backdrop-blur-lg border-b-2 border-white/20 shadow-sm;
+  }
 }
 
-/* Swiper Custom Brutalist Styling */
+/* Swiper Custom Modern Styling */
 .home-swiper .swiper-button-next,
 .home-swiper .swiper-button-prev {
-  background: white !important;
-  color: black !important;
-  border: 2px solid black !important;
-  width: 44px !important;
-  height: 44px !important;
-  box-shadow: 2px 2px 0px 0px rgba(0, 0, 0, 1) !important;
-  transition: all 0.2s ease !important;
-  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(8px) !important;
+  color: #0f172a !important;
+  width: 48px !important;
+  height: 48px !important;
+  border: 2px solid #0f172a !important;
+  box-shadow: 4px 4px 0px 0px rgba(15, 23, 42, 1) !important;
+  transition: all 0.3s ease !important;
+  border-radius: 12px !important; /* Squircle thay vì tròn xoe */
 }
 
 .home-swiper .swiper-button-next:hover,
 .home-swiper .swiper-button-prev:hover {
-  background: #d97736 !important;
+  background: var(--color-primary) !important;
   color: white !important;
-  box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1) !important;
+  transform: translate(-2px, -2px) !important;
+  box-shadow: 6px 6px 0px 0px rgba(15, 23, 42, 1) !important;
+}
+
+.home-swiper .swiper-button-next:active,
+.home-swiper .swiper-button-prev:active {
+  transform: translate(0px, 0px) !important;
+  box-shadow: none !important;
 }
 
 .home-swiper .swiper-button-next::after,
 .home-swiper .swiper-button-prev::after {
-  font-size: 16px !important;
-  font-weight: 900 !important;
+  font-size: 18px !important;
+  font-weight: bold !important;
 }
 
 .home-swiper .swiper-pagination-bullet {
-  border-radius: 4px !important;
-  background: black !important;
-  border: 1px solid black !important;
+  border-radius: 50% !important;
+  background: rgba(15, 23, 42, 0.2) !important;
+  width: 8px !important;
+  height: 8px !important;
+  transition: all 0.3s ease !important;
 }
 
 .home-swiper .swiper-pagination-bullet-active {
-  background: #d97736 !important;
-  width: 12px !important;
+  background: var(--color-primary) !important;
+  width: 24px !important;
+  border-radius: 4px !important;
 }
 
-/* Custom Scrollbar for Dropdown Menu */
+/* Custom Scrollbar - Hybrid Style Toàn cục */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-main);
+  border-left: 1px solid #e2e8f0;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 6px;
+  border: 3px solid var(--color-bg-main); /* fake padding */
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0f172a;
+}
+
+/* Class cụ thể cho những chỗ dùng custom-scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 10px;
+  background: transparent;
+  border: none;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #000000;
-  border-radius: 10px;
-  border: 1px solid #f1f1f1;
+  background: #cbd5e1;
+  border-radius: 4px;
+  border: none;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #333333;
+  background: #0f172a;
 }
 
-/* Swiper Custom Brutalist Styling cho Shop */
+/* Swiper Custom Modern Styling cho Shop */
 .shop-swiper .swiper-pagination-bullet {
-  border-radius: 4px !important;
-  background: black !important;
-  border: 1px solid black !important;
-  opacity: 0.3 !important;
+  background: rgba(15, 23, 42, 0.2) !important;
   width: 8px !important;
   height: 8px !important;
   transition: all 0.3s ease !important;
 }
 
 .shop-swiper .swiper-pagination-bullet-active {
-  background: var(--color-primary, #d97736) !important;
-  opacity: 1 !important;
+  background: var(--color-primary) !important;
   width: 24px !important;
+  border-radius: 4px !important;
 }
 
 /* Swiper Container Padding & Spacing */

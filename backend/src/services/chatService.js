@@ -2,14 +2,50 @@ import db from "../models/index.js";
 import { Op } from "sequelize";
 
 const getMessages = async (userId, partnerId) => {
+  let conversation = null;
+
+  // 1. Tìm trường hợp userId là khách hàng, partnerId là shop_id
+  conversation = await db.Conversation.findOne({
+    where: { user_id: userId, shop_id: partnerId }
+  });
+
+  // 2. Nếu không tìm thấy, tìm trường hợp userId là Vendor (chủ shop), partnerId là khách hàng (user_id)
+  if (!conversation) {
+    const shop = await db.Shop.findOne({ where: { vendor_id: userId } });
+    if (shop) {
+      conversation = await db.Conversation.findOne({
+        where: { shop_id: shop.id, user_id: partnerId }
+      });
+    }
+  }
+
+  // 3. Nếu không tìm thấy, tìm trường hợp partnerId là Vendor (chủ shop), userId là khách hàng (user_id)
+  if (!conversation) {
+    const partnerShop = await db.Shop.findOne({ where: { vendor_id: partnerId } });
+    if (partnerShop) {
+      conversation = await db.Conversation.findOne({
+        where: { shop_id: partnerShop.id, user_id: userId }
+      });
+    }
+  }
+
+  if (!conversation) return [];
+
+  // Đánh dấu đã đọc các tin nhắn của đối phương trong cuộc hội thoại này
+  await db.Message.update(
+    { is_read: true },
+    {
+      where: {
+        conversation_id: conversation.id,
+        sender_id: { [Op.ne]: userId },
+        is_read: false
+      }
+    }
+  );
+
   return await db.Message.findAll({
-    where: {
-      [Op.or]: [
-        { sender_id: userId, receiver_id: partnerId },
-        { sender_id: partnerId, receiver_id: userId }
-      ]
-    },
-    order: [["created_at", "ASC"]]
+    where: { conversation_id: conversation.id },
+    order: [["sent_at", "ASC"]]
   });
 };
 
@@ -18,20 +54,166 @@ const sendMessage = async (senderId, receiverId, content) => {
     throw new Error("Nội dung tin nhắn không thể bỏ trống");
   }
 
-  // Đảm bảo đối tác (receiver) tồn tại
-  const receiverExists = await db.User.findByPk(receiverId);
-  if (!receiverExists) {
-    throw new Error("Không tìm thấy người nhận tin nhắn");
+  let shopId = null;
+  let customerId = null;
+
+  // Kiểm tra xem receiverId có phải là shop_id không
+  const shopByPk = await db.Shop.findByPk(receiverId);
+  if (shopByPk) {
+    shopId = shopByPk.id;
+    customerId = senderId;
+  } else {
+    // Kiểm tra xem senderId có phải là chủ shop không
+    const senderShop = await db.Shop.findOne({ where: { vendor_id: senderId } });
+    if (senderShop) {
+      shopId = senderShop.id;
+      customerId = receiverId;
+    } else {
+      // Kiểm tra xem receiverId có phải là vendor_id không
+      const receiverShop = await db.Shop.findOne({ where: { vendor_id: receiverId } });
+      if (receiverShop) {
+        shopId = receiverShop.id;
+        customerId = senderId;
+      }
+    }
   }
 
-  return await db.Message.create({
-    sender_id: senderId,
-    receiver_id: receiverId,
-    content
+  if (!shopId || !customerId) {
+    throw new Error("Không thể xác định đối tượng cuộc trò chuyện");
+  }
+
+  const [conversation] = await db.Conversation.findOrCreate({
+    where: { user_id: customerId, shop_id: shopId }
   });
+
+  return await db.Message.create({
+    conversation_id: conversation.id,
+    sender_id: senderId,
+    body: content,
+    is_read: false
+  });
+};
+
+const getUnreadMessagesCount = async (userId) => {
+  const shop = await db.Shop.findOne({ where: { vendor_id: userId } });
+  const shopId = shop ? shop.id : null;
+
+  const conversationIds = [];
+  const conversations = await db.Conversation.findAll({
+    where: {
+      [Op.or]: [
+        { user_id: userId },
+        ...(shopId ? [{ shop_id: shopId }] : [])
+      ]
+    },
+    attributes: ["id"]
+  });
+
+  conversations.forEach((c) => conversationIds.push(c.id));
+
+  if (conversationIds.length === 0) return 0;
+
+  return await db.Message.count({
+    where: {
+      conversation_id: { [Op.in]: conversationIds },
+      sender_id: { [Op.ne]: userId },
+      is_read: false
+    }
+  });
+};
+
+const getConversations = async (userId) => {
+  const shop = await db.Shop.findOne({ where: { vendor_id: userId } });
+  const shopId = shop ? shop.id : null;
+
+  const conversations = await db.Conversation.findAll({
+    where: {
+      [Op.or]: [
+        { user_id: userId },
+        ...(shopId ? [{ shop_id: shopId }] : [])
+      ]
+    },
+    include: [
+      {
+        model: db.User,
+        as: "user",
+        include: [{ model: db.UserProfile, as: "profile" }]
+      },
+      {
+        model: db.Shop,
+        as: "shop"
+      }
+    ],
+    order: [["updated_at", "DESC"]]
+  });
+
+  const result = [];
+  for (const conv of conversations) {
+    const lastMessage = await db.Message.findOne({
+      where: { conversation_id: conv.id },
+      order: [["sent_at", "DESC"]]
+    });
+
+    const unreadCount = await db.Message.count({
+      where: {
+        conversation_id: conv.id,
+        sender_id: { [Op.ne]: userId },
+        is_read: false
+      }
+    });
+
+    let partner = null;
+    if (shopId && conv.shop_id === shopId) {
+      partner = {
+        type: "user",
+        id: conv.user.id,
+        name: conv.user.profile?.full_name || conv.user.email || "Khách hàng",
+        avatar: conv.user.profile?.avatar_url || null
+      };
+    } else if (conv.shop) {
+      partner = {
+        type: "shop",
+        id: conv.shop.id,
+        name: conv.shop.shop_name,
+        avatar: conv.shop.shop_logo || null
+      };
+    } else {
+      partner = {
+        type: "shop",
+        id: conv.shop_id,
+        name: "Cửa hàng",
+        avatar: null
+      };
+    }
+
+    result.push({
+      id: conv.id,
+      partner,
+      lastMessage: lastMessage ? {
+        id: lastMessage.id,
+        body: lastMessage.body,
+        sent_at: lastMessage.sent_at,
+        sender_id: lastMessage.sender_id,
+        is_read: lastMessage.is_read
+      } : null,
+      unreadCount,
+      updated_at: conv.updated_at
+    });
+  }
+
+  result.sort((a, b) => {
+    const timeA = a.lastMessage ? new Date(a.lastMessage.sent_at).getTime() : new Date(a.updated_at).getTime();
+    const timeB = b.lastMessage ? new Date(b.lastMessage.sent_at).getTime() : new Date(b.updated_at).getTime();
+    return timeB - timeA;
+  });
+
+  return result;
 };
 
 export default {
   getMessages,
-  sendMessage
+  sendMessage,
+  getUnreadMessagesCount,
+  getConversations
 };
+

@@ -4,7 +4,7 @@ interface CardProps extends ComponentPropsWithoutRef<'div'> {}
 
 export function Card({ children, className = '', ...props }: CardProps) {
   return (
-    <div className={`bg-white border-2 border-black shadow-brutal transition-all ${className}`} {...props}>
+    <div className={`bg-white border border-gray-100 shadow-soft rounded-2xl transition-all duration-300 hover:shadow-premium ${className}`} {...props}>
       {children}
     </div>
   );

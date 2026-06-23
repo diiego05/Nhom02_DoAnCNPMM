@@ -1,5 +1,6 @@
 import db from "../models/index.js";
 import cartService from "./cartService.js";
+import notificationService from "./notificationService.js";
 
 const generateOrderCode = (prefix = "ORD") => {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -231,6 +232,21 @@ const createOrder = async (userId, data) => {
         note: "Đơn hàng mới được tạo",
       }, { transaction });
 
+      // Gửi thông báo cho Vendor
+      const shopObj = await db.Shop.findByPk(shop.shop_id, { transaction });
+      if (shopObj && shopObj.vendor_id) {
+        try {
+          await notificationService.createNotification(
+            shopObj.vendor_id,
+            "Đơn hàng mới chờ xử lý",
+            `Gian hàng của bạn nhận được đơn hàng mới mã ${shopOrder.shop_order_code} trị giá ${Number(shopOrder.final_amount).toLocaleString()}₫.`,
+            "NEW_ORDER"
+          );
+        } catch (notifErr) {
+          console.error("Failed to create vendor order notification:", notifErr);
+        }
+      }
+
       // Deduct stock
       for (const item of shop.items) {
         await db.ProductVariant.decrement("stock_quantity", {
@@ -247,6 +263,19 @@ const createOrder = async (userId, data) => {
     }
 
     await transaction.commit();
+
+    // Gửi thông báo cho User (người mua) đặt hàng thành công
+    try {
+      await notificationService.createNotification(
+        userId,
+        "Đặt hàng thành công",
+        `Bạn đã đặt thành công đơn hàng checkout ${parentOrder.checkout_code} trị giá ${Number(parentOrder.total_amount).toLocaleString()}₫. Vui lòng chờ shop xác nhận.`,
+        "NEW_ORDER"
+      );
+    } catch (notifErr) {
+      console.error("Failed to create user order notification:", notifErr);
+    }
+
     return parentOrder;
   } catch (error) {
     await transaction.rollback();
@@ -310,7 +339,7 @@ const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
   };
 };
 
-const updateOrderStatus = async (shopOrderId, userId, newStatus, role) => {
+const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = null) => {
   const shopOrder = await db.ShopOrder.findByPk(shopOrderId, {
     include: [{ model: db.ParentOrder, as: "parentOrder" }]
   });
@@ -332,7 +361,11 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role) => {
   }
 
   const oldStatus = shopOrder.status;
-  await shopOrder.update({ status: newStatus });
+  const updateData = { status: newStatus };
+  if (role === "shipper" && oldStatus === "READY_FOR_PICKUP") {
+    updateData.shipper_id = userId;
+  }
+  await shopOrder.update(updateData);
 
   // Add loyalty points when delivered successfully
   if (newStatus === "DELIVERED" && oldStatus !== "DELIVERED") {
@@ -364,9 +397,178 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role) => {
     old_status: oldStatus,
     new_status: newStatus,
     changed_by: userId,
+    note: note,
   });
 
+  // Tạo thông báo khi cập nhật trạng thái đơn hàng
+  try {
+    const shopObj = await db.Shop.findByPk(shopOrder.shop_id);
+    const vendorId = shopObj?.vendor_id;
+    const customerId = shopOrder.parentOrder?.user_id;
+
+    // 1. Thông báo cho người thực hiện (userId)
+    let actorTitle = "Cập nhật đơn hàng";
+    let actorContent = `Bạn đã cập nhật đơn hàng ${shopOrder.shop_order_code} sang trạng thái ${newStatus}.`;
+    if (userId === vendorId) {
+      if (newStatus === "CONFIRMED") {
+        actorTitle = "Xác nhận đơn hàng";
+        actorContent = `Bạn đã xác nhận đơn hàng ${shopOrder.shop_order_code}.`;
+      } else if (newStatus === "PREPARING") {
+        actorTitle = "Chuẩn bị hàng xong";
+        actorContent = `Bạn đã chuẩn bị xong hàng cho đơn ${shopOrder.shop_order_code} và sẵn sàng giao cho shipper.`;
+      }
+    } else if (userId === customerId) {
+      if (newStatus === "DELIVERED") {
+        actorTitle = "Xác nhận nhận hàng";
+        actorContent = `Bạn đã xác nhận đã nhận được đơn hàng ${shopOrder.shop_order_code}.`;
+      } else if (newStatus === "CANCELLED") {
+        actorTitle = "Hủy đơn hàng";
+        actorContent = `Bạn đã hủy đơn hàng ${shopOrder.shop_order_code}.`;
+      }
+    } else if (shopOrder.shipper_id === userId || (role === "shipper" && newStatus === "SHIPPED")) {
+      if (newStatus === "SHIPPED") {
+        actorTitle = "Nhận đơn giao hàng";
+        actorContent = `Bạn đã nhận giao đơn hàng ${shopOrder.shop_order_code} từ cửa hàng.`;
+      } else if (newStatus === "DELIVERED") {
+        actorTitle = "Giao hàng thành công";
+        actorContent = `Bạn đã giao thành công đơn hàng ${shopOrder.shop_order_code}.`;
+      } else if (newStatus === "FAILED") {
+        actorTitle = "Giao hàng thất bại";
+        actorContent = `Bạn đã cập nhật giao đơn hàng ${shopOrder.shop_order_code} thất bại. Lý do: ${note || "Không có lý do"}.`;
+      }
+    }
+    await notificationService.createNotification(userId, actorTitle, actorContent, "ORDER_UPDATE");
+
+    // 2. Thông báo cho các bên liên quan (nếu người thực hiện không phải là họ)
+    if (vendorId && userId !== vendorId) {
+      let vendorTitle = "Cập nhật đơn hàng";
+      let vendorContent = `Đơn hàng ${shopOrder.shop_order_code} của shop đã được cập nhật sang trạng thái ${newStatus}.`;
+      if (newStatus === "SHIPPED") {
+        vendorTitle = "Shipper lấy hàng";
+        vendorContent = `Shipper đã lấy hàng và đang đi giao đơn ${shopOrder.shop_order_code}.`;
+      } else if (newStatus === "DELIVERED") {
+        vendorTitle = "Đơn hàng đã giao thành công";
+        vendorContent = `Khách hàng/Shipper đã xác nhận giao thành công đơn hàng ${shopOrder.shop_order_code}.`;
+      } else if (newStatus === "FAILED") {
+        vendorTitle = "Giao hàng thất bại";
+        vendorContent = `Shipper xác nhận giao đơn hàng ${shopOrder.shop_order_code} thất bại. Lý do: ${note || "Không có lý do"}.`;
+      } else if (newStatus === "CANCELLED") {
+        vendorTitle = "Đơn hàng bị hủy";
+        vendorContent = `Khách hàng đã hủy đơn hàng ${shopOrder.shop_order_code}.`;
+      }
+      await notificationService.createNotification(vendorId, vendorTitle, vendorContent, "ORDER_UPDATE");
+    }
+
+    if (customerId && userId !== customerId) {
+      let customerTitle = "Trạng thái đơn hàng";
+      let customerContent = `Đơn hàng ${shopOrder.shop_order_code} của bạn đã được cập nhật sang trạng thái ${newStatus}.`;
+      if (newStatus === "CONFIRMED") {
+        customerTitle = "Đơn hàng được xác nhận";
+        customerContent = `Đơn hàng ${shopOrder.shop_order_code} đã được người bán xác nhận.`;
+      } else if (newStatus === "PREPARING") {
+        customerTitle = "Đang chuẩn bị hàng";
+        customerContent = `Người bán đang chuẩn bị hàng cho đơn ${shopOrder.shop_order_code} của bạn.`;
+      } else if (newStatus === "SHIPPED") {
+        customerTitle = "Đang giao hàng";
+        customerContent = `Đơn hàng ${shopOrder.shop_order_code} đang trên đường giao tới bạn.`;
+      } else if (newStatus === "DELIVERED") {
+        customerTitle = "Giao hàng thành công";
+        customerContent = `Đơn hàng ${shopOrder.shop_order_code} đã được giao thành công. Cảm ơn bạn đã mua sắm!`;
+      } else if (newStatus === "FAILED") {
+        customerTitle = "Giao hàng thất bại";
+        customerContent = `Giao đơn hàng ${shopOrder.shop_order_code} thất bại. Lý do: ${note || "Không có lý do"}.`;
+      }
+      await notificationService.createNotification(customerId, customerTitle, customerContent, "ORDER_UPDATE");
+    }
+
+    const actualShipperId = shopOrder.shipper_id || (role === "shipper" ? userId : null);
+    if (actualShipperId && userId !== actualShipperId) {
+      let shipperTitle = "Cập nhật trạng thái đơn";
+      let shipperContent = `Đơn hàng ${shopOrder.shop_order_code} bạn đang nhận giao đã có cập nhật trạng thái mới sang ${newStatus}.`;
+      await notificationService.createNotification(actualShipperId, shipperTitle, shipperContent, "ORDER_UPDATE");
+    }
+
+  } catch (notifErr) {
+    console.error("Failed to create order status update notification:", notifErr);
+  }
+
   return shopOrder;
+};
+
+const getShipperOrders = async (userId, { page = 1, limit = 10, status }) => {
+  const profile = await db.UserProfile.findOne({ where: { user_id: userId } });
+  const shipperShopId = profile?.shipper_shop_id;
+
+  const where = {};
+  if (status) {
+    where.status = status;
+  }
+
+  if (shipperShopId) {
+    if (status) {
+      if (status === 'READY_FOR_PICKUP') {
+        where.shop_id = shipperShopId;
+        where.shipper_id = null;
+      } else {
+        where.shipper_id = userId;
+      }
+    } else {
+      where[db.Sequelize.Op.or] = [
+        {
+          shop_id: shipperShopId,
+          status: 'READY_FOR_PICKUP'
+        },
+        {
+          shipper_id: userId
+        }
+      ];
+    }
+  } else {
+    where.shipper_id = userId;
+  }
+
+  const offset = (page - 1) * limit;
+  const { count, rows } = await db.ShopOrder.findAndCountAll({
+    where,
+    include: [
+      {
+        model: db.OrderItem,
+        as: "items",
+        include: [
+          {
+            model: db.ProductVariant,
+            as: "variant",
+            paranoid: false,
+            include: [
+              {
+                model: db.Product,
+                as: "product",
+                paranoid: false,
+                include: [{ model: db.ProductImage, as: "images" }]
+              }
+            ]
+          }
+        ]
+      },
+      { model: db.Shop, as: "shop", paranoid: false },
+      {
+        model: db.ParentOrder,
+        as: "parentOrder",
+        attributes: ['shipping_address', 'payment_method', 'payment_status', 'user_id', 'note']
+      }
+    ],
+    order: [["updated_at", "DESC"]],
+    limit: parseInt(limit),
+    offset,
+    distinct: true,
+  });
+
+  return {
+    total: count,
+    totalPages: Math.ceil(count / limit),
+    currentPage: parseInt(page),
+    orders: rows,
+  };
 };
 
 const getOrderDetail = async (shopOrderId, userId) => {
@@ -442,7 +644,35 @@ const cancelOrder = async (shopOrderId, userId, reason) => {
     changed_by: userId,
   });
 
+  // Gửi thông báo
+  try {
+    // 1. Cho User (chính chủ)
+    await notificationService.createNotification(
+      userId,
+      isPreparing ? "Yêu cầu hủy đơn hàng" : "Hủy đơn hàng thành công",
+      isPreparing 
+        ? `Bạn đã gửi yêu cầu hủy đơn hàng ${shopOrder.shop_order_code}. Vui lòng chờ shop xác nhận.`
+        : `Bạn đã hủy đơn hàng ${shopOrder.shop_order_code} thành công.`,
+      "ORDER_UPDATE"
+    );
+
+    // 2. Cho Vendor
+    const shop = await db.Shop.findByPk(shopOrder.shop_id);
+    if (shop && shop.vendor_id) {
+      await notificationService.createNotification(
+        shop.vendor_id,
+        isPreparing ? "Yêu cầu hủy đơn từ khách" : "Khách hàng hủy đơn hàng",
+        isPreparing
+          ? `Khách hàng yêu cầu hủy đơn hàng ${shopOrder.shop_order_code} (đơn hàng đã ở trạng thái chuẩn bị hàng).`
+          : `Khách hàng đã hủy đơn hàng ${shopOrder.shop_order_code}.`,
+        "ORDER_UPDATE"
+      );
+    }
+  } catch (notifErr) {
+    console.error("Failed to create cancelOrder notifications:", notifErr);
+  }
+
   return shopOrder;
 };
 
-export default { calculateCheckout, createOrder, getUserOrders, updateOrderStatus, getOrderDetail, cancelOrder };
+export default { calculateCheckout, createOrder, getUserOrders, updateOrderStatus, getOrderDetail, cancelOrder, getShipperOrders };

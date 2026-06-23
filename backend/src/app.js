@@ -1,10 +1,10 @@
+import "dotenv/config";
 import express from "express"; // Restart
 
 import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import { connectDB } from "./config/DBConfig.js";
-import "dotenv/config";
 import userRouter from "./routes/userRoute.js";
 import authRouter from "./routes/authRoute.js";
 import forgotPasswordRoute from "./routes/forgotPasswordRoute.js";
@@ -18,6 +18,7 @@ import shopRouter from "./routes/shopRoute.js";
 import chatRouter from "./routes/chatRoute.js";
 import adminRouter from "./routes/adminRoute.js";
 import managerRouter from "./routes/managerRoute.js";
+import notificationRouter from "./routes/notificationRoute.js";
 import cron from "node-cron";
 import orderService from "./services/orderService.js";
 import morgan from "morgan";
@@ -57,6 +58,19 @@ app.use("/shops", shopRouter);
 app.use("/chats", chatRouter);
 app.use("/admin", adminRouter);
 app.use("/manager", managerRouter);
+app.use("/notifications", notificationRouter);
+app.get("/brands", (req, res) => {
+  return res.status(200).json({
+    message: "Success",
+    data: [
+      { id: 1, name: "Nike" },
+      { id: 2, name: "Adidas" },
+      { id: 3, name: "Puma" },
+      { id: 4, name: "New Balance" },
+      { id: 5, name: "UTEShop Original" }
+    ]
+  });
+});
 
 
 let port = process.env.PORT || 8080;

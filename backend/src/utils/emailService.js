@@ -79,4 +79,27 @@ const sendRegistrationOtp = async (toEmail, otpCode) => {
   });
 };
 
-export { sendForgotPasswordOtp, sendOtpSecurityAlert, sendRegistrationOtp };
+const sendShipperAccountCreated = async (toEmail, fullName, password) => {
+  const transporter = createTransporter();
+  console.log(`Nodemailer attempting to send shipper account credentials to: ${toEmail}`);
+
+  await transporter.sendMail({
+    from: `"${process.env.MAIL_FROM_NAME || "Support Team"}" <${process.env.MAIL_USER}>`,
+    to: toEmail,
+    subject: "Thông tin tài khoản Shipper tại UTEShop",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 8px;">
+        <h2 style="color: #333;">Tài khoản Shipper của bạn đã được tạo!</h2>
+        <p style="color: #555;">Chào <strong>${fullName || 'bạn'}</strong>, quản trị viên đã tạo tài khoản Shipper cho bạn tại UTEShop.</p>
+        <p style="color: #555;">Dưới đây là thông tin đăng nhập của bạn:</p>
+        <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 4px 0; color: #333;"><strong>Email đăng nhập:</strong> ${toEmail}</p>
+          <p style="margin: 4px 0; color: #333;"><strong>Mật khẩu đăng nhập:</strong> ${password}</p>
+        </div>
+        <p style="color: #ff5e3a; font-weight: bold;">Lưu ý: Vui lòng đăng nhập và thay đổi mật khẩu của bạn để đảm bảo an toàn.</p>
+      </div>
+    `,
+  });
+};
+
+export { sendForgotPasswordOtp, sendOtpSecurityAlert, sendRegistrationOtp, sendShipperAccountCreated };

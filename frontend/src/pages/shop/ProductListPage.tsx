@@ -130,7 +130,7 @@ const ProductListPage = () => {
                   placeholder="Tìm sản phẩm..."
                   value={localKeyword}
                   onChange={(e) => setLocalKeyword(e.target.value)}
-                  className="input-brutal pr-10 text-xs h-11"
+                  className="input-modern w-full pr-10 text-xs h-11"
                 />
                 <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-black">
                   <Search size={16} />
@@ -248,7 +248,7 @@ const ProductListPage = () => {
                       placeholder="Từ"
                       value={localMinPrice}
                       onChange={(e) => setLocalMinPrice(e.target.value)}
-                      className="input-brutal text-xs py-2 h-10 pr-6"
+                      className="input-modern w-full text-xs py-2 h-10 pr-6"
                     />
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-400">₫</span>
                   </div>
@@ -259,12 +259,12 @@ const ProductListPage = () => {
                       placeholder="Đến"
                       value={localMaxPrice}
                       onChange={(e) => setLocalMaxPrice(e.target.value)}
-                      className="input-brutal text-xs py-2 h-10 pr-6"
+                      className="input-modern w-full text-xs py-2 h-10 pr-6"
                     />
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-400">₫</span>
                   </div>
                 </div>
-                <button type="submit" className="btn-brutal w-full text-xs uppercase tracking-widest h-12 shadow-subtle">
+                <button type="submit" className="btn-modern w-full text-xs uppercase tracking-widest h-12">
                   LỌC GIÁ
                 </button>
               </div>
@@ -306,7 +306,7 @@ const ProductListPage = () => {
 
             <button 
               onClick={handleClearFilters} 
-              className="btn-brutal-secondary w-full mt-4 text-xs uppercase tracking-widest h-14 shadow-subtle hover:bg-red-500 hover:text-white transition-all"
+              className="btn-modern-secondary w-full mt-4 text-xs uppercase tracking-widest h-14 hover:bg-red-500 hover:text-white transition-all"
             >
                 DỌN BỘ LỌC
             </button>
@@ -383,7 +383,7 @@ const ProductListPage = () => {
             <div className="border-2 border-dashed border-black rounded-3xl p-16 text-center space-y-4 bg-white">
               <h3 className="text-2xl font-serif font-black uppercase">Không tìm thấy sản phẩm</h3>
               <p className="text-gray-400 font-bold text-sm">Vui lòng chọn dọn bộ lọc hoặc thử lại từ khóa khác.</p>
-              <button onClick={handleClearFilters} className="btn-brutal px-8 py-3 text-xs uppercase tracking-widest">Dọn bộ lọc</button>
+              <button onClick={handleClearFilters} className="btn-modern px-8 py-3 text-xs uppercase tracking-widest">Dọn bộ lọc</button>
             </div>
           ) : (
             <div className={"grid gap-12 " + (viewType === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1")}>

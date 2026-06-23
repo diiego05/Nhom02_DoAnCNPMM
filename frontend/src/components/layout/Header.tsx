@@ -5,6 +5,7 @@ import { useAppSelector } from "@/stores/hooks";
 import useAuth from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { useCategories, useProducts } from "@/hooks/useProducts";
+import { NotificationDropdown } from "./NotificationDropdown";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8088";
 
@@ -23,9 +24,46 @@ const Header = () => {
     (typeof user?.role === "string"
       ? user.role.toLowerCase() === "admin"
       : user?.role?.role_name?.toLowerCase() === "admin") || user?.email?.includes("admin");
+
+  const FACEBOOK_DEFAULT_AVATAR = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23a0a0a0"><rect width="24" height="24" fill="%23e4e6eb"/><circle cx="12" cy="8" r="4"/><path d="M12 14c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z"/></svg>`;
+
+  const [shouldShake, setShouldShake] = useState(false);
+  const [forceShowDropdown, setForceShowDropdown] = useState(false);
+
+  useEffect(() => {
+    const handleCartAdded = () => {
+      setShouldShake(true);
+      setTimeout(() => setShouldShake(false), 500);
+      setForceShowDropdown(true);
+    };
+
+    window.addEventListener("cart-item-added", handleCartAdded);
+    return () => {
+      window.removeEventListener("cart-item-added", handleCartAdded);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (forceShowDropdown) {
+      const timer = setTimeout(() => {
+        setForceShowDropdown(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [forceShowDropdown]);
+
+  const getUserAvatarUrl = () => {
+    const avatar = user?.avatarUrl || user?.profile?.avatar_url;
+    if (!avatar) {
+      return FACEBOOK_DEFAULT_AVATAR;
+    }
+    if (avatar.startsWith("http") || avatar.startsWith("data:")) return avatar;
+    return `${API_URL}${avatar.startsWith("/") ? "" : "/"}${avatar}`;
+  };
   
   // Gọi useCart để fetch data (enabled: isAuthenticated được set trong hook nếu cần)
-  useCart();
+  const { data: cartData } = useCart();
+  const latestCartItems = cartData?.items ? [...cartData.items].reverse().slice(0, 5) : [];
 
   // Categories
   const { data: categoryList } = useCategories();
@@ -58,7 +96,7 @@ const Header = () => {
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between gap-10">
         {/* Logo - Sửa lại màu Cam cho cả Icon và Chữ */}
         <Link to="/" className="flex items-center space-x-3 group">
-          <div className="w-10 h-10 bg-primary text-white border-2 border-black/10 rounded-xl flex items-center justify-center group-hover:bg-black group-hover:border-black transition-all shadow-sm">
+          <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-dark text-white rounded-xl flex items-center justify-center shadow-soft group-hover:shadow-premium group-hover:scale-105 transition-all">
             <ShoppingBag size={24} strokeWidth={2.5} />
           </div>
           <span className="font-serif text-2xl font-black tracking-tighter text-primary uppercase group-hover:text-black transition-colors">UTEShop</span>
@@ -107,7 +145,7 @@ const Header = () => {
             <input
               type="text"
               placeholder="Tìm kiếm sản phẩm..."
-              className="input-brutal w-full h-11 pl-12"
+              className="input-modern w-full h-11 pl-12 rounded-full bg-gray-50/50"
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
@@ -121,7 +159,7 @@ const Header = () => {
 
           {/* Suggestions Dropdown */}
           {showSuggestions && searchTerm.trim() && searchResults?.products && searchResults.products.length > 0 && (
-            <div className="absolute top-full left-0 w-full mt-2 bg-white border-2 border-black rounded-xl shadow-brutal p-2 z-50">
+            <div className="absolute top-full left-0 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-premium p-2 z-50">
               {searchResults.products.map((product: any) => (
                 <Link key={product.id} to={`/products/${product.slug}`} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors border-b border-gray-100 last:border-0">
                   <img src={product.images?.[0]?.image_url || "/placeholder.jpg"} alt={product.name} className="w-10 h-10 object-cover rounded-md border border-gray-200" />
@@ -140,23 +178,92 @@ const Header = () => {
 
         {/* Right Icons */}
         <div className="flex items-center space-x-4 shrink-0">
-          <Link
-            to="/cart"
-            className="relative w-11 h-11 bg-white border border-black/10 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white hover:border-transparent transition-all shadow-sm hover:shadow-subtle hover:-translate-y-1 active:scale-95"
-          >
-            <ShoppingCart size={22} strokeWidth={2.5} />
-            {itemCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[20px] px-1 h-5 bg-primary text-white text-[10px] font-black flex items-center justify-center rounded-lg shadow-sm border border-white">
-                {itemCount > 99 ? "99+" : itemCount}
-              </span>
-            )}
-          </Link>
+          <div className="relative group/cart py-2">
+            <Link
+              to="/cart"
+              className={`relative w-11 h-11 bg-white border border-gray-100 rounded-full flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-sm hover:shadow-soft hover:-translate-y-1 active:scale-95 text-gray-700 ${shouldShake ? "animate-shake" : ""}`}
+            >
+              <ShoppingCart size={22} strokeWidth={2.5} />
+              {itemCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] px-1 h-5 bg-primary text-white text-[10px] font-black flex items-center justify-center rounded-lg shadow-sm border border-white">
+                  {itemCount > 99 ? "99+" : itemCount}
+                </span>
+              )}
+            </Link>
+
+            {/* Cart Dropdown on Hover */}
+            <div className={`${forceShowDropdown ? "block" : "hidden group-hover/cart:block"} absolute right-0 top-full mt-0 pt-3 w-[380px] z-50 animate-in fade-in slide-in-from-top-2 text-left`}>
+              <div className="bg-white border border-gray-100 rounded-2xl shadow-premium p-5">
+                {latestCartItems.length > 0 ? (
+                  <>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Sản phẩm mới thêm</p>
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                      {latestCartItems.map((item: any) => {
+                        const imgUrl = item.variant?.product?.images?.[0]?.image_url || item.product?.images?.[0]?.image_url || item.variant?.image_url;
+                        const displayName = item.variant?.product?.name || item.product?.name || "Sản phẩm";
+                        const variantName = [item.variant?.color, item.variant?.size].filter(Boolean).join(" / ");
+                        const price = Number(item.variant?.sale_price || item.variant?.price || item.unit_price || item.product?.sale_price || item.product?.price || 0);
+
+                        const productSlug = item.variant?.product?.slug || item.product?.slug;
+
+                        return (
+                          <Link
+                            key={item.id}
+                            to={productSlug ? `/products/${productSlug}` : "#"}
+                            className="flex gap-3 items-center border-b border-gray-50 pb-2 last:border-0 last:pb-0 hover:bg-gray-50/50 p-1 rounded-lg transition-colors"
+                          >
+                            <img
+                              src={imgUrl ? (imgUrl.startsWith("http") ? imgUrl : `${API_URL}${imgUrl.startsWith("/") ? "" : "/"}${imgUrl}`) : "/placeholder.jpg"}
+                              alt={displayName}
+                              className="w-12 h-12 object-cover rounded-lg border border-black/10 shrink-0"
+                            />
+                            <div className="flex-1 min-w-0 text-left">
+                              <h4 className="text-xs font-black text-black truncate">{displayName}</h4>
+                              {variantName && (
+                                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{variantName}</p>
+                              )}
+                              <p className="text-[9px] text-gray-500 font-bold mt-0.5">Số lượng: {item.quantity}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-xs font-black text-primary">{(price * item.quantity).toLocaleString()}₫</span>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase text-gray-400">
+                        Còn lại: thêm được {99 - (cartData?.items?.length || 0) > 0 ? 99 - (cartData?.items?.length || 0) : 0} sản phẩm
+                      </span>
+                      <Link
+                        to="/cart"
+                        className="btn-modern py-2.5 px-5 text-[9px]"
+                      >
+                        Xem Giỏ Hàng
+                      </Link>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                    <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 mb-2 border border-black/5">
+                      <ShoppingBag size={20} />
+                    </div>
+                    <p className="text-xs font-bold text-gray-500">Chưa có sản phẩm trong giỏ</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {isAuthenticated && (
+            <NotificationDropdown />
+          )}
           
           {isAuthenticated && (isManager || isAdmin) && (
             <Link
-              to="/manager"
-              title="Manager Dashboard"
-              className="w-11 h-11 bg-black text-white border-2 border-black rounded-xl flex items-center justify-center hover:bg-primary transition-all shadow-sm hover:shadow-subtle hover:-translate-y-1 active:scale-95 shrink-0"
+              to={isAdmin ? "/admin" : "/manager"}
+              title={isAdmin ? "Admin Dashboard" : "Manager Dashboard"}
+              className="w-11 h-11 bg-gradient-to-br from-gray-800 to-black text-white rounded-full flex items-center justify-center hover:from-primary hover:to-primary-dark transition-all shadow-soft hover:shadow-premium hover:-translate-y-1 active:scale-95 shrink-0"
             >
               <ShieldCheck size={22} strokeWidth={2.5} />
             </Link>
@@ -165,10 +272,10 @@ const Header = () => {
           {isAuthenticated ? (
             <Link
               to="/profile"
-              className="w-11 h-11 rounded-xl border-2 border-black overflow-hidden shadow-subtle hover:border-primary transition-all"
+              className="w-11 h-11 rounded-full border-2 border-white shadow-soft hover:border-primary transition-all overflow-hidden"
             >
               <img
-                src={user?.avatarUrl?.startsWith("http") ? user.avatarUrl : `${API_URL}${user?.avatarUrl}`}
+                src={getUserAvatarUrl()}
                 alt="Avatar"
                 className="w-full h-full object-cover"
               />
@@ -176,13 +283,32 @@ const Header = () => {
           ) : (
             <Link
               to="/auth/login"
-              className="w-11 h-11 bg-white border border-black/10 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white hover:border-transparent transition-all shadow-sm hover:shadow-subtle hover:-translate-y-1 active:scale-95"
+              className="w-11 h-11 bg-white border border-gray-100 rounded-full flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-sm hover:shadow-soft hover:-translate-y-1 active:scale-95 text-gray-700"
             >
               <User size={22} strokeWidth={2.5} />
             </Link>
           )}
         </div>
       </div>
+      <style>{`
+        @keyframes shake {
+          0% { transform: translate(1px, 1px) rotate(0deg); }
+          10% { transform: translate(-1px, -2px) rotate(-1deg); }
+          20% { transform: translate(-3px, 0px) rotate(1deg); }
+          30% { transform: translate(0px, 2px) rotate(0deg); }
+          40% { transform: translate(1px, -1px) rotate(1deg); }
+          50% { transform: translate(-1px, 2px) rotate(-1deg); }
+          60% { transform: translate(-3px, 1px) rotate(0deg); }
+          70% { transform: translate(2px, 1px) rotate(-1deg); }
+          80% { transform: translate(-1px, -1px) rotate(1deg); }
+          90% { transform: translate(2px, 2px) rotate(0deg); }
+          100% { transform: translate(1px, -2px) rotate(0deg); }
+        }
+        .animate-shake {
+          animation: shake 0.5s;
+          animation-iteration-count: 1;
+        }
+      `}</style>
     </header>
   );
 };

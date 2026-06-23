@@ -41,6 +41,23 @@ const Login = () => {
     }));
   };
 
+  const getRedirectUrl = (payload: any) => {
+    const params = new URLSearchParams(location.search);
+    const customRedirect = params.get("redirect");
+    if (customRedirect) return customRedirect;
+
+    const user = payload.user;
+    const roleName = typeof user?.role === "string" 
+      ? user.role.toLowerCase() 
+      : user?.role?.role_name?.toLowerCase();
+
+    if (roleName === "admin") return "/admin";
+    if (roleName === "manager") return "/manager";
+    if (roleName === "vendor") return "/vendor";
+
+    return payload.redirectUrl || "/";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.email_or_phone || !formData.password) return;
@@ -58,10 +75,7 @@ const Login = () => {
       await cartService.syncGuestCart(token);
       queryClient.invalidateQueries({ queryKey: ["cart"] });
 
-      // Lấy param redirect nếu có
-      const params = new URLSearchParams(location.search);
-      const redirectUrl = params.get("redirect") || result.payload.redirectUrl || "";
-      
+      const redirectUrl = getRedirectUrl(result.payload);
       navigate(redirectUrl.startsWith("/") ? redirectUrl : `/${redirectUrl}`, { replace: true });
     }
   };
@@ -76,9 +90,7 @@ const Login = () => {
         await cartService.syncGuestCart(token);
         queryClient.invalidateQueries({ queryKey: ["cart"] });
 
-        const params = new URLSearchParams(location.search);
-        const redirectUrl = params.get("redirect") || result.payload.redirectUrl || "";
-        
+        const redirectUrl = getRedirectUrl(result.payload);
         navigate(redirectUrl.startsWith("/") ? redirectUrl : `/${redirectUrl}`, { replace: true });
       }
     },

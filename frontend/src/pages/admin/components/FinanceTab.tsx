@@ -293,7 +293,7 @@ export const FinanceTab = () => {
             <div className="bg-white border-2 border-black rounded-[2rem] p-8 shadow-sm">
                <h3 className="text-lg font-black uppercase tracking-tighter mb-8">Doanh thu 7 ngày gần nhất</h3>
                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={250} minWidth={0}>
                      <LineChart data={report.daily_revenue} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
                         <XAxis dataKey="date" tickFormatter={(val) => val?.slice(5) || ""} stroke="#9ca3af" fontSize={10} fontWeight="bold" tickLine={false} axisLine={false} />

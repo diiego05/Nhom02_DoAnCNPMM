@@ -16,11 +16,12 @@ export const adminService = {
   },
 
   // Tạo User mới (Customer, Vendor, Shipper, Manager)
-  createUser: async (data: { email: string; password?: string; full_name?: string; role: string }) => {
-    const response = await axiosClient.post("/admin/users", { 
-      ...data, 
-      password: data.password || "uteshop_123456" 
-    });
+  createUser: async (data: { email: string; password?: string; full_name?: string; role: string; phone?: string; gender?: string; shipper_shop_id?: string | number }) => {
+    const payload: any = { ...data };
+    if (data.role !== "shipper" && !data.password) {
+      payload.password = "uteshop_123456";
+    }
+    const response = await axiosClient.post("/admin/users", payload);
     return response.data;
   },
 

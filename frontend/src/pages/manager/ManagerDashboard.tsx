@@ -24,6 +24,7 @@ import {
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import useAuth from '@/hooks/useAuth';
+import { NotificationDropdown } from '@/components/layout/NotificationDropdown';
 import {
   useManagerStats,
   usePendingProducts,
@@ -386,26 +387,7 @@ const ManagerDashboard = () => {
 
            <div className="flex items-center gap-6">
               {/* Notification logs dropdown */}
-              <div className="relative group">
-                <button className="relative w-11 h-11 border-2 border-black rounded-xl flex items-center justify-center hover:bg-gray-50 transition-all active:translate-y-1">
-                  <Bell size={20} />
-                  {notifications.length > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary border-2 border-black rounded-full flex items-center justify-center text-[9px] font-black text-white">{notifications.length}</span>
-                  )}
-                </button>
-                <div className="absolute right-0 mt-2 w-80 bg-white border-2 border-black rounded-2xl shadow-brutal p-4 hidden group-hover:block z-50">
-                  <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-wider mb-2">Hành động vừa thực hiện</h4>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {notifications.length === 0 ? (
-                      <p className="text-[11px] text-gray-400 italic">Chưa có hành động nào trong phiên làm việc.</p>
-                    ) : (
-                      notifications.map((n, i) => (
-                        <div key={i} className="text-[11px] font-bold border-b border-gray-50 pb-2 last:border-0">{n}</div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
+              <NotificationDropdown />
               
               <div className="w-[2px] h-8 bg-gray-100"></div>
 

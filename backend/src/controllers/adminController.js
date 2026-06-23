@@ -7,13 +7,16 @@ import adminService from "../services/adminService.js";
 const createUser = async (req, res) => {
   try {
     const adminId = req.user.id;
-    const { email, password, full_name, role } = req.body;
+    const { email, password, full_name, role, phone, gender, shipper_shop_id } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email và mật khẩu là bắt buộc" });
+    if (!email) {
+      return res.status(400).json({ message: "Email là bắt buộc" });
+    }
+    if (role !== "shipper" && !password) {
+      return res.status(400).json({ message: "Mật khẩu là bắt buộc" });
     }
 
-    const user = await adminService.createUser(adminId, { email, password, full_name, role });
+    const user = await adminService.createUser(adminId, { email, password, full_name, role, phone, gender, shipper_shop_id });
     return res.status(201).json({ message: `Tạo tài khoản thành công`, data: user });
   } catch (error) {
     console.error("Error creating user:", error);

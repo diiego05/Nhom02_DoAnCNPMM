@@ -27,7 +27,10 @@ import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
 
+const DEFAULT_SHOP_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='128' height='128'><rect width='100' height='100' fill='%23FFE4D6' stroke='black' stroke-width='4'/><path d='M20 40 L50 15 L80 40 L80 85 L20 85 Z' fill='white' stroke='black' stroke-width='4'/><rect x='40' y='55' width='20' height='30' fill='%23D97736' stroke='black' stroke-width='4'/><path d='M15 40 L85 40' stroke='black' stroke-width='4'/></svg>";
+
 const HomePage = () => {
+
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -90,7 +93,7 @@ const HomePage = () => {
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-6 pt-12 grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div
-          className="lg:col-span-2 relative aspect-[16/9] lg:aspect-auto rounded-3xl overflow-hidden group border-2 border-black shadow-subtle"
+          className="lg:col-span-2 relative aspect-[16/9] lg:aspect-auto rounded-3xl overflow-hidden group border border-gray-100 shadow-premium"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
@@ -114,7 +117,7 @@ const HomePage = () => {
                 <div className="flex items-center gap-6">
                   <Link
                     to="/products"
-                    className="btn-brutal px-10 text-sm uppercase tracking-[0.2em]"
+                    className="btn-modern px-10 text-sm uppercase tracking-[0.2em]"
                   >
                     Khám phá ngay
                     <ArrowRight size={20} className="ml-3" />
@@ -122,13 +125,13 @@ const HomePage = () => {
                   <div className="flex gap-3">
                     <button
                       onClick={prevSlide}
-                      className="w-12 h-12 bg-white/10 hover:bg-primary hover:border-black border-2 border-white/50 rounded-2xl flex items-center justify-center transition-all active:scale-95"
+                      className="w-12 h-12 bg-white/10 hover:bg-primary border border-white/20 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer"
                     >
                       <ChevronLeft size={24} />
                     </button>
                     <button
                       onClick={nextSlide}
-                      className="w-12 h-12 bg-white/10 hover:bg-primary hover:border-black border-2 border-white/50 rounded-2xl flex items-center justify-center transition-all active:scale-95"
+                      className="w-12 h-12 bg-white/10 hover:bg-primary border border-white/20 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer"
                     >
                       <ChevronRight size={24} />
                     </button>
@@ -137,7 +140,6 @@ const HomePage = () => {
               </div>
             </div>
           ))}
-
           <div className="absolute bottom-10 right-10 flex gap-2">
             {slides.map((_, i) => (
               <button
@@ -150,9 +152,9 @@ const HomePage = () => {
         </div>
 
         <div className="grid grid-cols-1 gap-8">
-          <div className="bg-gradient-to-br from-[#FFE4D6] to-white border-2 border-black/10 rounded-[2rem] p-10 flex flex-col justify-between relative overflow-hidden group hover:shadow-subtle hover:border-black transition-all duration-300">
+          <div className="bg-gradient-to-br from-[#FFE4D6] to-white border border-gray-100 rounded-[2rem] p-10 flex flex-col justify-between relative overflow-hidden group hover:shadow-premium transition-all duration-300">
             <div className="relative z-10">
-              <span className="badge-brutal">Giới hạn</span>
+              <span className="badge-modern">Giới hạn</span>
               <h3 className="text-6xl font-serif font-black mt-8 text-[#D97736] tracking-tight">
                 Giảm 50%
               </h3>
@@ -162,7 +164,7 @@ const HomePage = () => {
             </div>
             <Link
               to="/products"
-              className="relative z-10 w-fit p-4 bg-white border border-black/10 rounded-2xl hover:bg-primary hover:text-white transition-all shadow-sm group-hover:border-black group-hover:shadow-subtle hover:!shadow-none"
+              className="relative z-10 w-fit p-4 bg-white border border-gray-100 rounded-2xl hover:bg-primary hover:text-white transition-all shadow-sm group-hover:shadow-premium"
             >
               <ArrowRight className="w-6 h-6" />
             </Link>
@@ -171,9 +173,9 @@ const HomePage = () => {
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-[#E2E8E4] to-white border-2 border-black/10 rounded-[2rem] p-10 flex flex-col justify-between relative overflow-hidden group hover:shadow-subtle hover:border-black transition-all duration-300">
+          <div className="bg-gradient-to-br from-[#E2E8E4] to-white border border-gray-100 rounded-[2rem] p-10 flex flex-col justify-between relative overflow-hidden group hover:shadow-premium transition-all duration-300">
             <div className="relative z-10">
-              <span className="badge-brutal">Flash Sale</span>
+              <span className="badge-modern">Flash Sale</span>
               <h3 className="text-6xl font-serif font-black mt-8 text-[#4A5D50] tracking-tight">
                 Giá Sốc
               </h3>
@@ -183,7 +185,7 @@ const HomePage = () => {
             </div>
             <Link
               to="/products"
-              className="relative z-10 w-fit p-4 bg-white border border-black/10 rounded-2xl hover:bg-primary hover:text-white transition-all shadow-sm group-hover:border-black group-hover:shadow-subtle hover:!shadow-none"
+              className="relative z-10 w-fit p-4 bg-white border border-gray-100 rounded-2xl hover:bg-primary hover:text-white transition-all shadow-sm group-hover:shadow-premium"
             >
               <ArrowRight className="w-6 h-6" />
             </Link>
@@ -204,12 +206,12 @@ const HomePage = () => {
             <h2 className="text-5xl font-serif font-black tracking-tighter uppercase">
               Gian Hàng Nổi Bật
             </h2>
-            <div className="h-1.5 w-24 bg-primary border-2 border-black rounded-full shadow-subtle mt-4"></div>
+            <div className="h-1 w-16 bg-primary rounded-full mt-4"></div>
           </div>
           <div className="flex items-center gap-4">
             <Link
               to="/shops"
-              className="btn-brutal-secondary h-12 px-8 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none inline-flex items-center"
+              className="btn-modern-secondary text-xs uppercase tracking-widest inline-flex items-center"
             >
               Xem tất cả
             </Link>
@@ -221,7 +223,7 @@ const HomePage = () => {
             {[1, 2, 3, 4, 5, 6].map((n) => (
               <div
                 key={n}
-                className="aspect-square bg-gray-200 border-2 border-black rounded-full"
+                className="aspect-square bg-gray-100 border border-gray-100 rounded-full"
               ></div>
             ))}
           </div>
@@ -231,16 +233,16 @@ const HomePage = () => {
               <Link
                 key={shop.id}
                 to={`/shop/${shop.id}`}
-                className="group flex flex-col items-center gap-4"
+                className="group flex flex-col items-center gap-4 animate-in fade-in duration-300"
               >
-                <div className="w-32 h-32 rounded-full border-2 border-black overflow-hidden shadow-subtle group-hover:shadow-none group-hover:translate-x-1 group-hover:translate-y-1 transition-all relative">
+                <div className="w-32 h-32 rounded-full border border-gray-100 overflow-hidden shadow-soft group-hover:shadow-premium group-hover:scale-105 transition-all duration-300 relative bg-white">
                   <img
-                    src={shop.shop_logo || "/placeholder.jpg"}
+                    src={shop.shop_logo || DEFAULT_SHOP_LOGO}
                     alt={shop.shop_name}
                     className="w-full h-full object-cover"
                   />
                   {shop.rating >= 4.5 && (
-                    <div className="absolute bottom-0 inset-x-0 bg-primary text-white text-[10px] font-black uppercase text-center py-1">
+                    <div className="absolute bottom-0 inset-x-0 bg-primary/95 text-white text-[9px] font-bold uppercase text-center py-1">
                       Uy tín
                     </div>
                   )}
@@ -269,11 +271,11 @@ const HomePage = () => {
             <h2 className="text-5xl font-serif font-black mb-4 tracking-tighter uppercase">
               Hàng Mới Về
             </h2>
-            <div className="h-1.5 w-24 bg-primary border-2 border-black rounded-full shadow-subtle"></div>
+            <div className="h-1 w-16 bg-primary rounded-full"></div>
           </div>
           <Link
             to="/products"
-            className="btn-brutal-secondary h-14 px-10 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none"
+            className="btn-modern-secondary text-xs uppercase tracking-widest"
           >
             Xem tất cả
           </Link>
@@ -284,7 +286,7 @@ const HomePage = () => {
             {[1, 2, 3, 4].map((n) => (
               <div
                 key={n}
-                className="aspect-[3/4] bg-gray-200 border-2 border-black rounded-2xl"
+                className="aspect-[3/4] bg-gray-100 border border-gray-100 rounded-2xl"
               ></div>
             ))}
           </div>
@@ -311,7 +313,7 @@ const HomePage = () => {
 
       {/* CTA Community Banner */}
       <section className="max-w-7xl mx-auto px-6">
-        <div className="bg-black text-white rounded-[3rem] p-16 md:p-24 relative overflow-hidden border-2 border-black group shadow-brutal">
+        <div className="bg-gradient-to-r from-secondary to-accent text-white rounded-[2.5rem] p-16 md:p-24 relative overflow-hidden group shadow-premium">
           <div className="relative z-10 max-w-2xl">
             <span className="text-primary font-black uppercase tracking-[0.3em] mb-6 block">
               CỘNG ĐỒNG UTESHOP
@@ -325,7 +327,7 @@ const HomePage = () => {
             </p>
             <Link
               to="/auth/register"
-              className="btn-brutal-secondary h-16 px-12 text-sm uppercase tracking-[0.2em] shadow-subtle hover:shadow-none"
+              className="btn-modern text-sm uppercase tracking-[0.2em]"
             >
               Tham gia ngay
             </Link>
@@ -348,26 +350,26 @@ const HomePage = () => {
             <h2 className="text-5xl font-serif font-black tracking-tighter uppercase">
               Sản Phẩm Nổi Bật
             </h2>
-            <div className="h-1.5 w-24 bg-primary border-2 border-black rounded-full shadow-subtle mt-4"></div>
+            <div className="h-1 w-16 bg-primary rounded-full mt-4"></div>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex gap-2">
               <button
                 type="button"
-                className="featured-prev w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer"
+                className="featured-prev w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center bg-white/80 backdrop-blur-md shadow-soft hover:bg-primary hover:text-white hover:border-primary transition-all duration-300 active:scale-90 hover:shadow-premium cursor-pointer"
               >
-                <ChevronLeft size={20} />
+                <ChevronLeft size={18} />
               </button>
               <button
                 type="button"
-                className="featured-next w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer"
+                className="featured-next w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center bg-white/80 backdrop-blur-md shadow-soft hover:bg-primary hover:text-white hover:border-primary transition-all duration-300 active:scale-90 hover:shadow-premium cursor-pointer"
               >
-                <ChevronRight size={20} />
+                <ChevronRight size={18} />
               </button>
             </div>
             <Link
               to="/products?isFeatured=true"
-              className="btn-brutal-secondary h-12 px-8 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none inline-flex items-center"
+              className="btn-modern-secondary text-xs uppercase tracking-widest inline-flex items-center"
             >
               Xem tất cả
             </Link>
@@ -379,7 +381,7 @@ const HomePage = () => {
             {[1, 2, 3, 4].map((n) => (
               <div
                 key={n}
-                className="aspect-[3/4] bg-gray-200 border-2 border-black rounded-2xl"
+                className="aspect-[3/4] bg-gray-100 border border-gray-100 rounded-2xl"
               ></div>
             ))}
           </div>
@@ -439,26 +441,26 @@ const HomePage = () => {
             <h2 className="text-5xl font-serif font-black tracking-tighter uppercase">
               Được Quan Tâm Nhất
             </h2>
-            <div className="h-1.5 w-24 bg-primary border-2 border-black rounded-full shadow-subtle mt-4"></div>
+            <div className="h-1 w-16 bg-primary rounded-full mt-4"></div>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex gap-2">
               <button
                 type="button"
-                className="most-viewed-prev w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer"
+                className="most-viewed-prev w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center bg-white/80 backdrop-blur-md shadow-soft hover:bg-primary hover:text-white hover:border-primary transition-all duration-300 active:scale-90 hover:shadow-premium cursor-pointer"
               >
-                <ChevronLeft size={20} />
+                <ChevronLeft size={18} />
               </button>
               <button
                 type="button"
-                className="most-viewed-next w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none cursor-pointer"
+                className="most-viewed-next w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center bg-white/80 backdrop-blur-md shadow-soft hover:bg-primary hover:text-white hover:border-primary transition-all duration-300 active:scale-90 hover:shadow-premium cursor-pointer"
               >
-                <ChevronRight size={20} />
+                <ChevronRight size={18} />
               </button>
             </div>
             <Link
               to="/products?sort=most_viewed"
-              className="btn-brutal-secondary h-12 px-8 text-xs uppercase tracking-widest shadow-subtle hover:shadow-none inline-flex items-center"
+              className="btn-modern-secondary text-xs uppercase tracking-widest inline-flex items-center"
             >
               Xem tất cả
             </Link>
@@ -470,7 +472,7 @@ const HomePage = () => {
             {[1, 2, 3, 4].map((n) => (
               <div
                 key={n}
-                className="aspect-[3/4] bg-gray-200 border-2 border-black rounded-2xl"
+                className="aspect-[3/4] bg-gray-100 border border-gray-100 rounded-2xl"
               ></div>
             ))}
           </div>
@@ -528,14 +530,14 @@ const HomePage = () => {
               <h2 className="text-5xl font-serif font-black mb-4 tracking-tighter uppercase">
                 Bán Chạy Nhất
               </h2>
-              <div className="h-1.5 w-24 bg-primary border-2 border-black rounded-full shadow-subtle"></div>
+              <div className="h-1 w-16 bg-primary rounded-full"></div>
             </div>
             <div className="flex gap-2">
-              <button className="best-seller-prev w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">
-                <ChevronLeft size={20} />
+              <button className="best-seller-prev w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center bg-white/80 backdrop-blur-md shadow-soft hover:bg-primary hover:text-white hover:border-primary transition-all duration-300 active:scale-90 hover:shadow-premium cursor-pointer">
+                <ChevronLeft size={18} />
               </button>
-              <button className="best-seller-next w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center bg-white shadow-subtle hover:bg-primary hover:text-white transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">
-                <ChevronRight size={20} />
+              <button className="best-seller-next w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center bg-white/80 backdrop-blur-md shadow-soft hover:bg-primary hover:text-white hover:border-primary transition-all duration-300 active:scale-90 hover:shadow-premium cursor-pointer">
+                <ChevronRight size={18} />
               </button>
             </div>
           </div>
@@ -545,7 +547,7 @@ const HomePage = () => {
               {[1, 2, 3, 4].map((n) => (
                 <div
                   key={n}
-                  className="aspect-[3/4] bg-gray-200 border-2 border-black rounded-2xl"
+                  className="aspect-[3/4] bg-gray-100 border border-gray-100 rounded-2xl"
                 ></div>
               ))}
             </div>
@@ -599,7 +601,7 @@ const HomePage = () => {
 
         {/* Voucher Sidebar */}
         <div className="lg:col-span-3">
-          <div className="bg-white border-2 border-black p-8 rounded-3xl shadow-brutal flex flex-col h-full min-w-0">
+          <div className="bg-white border border-gray-100 p-8 rounded-3xl shadow-soft hover:shadow-premium transition-all duration-300 flex flex-col h-full min-w-0">
             <h3 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
               <Ticket className="text-primary" /> Ưu đãi độc quyền
             </h3>
@@ -623,7 +625,7 @@ const HomePage = () => {
               ].map((v, i) => (
                 <div
                   key={i}
-                  className={`p-6 rounded-2xl border-2 border-dashed border-black/30 ${v.color} transition-all hover:scale-[1.02] cursor-pointer`}
+                  className={`p-6 rounded-2xl border border-dashed border-primary/30 ${v.color} transition-all hover:scale-[1.02] cursor-pointer`}
                 >
                   <div className="font-black text-xl mb-1 tracking-wider">
                     {v.code}
@@ -634,7 +636,7 @@ const HomePage = () => {
                 </div>
               ))}
             </div>
-            <button className="btn-brutal w-full mt-10 py-5 px-2 leading-tight flex flex-col items-center justify-center active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">
+            <button className="btn-modern w-full mt-10 py-3 px-2 leading-tight flex flex-col items-center justify-center">
               <span className="text-[10px] uppercase tracking-widest opacity-80 mb-1">
                 Xem tất cả
               </span>
@@ -648,7 +650,7 @@ const HomePage = () => {
 
       {/* "Còn rất nhiều thiết kế khác" */}
       <section className="max-w-7xl mx-auto px-6">
-        <div className="bg-primary/10 border-2 border-dashed border-black p-16 rounded-[3rem] text-center space-y-8">
+        <div className="bg-primary/5 border border-dashed border-primary/30 p-16 rounded-[2.5rem] text-center space-y-8">
           <h3 className="text-4xl font-serif font-black uppercase tracking-tighter italic">
             "Còn rất nhiều thiết kế khác đang chờ bạn khám phá"
           </h3>
@@ -658,7 +660,7 @@ const HomePage = () => {
           </p>
           <Link
             to="/products"
-            className="btn-brutal h-16 px-12 text-sm uppercase tracking-widest shadow-brutal"
+            className="btn-modern text-sm uppercase tracking-widest"
           >
             Đến cửa hàng ngay
           </Link>
@@ -686,9 +688,9 @@ const HomePage = () => {
         ].map((f, i) => (
           <div
             key={i}
-            className="bg-white border-2 border-black p-10 rounded-3xl flex flex-col items-center text-center space-y-6 shadow-subtle hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
+            className="bg-white/90 backdrop-blur-md border border-gray-100 p-10 rounded-3xl flex flex-col items-center text-center space-y-6 shadow-soft hover:shadow-premium hover:-translate-y-1 transition-all duration-300"
           >
-            <div className="w-20 h-20 bg-primary/10 border-2 border-black rounded-2xl flex items-center justify-center text-primary shadow-subtle">
+            <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center text-primary hover:scale-110 transition-transform duration-300">
               {f.icon}
             </div>
             <h4 className="text-2xl font-serif font-black uppercase tracking-tight">

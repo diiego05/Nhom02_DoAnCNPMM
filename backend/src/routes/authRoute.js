@@ -7,10 +7,9 @@ import { verifyRecaptcha } from "../middleware/recaptcha.js";
 const authLimiter = rateLimit({
   windowMs: 1000 * 60 * 5,
   max: 6,
-  // Từ nhánh di: custom handler với thông báo tiếng Việt
   handler: (req, res, next, options) => {
     res.status(options.statusCode).json({
-      message: "Bạn đã nhập sai quá 6 lần. Vui lòng thử lại sau 5 phút.",
+      message: "Bạn đã nhập sai quá 6 lần. Vui lòng thử lại sau 5 phút."
     });
   },
 });

@@ -27,7 +27,32 @@ const sendMessage = async (req, res) => {
   }
 };
 
+const getUnreadCount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const count = await chatService.getUnreadMessagesCount(userId);
+    return res.status(200).json({ message: "Success", data: count });
+  } catch (error) {
+    console.error("Error getting unread count:", error);
+    return res.status(500).json({ error: "Lỗi lấy số lượng tin nhắn chưa đọc" });
+  }
+};
+
+const getConversations = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const conversations = await chatService.getConversations(userId);
+    return res.status(200).json({ message: "Success", data: conversations });
+  } catch (error) {
+    console.error("Error getting conversations:", error);
+    return res.status(500).json({ error: "Lỗi lấy danh sách cuộc trò chuyện" });
+  }
+};
+
 export default {
   getMessages,
-  sendMessage
+  sendMessage,
+  getUnreadCount,
+  getConversations
 };
+

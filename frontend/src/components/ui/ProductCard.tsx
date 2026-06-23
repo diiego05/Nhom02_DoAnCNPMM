@@ -44,9 +44,9 @@ const ProductCard = ({
 
   return (
     <>
-      <div className="group relative flex flex-col bg-white border-2 border-black shadow-subtle rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-brutal hover:translate-x-[-1px] hover:translate-y-[-1px]">
+      <div className="group relative flex flex-col bg-white border-2 border-slate-100 shadow-sm rounded-2xl overflow-hidden transition-all duration-300 hover:border-slate-800 hover:shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] hover:-translate-y-1">
         {/* Image Container */}
-        <div className="relative aspect-[3/4] overflow-hidden bg-gray-100 border-b-2 border-black">
+        <div className="relative aspect-[3/4] overflow-hidden bg-gray-50 border-b border-gray-100">
           <Link to={`/products/${id}`}>
             <img
               src={finalImage}
@@ -58,8 +58,8 @@ const ProductCard = ({
           {/* Badges */}
           {badge && (
             <div className="absolute top-4 left-4">
-              <span className={`badge-brutal ${
-                badge === "Hot" ? "bg-red-500 text-white" : badge === "Sale" ? "bg-orange-500 text-white" : "bg-white text-black"
+              <span className={`badge-modern ${
+                badge === "Hot" ? "bg-red-50 text-red-600 border-red-200" : badge === "Sale" ? "bg-orange-50 text-orange-600 border-orange-200" : "bg-white text-gray-700 border-gray-200"
               }`}>
                 {badge}
               </span>
@@ -73,7 +73,7 @@ const ProductCard = ({
               e.stopPropagation();
               setShowModal(true);
             }}
-            className="absolute bottom-4 right-4 w-11 h-11 bg-white text-black border-2 border-black rounded-xl flex items-center justify-center opacity-0 translate-y-4 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 hover:bg-primary hover:text-white hover:shadow-subtle active:translate-x-[3px] active:translate-y-[3px] active:shadow-none"
+            className="absolute bottom-4 right-4 w-11 h-11 bg-white/90 backdrop-blur-sm text-gray-700 border-2 border-slate-200 rounded-xl flex items-center justify-center opacity-0 translate-y-4 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 hover:bg-primary hover:text-white hover:border-slate-800 shadow-sm hover:shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] active:translate-y-0 active:shadow-none"
           >
             <Plus size={22} strokeWidth={2.5} />
           </button>
@@ -85,12 +85,12 @@ const ProductCard = ({
             <Link 
               to={`/shop/${shop.id}`}
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-2 pb-2 border-b border-black/5 hover:opacity-80 transition-opacity"
+              className="flex items-center gap-2 pb-2 border-b border-gray-100 hover:opacity-80 transition-opacity"
             >
               <img 
                 src={shop.avatar_url || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=100"} 
                 alt={shop.name} 
-                className="w-6 h-6 rounded-full border border-black object-cover shrink-0"
+                className="w-6 h-6 rounded-full border border-gray-200 object-cover shrink-0 shadow-sm"
               />
               <div className="flex flex-col min-w-0">
                 <span className="text-[10px] font-black text-black leading-tight truncate">{shop.name}</span>
@@ -232,6 +232,7 @@ const AddToCartModal = ({
       },
       {
         onSuccess: () => {
+          window.dispatchEvent(new CustomEvent("cart-item-added"));
           setMessage({ type: "success", text: "Đã thêm vào giỏ hàng!" });
           setTimeout(() => {
             onClose();
@@ -255,20 +256,20 @@ const AddToCartModal = ({
 
       {/* Modal Content */}
       <div
-        className="relative bg-white border-2 border-black rounded-[2rem] shadow-brutal w-full max-w-lg overflow-hidden animate-[slideUp_0.3s_ease-out]"
+        className="relative bg-white border border-white/20 rounded-[2rem] shadow-premium w-full max-w-lg overflow-hidden animate-[slideUp_0.3s_ease-out]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 z-10 w-10 h-10 bg-white border-2 border-black rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white hover:border-red-500 transition-all active:scale-95 shadow-subtle"
+          className="absolute top-5 right-5 z-10 w-10 h-10 bg-gray-50 border border-gray-200 rounded-full flex items-center justify-center hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all active:scale-95 text-gray-500"
         >
           <X size={18} strokeWidth={2.5} />
         </button>
 
         {/* Product Info Header */}
         <div className="flex gap-5 p-6 pb-0">
-          <div className="w-24 h-28 rounded-2xl overflow-hidden border-2 border-black shadow-subtle shrink-0">
+          <div className="w-24 h-28 rounded-2xl overflow-hidden border border-gray-100 shadow-sm shrink-0">
             <img
               src={finalProductImage}
               alt={productName}
@@ -296,7 +297,7 @@ const AddToCartModal = ({
         </div>
 
         {/* Divider */}
-        <div className="mx-6 mt-5 border-t-2 border-black/10" />
+        <div className="mx-6 mt-5 border-t border-gray-100" />
 
         {/* Body */}
         <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
@@ -332,13 +333,13 @@ const AddToCartModal = ({
                           className={
                             "w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center " +
                             (isSelected
-                              ? "border-black p-1 scale-110"
-                              : "border-transparent hover:border-gray-300")
+                              ? "border-primary p-1 scale-110 shadow-sm"
+                              : "border-transparent hover:border-gray-200")
                           }
                           title={colorObj.name}
                         >
                           <div
-                            className="w-full h-full rounded-full border border-black/10"
+                            className="w-full h-full rounded-full border border-gray-200"
                             style={{ backgroundColor: colorObj.hex }}
                           />
                         </button>
@@ -366,10 +367,10 @@ const AddToCartModal = ({
                             setQuantity(1);
                           }}
                           className={
-                            "h-11 px-5 rounded-xl font-black text-sm transition-all border-2 border-black active:scale-95 " +
+                            "h-11 px-5 rounded-xl font-bold text-sm transition-all border active:scale-95 " +
                             (isSelected
-                              ? "bg-black text-white"
-                              : "bg-white text-black hover:bg-gray-50")
+                              ? "bg-primary text-white border-primary shadow-md"
+                              : "bg-white text-gray-700 border-gray-200 hover:border-primary/50")
                           }
                         >
                           {size}
@@ -386,21 +387,21 @@ const AddToCartModal = ({
                   SỐ LƯỢNG:
                 </h4>
                 <div className="flex items-center gap-5">
-                  <div className="flex items-center bg-white border-2 border-black rounded-xl h-11 overflow-hidden">
+                  <div className="flex items-center bg-white border border-gray-200 rounded-xl h-11 overflow-hidden">
                     <button
                       onClick={() => handleQuantityChange(quantity - 1)}
                       disabled={currentStock === 0}
-                      className="w-11 h-full flex items-center justify-center hover:bg-gray-100 transition-all border-r-2 border-black disabled:opacity-50"
+                      className="w-11 h-full flex items-center justify-center hover:bg-gray-50 transition-all border-r border-gray-200 disabled:opacity-50 text-gray-600"
                     >
                       <Minus size={16} strokeWidth={2.5} />
                     </button>
-                    <span className="w-12 text-center font-black text-sm">
+                    <span className="w-12 text-center font-bold text-sm text-gray-800">
                       {currentStock === 0 ? 0 : quantity}
                     </span>
                     <button
                       onClick={() => handleQuantityChange(quantity + 1)}
                       disabled={currentStock === 0}
-                      className="w-11 h-full flex items-center justify-center hover:bg-gray-100 transition-all border-l-2 border-black disabled:opacity-50"
+                      className="w-11 h-full flex items-center justify-center hover:bg-gray-50 transition-all border-l border-gray-200 disabled:opacity-50 text-gray-600"
                     >
                       <Plus size={16} strokeWidth={2.5} />
                     </button>
@@ -421,7 +422,7 @@ const AddToCartModal = ({
 
               {/* Message */}
               {message && (
-                <div className={`p-3 rounded-xl border-2 border-black text-xs font-black uppercase tracking-widest text-center ${message.type === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                <div className={`p-3 rounded-xl border text-xs font-bold uppercase tracking-widest text-center shadow-sm ${message.type === "success" ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-600"}`}>
                   {message.text}
                 </div>
               )}
@@ -434,7 +435,7 @@ const AddToCartModal = ({
           <button
             disabled={currentStock === 0 || addToCartMutation.isPending || isLoading}
             onClick={handleAddToCart}
-            className="w-full h-14 bg-black text-white border-2 border-black rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary transition-all active:translate-x-[2px] active:translate-y-[2px] flex items-center justify-center gap-3 disabled:opacity-50 disabled:pointer-events-none shadow-subtle hover:shadow-none"
+            className="btn-modern w-full h-14 rounded-2xl text-xs uppercase tracking-widest flex items-center justify-center gap-3 disabled:opacity-50 disabled:pointer-events-none"
           >
             <ShoppingCart size={18} />
             {addToCartMutation.isPending ? "Đang thêm..." : "Thêm vào giỏ hàng"}

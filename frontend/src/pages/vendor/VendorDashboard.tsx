@@ -38,9 +38,15 @@ import { Link } from 'react-router-dom';
 
 import useAuth from '@/hooks/useAuth';
 import { vendorService, ShopProfileData, ProductData, VoucherData } from '@/services/vendorService';
+import { chatService } from '@/services/chatService';
+import { NotificationDropdown } from '@/components/layout/NotificationDropdown';
+
+
+const DEFAULT_SHOP_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='128' height='128'><rect width='100' height='100' fill='%23FFE4D6' stroke='black' stroke-width='4'/><path d='M20 40 L50 15 L80 40 L80 85 L20 85 Z' fill='white' stroke='black' stroke-width='4'/><rect x='40' y='55' width='20' height='30' fill='%23D97736' stroke='black' stroke-width='4'/><path d='M15 40 L85 40' stroke='black' stroke-width='4'/></svg>";
 
 // Gọi API danh mục để hiển thị trong form thêm/sửa sản phẩm
 import { publicAxios } from '@/services/axiosClient';
+
 
 interface CustomSelectProps {
   label: string;
@@ -107,7 +113,7 @@ const CustomSelect = ({ label, value, options, onChange, placeholder = "-- Chọ
 };
 
 const VendorDashboard = () => {
-  const { user } = useAuth();
+  const { user, handleLogout } = useAuth();
   const [isRegistered, setIsRegistered] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -181,6 +187,8 @@ const VendorDashboard = () => {
   const [activeChatIndex, setActiveChatIndex] = useState<number>(0);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatInputText, setChatInputText] = useState("");
+  const [conversations, setConversations] = useState<any[]>([]);
+
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [withdrawForm, setWithdrawForm] = useState({
     amount: "",
@@ -304,16 +312,36 @@ const VendorDashboard = () => {
     }
   }, [activeTab, isRegistered, shopInfo, productsPage]);
 
+  // Polling lấy danh sách cuộc trò chuyện cho Vendor
+  useEffect(() => {
+    if (activeTab !== "chats" || !isRegistered) return;
+
+    const fetchConversations = async () => {
+      try {
+        const res = await chatService.getConversations();
+        if (res && res.data) {
+          setConversations(res.data);
+        }
+      } catch (err) {
+        console.error("Lỗi lấy danh sách cuộc trò chuyện:", err);
+      }
+    };
+
+    fetchConversations();
+    const interval = setInterval(fetchConversations, 5000);
+    return () => clearInterval(interval);
+  }, [activeTab, isRegistered]);
+
   // Polling lấy tin nhắn chat thực tế giữa Vendor và Khách hàng
   useEffect(() => {
-    if (activeTab !== "chats" || !isRegistered || chatCustomers.length === 0) return;
+    if (activeTab !== "chats" || !isRegistered || conversations.length === 0) return;
     
-    const partner = chatCustomers[activeChatIndex];
+    const partner = conversations[activeChatIndex]?.partner;
     if (!partner) return;
 
     const fetchChat = async () => {
       try {
-        const res = await vendorService.getChatHistory(partner.id);
+        const res = await chatService.getChatHistory(partner.id);
         if (res && res.data) {
           setChatMessages(res.data);
         }
@@ -324,9 +352,10 @@ const VendorDashboard = () => {
 
     fetchChat();
     
-    const interval = setInterval(fetchChat, 5000); // Poll sau mỗi 5 giây
+    const interval = setInterval(fetchChat, 3000); // Poll sau mỗi 3 giây
     return () => clearInterval(interval);
-  }, [activeTab, activeChatIndex, isRegistered, orders]);
+  }, [activeTab, activeChatIndex, isRegistered, conversations]);
+
 
   const fetchShopProducts = async () => {
     if (!shopInfo) return;
@@ -734,15 +763,20 @@ const VendorDashboard = () => {
     try {
       const textToSend = chatInputText;
       setChatInputText(""); // Clear input early for responsiveness
-      const res = await vendorService.sendMessage(partner.id, textToSend);
+      const res = await chatService.sendMessage(partner.id, textToSend);
       if (res && res.data) {
         setChatMessages(prev => [...prev, res.data]);
+        const convRes = await chatService.getConversations();
+        if (convRes && convRes.data) {
+          setConversations(convRes.data);
+        }
       }
     } catch (err) {
       console.error("Lỗi gửi tin nhắn:", err);
       alert("Không thể gửi tin nhắn. Vui lòng thử lại!");
     }
   };
+
 
   // Lấy lịch sử rút tiền
   const fetchWithdrawalHistory = async () => {
@@ -870,7 +904,6 @@ const VendorDashboard = () => {
     { id: "finance", label: "Ví & Doanh thu", icon: <Wallet size={20} /> },
     { id: "chats", label: "Chat với khách", icon: <MessageCircle size={20} /> },
     { id: "interactions", label: "Bình luận & Đánh giá", icon: <MessageSquare size={20} /> },
-    { id: "settings", label: "Thông tin cửa hàng", icon: <Settings size={20} /> },
   ];
 
   if (loading) {
@@ -1015,22 +1048,15 @@ const VendorDashboard = () => {
     return activities.slice(0, 4);
   };
 
-  // Lấy danh sách khách hàng chat từ các đơn hàng thật
-  const chatCustomers = Array.from(
-    new Map(
-      orders
-        .filter((o: any) => o.user)
-        .map((o: any) => [
-          o.user.id,
-          {
-            id: o.user.id,
-            name: o.recipient_name || o.user.profile?.full_name || o.user.email || "Khách hàng",
-            email: o.user.email,
-            phone: o.recipient_phone || o.user.phone
-          }
-        ])
-    ).values()
-  );
+  // Lấy danh sách khách hàng chat từ conversations thực tế
+  const chatCustomers = conversations.map((c) => ({
+    id: c.partner.id,
+    name: c.partner.name,
+    avatar: c.partner.avatar,
+    unreadCount: c.unreadCount,
+    lastMessage: c.lastMessage
+  }));
+
 
   // Lấy giá trị lớn nhất trong stats để làm mốc biểu đồ
   const maxRevenue = Math.max(...stats.dailyRevenue, 1);
@@ -1087,10 +1113,7 @@ const VendorDashboard = () => {
               <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">{shopInfo?.industry}</span>
             </div>
 
-            <button className="relative w-11 h-11 border-2 border-black rounded-xl flex items-center justify-center hover:bg-gray-50 transition-all active:translate-y-1">
-              <Bell size={20} />
-              <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 border-2 border-black rounded-full"></span>
-            </button>
+            <NotificationDropdown />
 
             <div className="w-[2px] h-8 bg-gray-100"></div>
 
@@ -1099,29 +1122,40 @@ const VendorDashboard = () => {
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
                 className="w-11 h-11 bg-primary/10 border-2 border-black rounded-xl flex items-center justify-center text-primary hover:bg-primary/20 transition-all active:translate-y-1 overflow-hidden shadow-sm"
               >
-                {shopInfo?.avatar_url ? (
-                  <img src={shopInfo.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                {shopInfo?.avatar_url || shopInfo?.shop_logo ? (
+                  <img src={shopInfo.avatar_url || shopInfo.shop_logo} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
-                  <User size={24} />
+                  <img src={DEFAULT_SHOP_LOGO} alt="Avatar" className="w-full h-full object-cover" />
                 )}
               </button>
 
               {showUserDropdown && (
                 <div className="absolute right-0 mt-4 w-64 bg-white border-2 border-black rounded-2xl shadow-brutal z-50 p-4 animate-in fade-in slide-in-from-top-2">
                   <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100">
-                    <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center font-black">VD</div>
+                    <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center font-black overflow-hidden border border-black/10">
+                      {shopInfo?.avatar_url || shopInfo?.shop_logo ? (
+                        <img src={shopInfo.avatar_url || shopInfo.shop_logo} alt="Avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        <img src={DEFAULT_SHOP_LOGO} alt="Avatar" className="w-full h-full object-cover" />
+                      )}
+                    </div>
                     <div>
-                      <p className="text-xs font-black uppercase">{shopInfo?.name}</p>
+                      <p className="text-xs font-black uppercase">{shopInfo?.shop_name || shopInfo?.name}</p>
                       <p className="text-[10px] text-primary font-bold">{user?.email}</p>
                     </div>
                   </div>
+
                   <div className="space-y-1">
                     <button onClick={() => setActiveTab("settings")} className="w-full text-left px-3 py-2 hover:bg-gray-50 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">Thông tin cửa hàng</button>
-                    <button className="w-full text-left px-3 py-2 hover:bg-red-50 text-red-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all mt-2">Đăng xuất</button>
+                    <button onClick={handleLogout} className="w-full text-left px-3 py-2 hover:bg-red-50 text-red-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all mt-2">Đăng xuất</button>
                   </div>
                 </div>
               )}
             </div>
+
+            <Link to="/" className="flex items-center gap-2 px-6 py-3 border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest bg-black text-white hover:bg-primary transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
+              Website <ExternalLink size={14} />
+            </Link>
 
             <button className="flex items-center gap-2 px-6 py-3 border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest bg-white text-black hover:bg-green-500 hover:text-white transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
               Báo cáo <FileDown size={14} />
@@ -2064,40 +2098,58 @@ const VendorDashboard = () => {
 
           {/* TAB: CHAT (Customer Chat) */}
           {activeTab === "chats" && (
-            <div className="h-[calc(100vh-10rem)] bg-white border-2 border-black rounded-[2.5rem] overflow-hidden flex shadow-sm">
+            <div className="h-[calc(100vh-10rem)] bg-white border-4 border-black rounded-[2.5rem] overflow-hidden flex shadow-brutal select-none">
               {/* Contact List */}
-              <div className="w-96 border-r-2 border-black flex flex-col bg-gray-50/30">
-                <div className="p-6 border-b-2 border-black/5">
-                  <h3 className="text-xl font-black uppercase tracking-tighter mb-4">Tin nhắn</h3>
+              <div className="w-96 border-r-4 border-black flex flex-col bg-[#F9F9F7]">
+                <div className="p-6 border-b-4 border-black/5">
+                  <h3 className="text-xl font-black uppercase tracking-tighter mb-4">Hộp thư hỗ trợ</h3>
                   <div className="relative">
-                    <input type="text" placeholder="Tìm khách hàng..." className="w-full bg-white border-2 border-black rounded-xl px-10 py-2 text-xs font-bold focus:outline-none" />
+                    <input type="text" placeholder="Tìm kiếm khách hàng..." className="w-full bg-white border-2 border-black rounded-xl px-10 py-2.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-primary shadow-sm" />
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                   </div>
                 </div>
-                <div className="flex-grow overflow-y-auto p-2 space-y-1">
+                <div className="flex-grow overflow-y-auto p-3 space-y-2 scrollbar-thin">
                   {chatCustomers.length === 0 ? (
-                    <div className="text-center py-10 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                      Chưa có cuộc hội thoại nào
+                    <div className="text-center py-12 text-xs font-bold text-gray-400 uppercase tracking-widest leading-relaxed p-4">
+                      Chưa có cuộc hội thoại nào từ khách hàng
                     </div>
                   ) : (
                     chatCustomers.map((cust, idx) => (
                       <button
                         key={cust.id || idx}
                         onClick={() => setActiveChatIndex(idx)}
-                        className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all ${idx === activeChatIndex ? 'bg-black text-white shadow-subtle' : 'hover:bg-white hover:shadow-sm'}`}
+                        className={`w-full flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all cursor-pointer text-left active:translate-y-[1px] ${idx === activeChatIndex ? 'bg-black text-white border-black shadow-subtle' : 'bg-white border-transparent hover:border-black hover:shadow-subtle hover:translate-x-0.5'}`}
                       >
-                        <div className="relative">
-                          <div className="w-10 h-10 rounded-full bg-primary/20 border border-black/5 flex items-center justify-center font-black text-primary uppercase">
-                            {cust.name.substring(0, 2)}
+                        <div className="relative shrink-0">
+                          <div className="w-11 h-11 rounded-full bg-primary/20 border-2 border-black flex items-center justify-center font-black text-primary uppercase overflow-hidden shadow-sm">
+                            {cust.avatar ? (
+                              <img src={cust.avatar} alt="avatar" className="w-full h-full object-cover" />
+                            ) : (
+                              cust.name.substring(0, 2)
+                            )}
                           </div>
                           <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
                         </div>
-                        <div className="flex-grow text-left min-w-0">
-                          <div className="flex justify-between items-center mb-0.5">
-                            <span className="text-[10px] font-black uppercase truncate">{cust.name}</span>
-                            <span className="text-[8px] font-bold text-gray-400">12:45</span>
+                        <div className="flex-grow min-w-0">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[10px] font-black uppercase truncate group-hover:text-primary transition-colors">{cust.name}</span>
+                            <div className="flex flex-col items-end gap-1 shrink-0 pl-2">
+                              <span className="text-[8px] font-bold text-gray-400">
+                                {cust.lastMessage ? new Date(cust.lastMessage.sent_at).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }) : ""}
+                              </span>
+                            </div>
                           </div>
-                          <p className={`text-[10px] truncate ${idx === activeChatIndex ? 'text-gray-400' : 'text-gray-500'} font-medium`}>Chào shop, mình muốn hỏi về sản phẩm bên mình ạ.</p>
+                          
+                          <div className="flex justify-between items-center gap-2">
+                            <p className={`text-[10px] truncate font-medium ${idx === activeChatIndex ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {cust.lastMessage ? cust.lastMessage.body : "Chưa có tin nhắn"}
+                            </p>
+                            {cust.unreadCount > 0 && (
+                              <span className="bg-red-600 text-white border border-black rounded-full px-1.5 py-0.5 text-[7px] font-black shrink-0 shadow-sm animate-pulse">
+                                {cust.unreadCount}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </button>
                     ))
@@ -2108,18 +2160,22 @@ const VendorDashboard = () => {
               {/* Chat Window */}
               <div className="flex-grow flex flex-col bg-white">
                 {chatCustomers.length === 0 ? (
-                  <div className="flex-grow flex flex-col items-center justify-center bg-gray-50/10 p-10 text-center">
+                  <div className="flex-grow flex flex-col items-center justify-center bg-gray-50/10 p-10 text-center select-none">
                     <MessageSquare size={48} className="text-gray-300 mb-4" />
                     <h4 className="text-sm font-black uppercase tracking-widest mb-1">Cửa sổ tin nhắn trống</h4>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase max-w-xs leading-relaxed">Khi có khách hàng đặt hàng hoặc bắt đầu trò chuyện, hội thoại sẽ xuất hiện tại đây.</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase max-w-xs leading-relaxed">Khi có khách hàng bắt đầu trò chuyện hoặc đặt hàng, hội thoại sẽ xuất hiện tại đây.</p>
                   </div>
                 ) : (
                   <>
                     {/* Chat Header */}
-                    <div className="p-6 border-b-2 border-black/5 flex justify-between items-center bg-white">
+                    <div className="p-6 border-b-4 border-black/5 flex justify-between items-center bg-white">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center font-black text-xl uppercase">
-                          {chatCustomers[activeChatIndex]?.name.substring(0, 2)}
+                        <div className="w-12 h-12 rounded-2xl bg-primary/20 border-2 border-black text-primary flex items-center justify-center font-black text-xl uppercase overflow-hidden shadow-sm">
+                          {chatCustomers[activeChatIndex]?.avatar ? (
+                            <img src={chatCustomers[activeChatIndex].avatar} alt="avatar" className="w-full h-full object-cover" />
+                          ) : (
+                            chatCustomers[activeChatIndex]?.name.substring(0, 2)
+                          )}
                         </div>
                         <div>
                           <h4 className="text-sm font-black uppercase tracking-tight">{chatCustomers[activeChatIndex]?.name}</h4>
@@ -2129,24 +2185,27 @@ const VendorDashboard = () => {
                     </div>
 
                     {/* Message History */}
-                    <div className="flex-grow overflow-y-auto p-8 space-y-6 bg-gray-50/20">
+                    <div className="flex-grow overflow-y-auto p-8 space-y-6 bg-[#F9F9F7] bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] scrollbar-thin">
                       {chatMessages.length === 0 ? (
-                        <div className="text-center py-10 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                          Bắt đầu cuộc trò chuyện
+                        <div className="text-center py-12 flex flex-col items-center justify-center">
+                          <span className="bg-white border-2 border-black px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest text-gray-400 shadow-sm">
+                            Mở đầu cuộc trò chuyện
+                          </span>
+                          <p className="text-[9px] font-bold text-gray-400 mt-3.5 uppercase tracking-wide">Hãy gửi tin nhắn đầu tiên để kết nối với khách hàng!</p>
                         </div>
                       ) : (
                         chatMessages.map((msg, idx) => {
                           const isMe = msg.sender_id === user?.id;
                           const senderInitials = isMe ? "VS" : chatCustomers[activeChatIndex]?.name.substring(0, 2);
-                          const timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }) : "";
+                          const timeStr = msg.sent_at ? new Date(msg.sent_at).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }) : "";
 
                           if (isMe) {
                             return (
                               <div key={msg.id || idx} className="flex flex-row-reverse gap-4 max-w-[80%] ml-auto animate-in fade-in duration-200">
-                                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-[8px] font-black shrink-0">{senderInitials}</div>
+                                <div className="w-8 h-8 rounded-full bg-primary border-2 border-black text-white flex items-center justify-center text-[8px] font-black shrink-0 shadow-sm">{senderInitials}</div>
                                 <div className="space-y-2 text-right">
                                   <div className="bg-black text-white border-2 border-black p-4 rounded-2xl rounded-tr-none shadow-subtle text-left">
-                                    <p className="text-xs font-medium leading-relaxed">{msg.content}</p>
+                                    <p className="text-xs font-medium leading-relaxed break-words">{msg.body}</p>
                                   </div>
                                   <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mr-1">{timeStr}</span>
                                 </div>
@@ -2155,10 +2214,16 @@ const VendorDashboard = () => {
                           } else {
                             return (
                               <div key={msg.id || idx} className="flex gap-4 max-w-[80%] animate-in fade-in duration-200">
-                                <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center text-[8px] font-black shrink-0 uppercase">{senderInitials}</div>
+                                <div className="w-8 h-8 rounded-full bg-black text-white border-2 border-black flex items-center justify-center text-[8px] font-black shrink-0 uppercase overflow-hidden shadow-sm">
+                                  {chatCustomers[activeChatIndex]?.avatar ? (
+                                    <img src={chatCustomers[activeChatIndex].avatar} alt="avatar" className="w-full h-full object-cover" />
+                                  ) : (
+                                    senderInitials
+                                  )}
+                                </div>
                                 <div className="space-y-2">
                                   <div className="bg-white border-2 border-black p-4 rounded-2xl rounded-tl-none shadow-subtle">
-                                    <p className="text-xs font-medium leading-relaxed">{msg.content}</p>
+                                    <p className="text-xs font-medium leading-relaxed break-words">{msg.body}</p>
                                   </div>
                                   <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest ml-1">{timeStr}</span>
                                 </div>
@@ -2170,16 +2235,19 @@ const VendorDashboard = () => {
                     </div>
 
                     {/* Chat Input */}
-                    <form onSubmit={handleSendMessage} className="p-6 border-t-2 border-black bg-white">
+                    <form onSubmit={handleSendMessage} className="p-6 border-t-4 border-black bg-white select-none">
                       <div className="flex items-center gap-4 bg-gray-50 border-2 border-black rounded-2xl p-2 pl-4 shadow-inner">
+                        <button type="button" className="text-gray-400 hover:text-black transition-colors cursor-pointer" title="Emoji">
+                          <Smile size={20} />
+                        </button>
                         <input
                           type="text"
                           value={chatInputText}
                           onChange={(e) => setChatInputText(e.target.value)}
-                          placeholder="Nhập tin nhắn của bạn..."
+                          placeholder="Nhập tin nhắn phản hồi..."
                           className="flex-grow bg-transparent border-none focus:outline-none font-bold text-sm py-2"
                         />
-                        <button type="submit" className="bg-black text-white p-3 rounded-xl hover:bg-primary transition-all">
+                        <button type="submit" className={`p-3 rounded-xl transition-all cursor-pointer active:translate-y-[1px] ${chatInputText.trim() ? "bg-black text-white shadow-subtle" : "text-gray-300"}`} disabled={!chatInputText.trim()}>
                           <Send size={20} />
                         </button>
                       </div>

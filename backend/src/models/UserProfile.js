@@ -4,6 +4,7 @@ export default (sequelize, DataTypes) => {
   class UserProfile extends Model {
     static associate(models) {
       UserProfile.belongsTo(models.User, { foreignKey: "user_id", as: "user" });
+      UserProfile.belongsTo(models.Shop, { foreignKey: "shipper_shop_id", as: "shipperShop" });
     }
   }
 
@@ -14,6 +15,7 @@ export default (sequelize, DataTypes) => {
       avatar_url: { type: DataTypes.TEXT, allowNull: true },
       gender: { type: DataTypes.ENUM("MALE", "FEMALE", "OTHER"), allowNull: true },
       birthday: { type: DataTypes.DATEONLY, allowNull: true },
+      shipper_shop_id: { type: DataTypes.BIGINT, allowNull: true },
     },
     {
       sequelize,

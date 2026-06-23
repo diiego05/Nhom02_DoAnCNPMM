@@ -22,6 +22,7 @@ import { setUser } from '@/stores/slices/authSlice';
 import { adminService } from '@/services/adminService';
 import type { RootState } from '@/stores/store';
 import useAuth from '@/hooks/useAuth';
+import { NotificationDropdown } from '@/components/layout/NotificationDropdown';
 import { getAvatarUrl } from '@/utils/format';
 
 import { UserTab } from './components/UserTab';
@@ -229,92 +230,7 @@ const AdminDashboard = () => {
                </div>
 
                <div className="flex items-center gap-6">
-                  <div className="relative">
-                     <button
-                        onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
-                        className="relative w-11 h-11 border-2 border-black rounded-xl flex items-center justify-center hover:bg-gray-50 transition-all active:translate-y-1"
-                     >
-                        <Bell size={20} />
-                        {hasUnreadNotifications && (
-                           <span className="absolute top-0 right-0 w-3 h-3 bg-red-600 border-2 border-black rounded-full"></span>
-                        )}
-                     </button>
-
-                     {showNotificationDropdown && (
-                        <div className="absolute right-0 mt-4 w-80 bg-white border-2 border-black rounded-2xl shadow-brutal z-50 p-4 animate-in fade-in slide-in-from-top-2">
-                           <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
-                              <h4 className="text-xs font-black uppercase tracking-wider text-black">Thông báo mới nhất</h4>
-                              {hasUnreadNotifications && (
-                                 <span className="text-[9px] font-black uppercase text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">3 Mới</span>
-                              )}
-                           </div>
-                           <div className="space-y-2 max-h-60 overflow-y-auto">
-                              <div
-                                 onClick={() => {
-                                    setActiveTab("vendors");
-                                    setShowNotificationDropdown(false);
-                                 }}
-                                 className="flex gap-3 p-2 hover:bg-red-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-black/5"
-                              >
-                                 <div className="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center text-yellow-600 shrink-0 border border-black/5">
-                                    <Store size={16} />
-                                 </div>
-                                 <div className="flex-grow">
-                                    <p className="text-[10px] font-black uppercase text-gray-500">Yêu cầu mở gian hàng</p>
-                                    <p className="text-xs font-bold text-black mt-0.5 line-clamp-2">Shop 'Men Classic' đang chờ bạn phê duyệt hoạt động.</p>
-                                    <span className="text-[9px] text-gray-400 font-bold">5 phút trước</span>
-                                 </div>
-                              </div>
-
-                              <div
-                                 onClick={() => {
-                                    setActiveTab("finance");
-                                    setShowNotificationDropdown(false);
-                                 }}
-                                 className="flex gap-3 p-2 hover:bg-red-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-black/5"
-                              >
-                                 <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600 shrink-0 border border-black/5">
-                                    <TrendingUp size={16} />
-                                 </div>
-                                 <div className="flex-grow">
-                                    <p className="text-[10px] font-black uppercase text-gray-500">Báo cáo tài chính</p>
-                                    <p className="text-xs font-bold text-black mt-0.5 line-clamp-2">Doanh thu tuần này đạt cột mốc mới. Click để xem chi tiết.</p>
-                                    <span className="text-[9px] text-gray-400 font-bold">1 giờ trước</span>
-                                 </div>
-                              </div>
-
-                              <div
-                                 onClick={() => {
-                                    setActiveTab("users");
-                                    setShowNotificationDropdown(false);
-                                 }}
-                                 className="flex gap-3 p-2 hover:bg-red-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-black/5"
-                              >
-                                 <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 shrink-0 border border-black/5">
-                                    <Users size={16} />
-                                 </div>
-                                 <div className="flex-grow">
-                                    <p className="text-[10px] font-black uppercase text-gray-500">Quản trị viên mới</p>
-                                    <p className="text-xs font-bold text-black mt-0.5 line-clamp-2">Hệ thống đã kích hoạt thành công tài khoản Manager mới.</p>
-                                    <span className="text-[9px] text-gray-400 font-bold">2 giờ trước</span>
-                                 </div>
-                              </div>
-                           </div>
-                           <div className="mt-3 pt-3 border-t border-gray-100 text-center">
-                              <button 
-                                 onClick={() => {
-                                    setHasUnreadNotifications(false);
-                                    setShowNotificationDropdown(false);
-                                    showToast("Đã đánh dấu tất cả thông báo là đã đọc", "success");
-                                 }}
-                                 className="text-[10px] font-black uppercase tracking-wider text-gray-400 hover:text-black transition-colors w-full"
-                              >
-                                 Đánh dấu đã đọc tất cả
-                              </button>
-                           </div>
-                        </div>
-                     )}
-                  </div>
+                  <NotificationDropdown />
 
                   <div className="w-[2px] h-8 bg-gray-100"></div>
 

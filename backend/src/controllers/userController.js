@@ -16,6 +16,7 @@ const getUserProfile = async (req, res) => {
         gender: user.gender,
         avatarUrl: user.avatar_url,
         loyalty_points: user.loyalty_points,
+        shipper_shop_id: user.shipper_shop_id,
       },
     });
   } catch (error) {
@@ -40,6 +41,7 @@ const updateUserProfile = async (req, res) => {
         dateOfBirth: user.birthday,
         gender: user.gender,
         avatarUrl: user.avatar_url,
+        shipper_shop_id: user.shipper_shop_id,
       },
     });
   } catch (error) {

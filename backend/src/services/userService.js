@@ -34,6 +34,7 @@ const updateUserProfile = (data) => {
           birthday: data.date_of_birth || null,
           gender: data.gender,
           avatar_url: data.avatar_url || userProfile.avatar_url,
+          shipper_shop_id: data.shipper_shop_id !== undefined ? (data.shipper_shop_id || null) : userProfile.shipper_shop_id,
         });
         resolve(userProfile);
       } else {
@@ -44,6 +45,7 @@ const updateUserProfile = (data) => {
           birthday: data.date_of_birth || null,
           gender: data.gender,
           avatar_url: data.avatar_url || null,
+          shipper_shop_id: data.shipper_shop_id || null,
         });
         resolve(userProfile);
       }
