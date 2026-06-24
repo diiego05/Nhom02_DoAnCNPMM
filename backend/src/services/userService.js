@@ -4,15 +4,17 @@ const getUserProfileById = (id) => {
   // TODO: Implement get user by id
   return new Promise(async (resolve, reject) => {
     try {
-      let userProfile = await db.UserProfile.findOne({
-        where: { user_id: id },
-        raw: true,
+      let userAccount = await db.User.findByPk(id, {
+        attributes: { exclude: ['password'] },
+        include: [
+          { model: db.Role, as: 'role' },
+          { model: db.UserProfile, as: 'profile' }
+        ]
       });
-      let userAccount = await db.User.findByPk(id, { attributes: ["loyalty_points", "email", "phone"], raw: true });
-      if (userProfile || userAccount) {
-        resolve({ ...userProfile, ...userAccount });
+      if (userAccount) {
+        resolve(userAccount);
       } else {
-        resolve({});
+        resolve(null);
       }
     } catch (error) {
       reject(error);

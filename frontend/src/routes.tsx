@@ -22,6 +22,7 @@ import ReviewPage from "@/pages/user/ReviewPage";
 import VendorDashboard from "@/pages/vendor/VendorDashboard";
 import ManagerDashboard from "@/pages/manager/ManagerDashboard";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
+import RegisterShopPage from "@/pages/shop/RegisterShopPage";
 
 export const getRoutes = (): RouteObject[] => {
   const role = "ADMIN";
@@ -70,6 +71,14 @@ export const getRoutes = (): RouteObject[] => {
         {
           path: "payment/vnpay-return",
           element: <VNPayReturn />,
+        },
+        {
+          path: "register-shop",
+          element: (
+            <AuthGuard>
+              <RegisterShopPage />
+            </AuthGuard>
+          ),
         },
         {
           path: "orders",

@@ -95,9 +95,9 @@ export const vendorService = {
     return response.data;
   },
 
-  // Xác nhận đơn hàng
+  // Xác nhận đơn hàng (PENDING -> CONFIRMED)
   confirmOrder: async (orderId: number | string) => {
-    const response = await axiosClient.post(`/orders/${orderId}/confirm`);
+    const response = await axiosClient.patch(`/orders/${orderId}/status`, { status: "CONFIRMED" });
     return response.data;
   },
 
@@ -164,7 +164,19 @@ export const vendorService = {
 
   // Chuẩn bị hàng (CONFIRMED -> PREPARING)
   prepareOrder: async (orderId: number | string) => {
-    const response = await axiosClient.post(`/orders/${orderId}/prepare`);
+    const response = await axiosClient.patch(`/orders/${orderId}/status`, { status: "PREPARING" });
+    return response.data;
+  },
+
+  // Sẵn sàng giao hàng (PREPARING -> READY_FOR_PICKUP)
+  readyOrder: async (orderId: number | string) => {
+    const response = await axiosClient.patch(`/orders/${orderId}/status`, { status: "READY_FOR_PICKUP" });
+    return response.data;
+  },
+
+  // Cập nhật trạng thái hàng loạt
+  bulkUpdateOrdersStatus: async (orderIds: (number | string)[], status: string) => {
+    const response = await axiosClient.patch("/orders/bulk-status", { orderIds, status });
     return response.data;
   },
 

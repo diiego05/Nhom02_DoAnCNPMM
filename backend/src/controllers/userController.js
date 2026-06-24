@@ -10,14 +10,7 @@ const getUserProfile = async (req, res) => {
 
     return res.status(200).json({
       message: "Profile retrieved successfully",
-      data: {
-        fullName: user.full_name,
-        dateOfBirth: user.birthday,
-        gender: user.gender,
-        avatarUrl: user.avatar_url,
-        loyalty_points: user.loyalty_points,
-        shipper_shop_id: user.shipper_shop_id,
-      },
+      data: user,
     });
   } catch (error) {
     return res.status(500).json({ message: "Internal server error" });
@@ -29,6 +22,16 @@ const updateUserProfile = async (req, res) => {
     const data = { ...req.body, user_id: req.user.id };
 
     // Nếu có file tải lên (Cloudinary), gán URL trực tiếp cho avatar_url
+    if (req.body.date_of_birth) {
+      const fiveYearsAgo = new Date();
+      fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+      if (new Date(req.body.date_of_birth) > fiveYearsAgo) {
+        return res
+          .status(400)
+          .json({ message: "Người dùng phải ít nhất 5 tuổi" });
+      }
+    }
+
     if (req.file) {
       data.avatar_url = req.file.path;
     }

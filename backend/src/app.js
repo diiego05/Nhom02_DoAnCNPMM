@@ -17,6 +17,7 @@ import couponRouter from "./routes/couponRoute.js";
 import shopRouter from "./routes/shopRoute.js";
 import chatRouter from "./routes/chatRoute.js";
 import adminRouter from "./routes/adminRoute.js";
+import systemRouter from "./routes/systemRoute.js";
 import managerRouter from "./routes/managerRoute.js";
 import notificationRouter from "./routes/notificationRoute.js";
 import paymentRouter from "./routes/paymentRoute.js";
@@ -61,6 +62,7 @@ app.use("/admin", adminRouter);
 app.use("/manager", managerRouter);
 app.use("/notifications", notificationRouter);
 app.use("/payment", paymentRouter);
+app.use("/system", systemRouter);
 app.get("/brands", (req, res) => {
   return res.status(200).json({
     message: "Success",
@@ -69,11 +71,10 @@ app.get("/brands", (req, res) => {
       { id: 2, name: "Adidas" },
       { id: 3, name: "Puma" },
       { id: 4, name: "New Balance" },
-      { id: 5, name: "UTEShop Original" }
-    ]
+      { id: 5, name: "UTEShop Original" },
+    ],
   });
 });
-
 
 let port = process.env.PORT || 8080;
 
@@ -81,8 +82,6 @@ connectDB()
   .then(() => {
     app.listen(port, () => {
       console.log("Backend nodejs is running on the port: " + port);
-
-
     });
   })
   .catch((error) => {

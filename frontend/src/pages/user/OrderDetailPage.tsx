@@ -8,10 +8,12 @@ import {
 import { useOrderDetail, useRetryPayment } from '@/hooks/useOrders';
 import { useCreateReview } from '@/hooks/useReviews';
 import { OrderStatus } from '@/types/order.types';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
 
 const OrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const { data: order, isLoading, isError } = useOrderDetail(Number(id));
+  const { data: systemSettings } = useSystemSettings() as any;
 
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [selectedProductToReview, setSelectedProductToReview] = useState<any>(null);
@@ -75,7 +77,7 @@ const OrderDetailPage = () => {
     { key: 'PENDING', label: 'Đơn mới' },
     { key: 'CONFIRMED', label: 'Đã xác nhận' },
     { key: 'PREPARING', label: 'Chuẩn bị hàng' },
-    { key: 'SHIPPING', label: 'Đang giao' },
+    { key: 'DELIVERING', label: 'Đang giao' },
     { key: 'DELIVERED', label: 'Thành công' },
   ];
 
@@ -84,6 +86,8 @@ const OrderDetailPage = () => {
       'PENDING': 'Chờ xác nhận',
       'CONFIRMED': 'Đã xác nhận',
       'PREPARING': 'Đang chuẩn bị',
+      'READY_FOR_PICKUP': 'Sẵn sàng giao',
+      'DELIVERING': 'Đang giao hàng',
       'SHIPPING': 'Đang giao hàng',
       'DELIVERED': 'Giao thành công',
       'CANCEL_REQUESTED': 'Yêu cầu hủy',
@@ -94,7 +98,7 @@ const OrderDetailPage = () => {
 
   const getStatusColor = (status: OrderStatus) => {
     if (['DELIVERED'].includes(status)) return 'bg-green-50 text-green-600 border-green-200';
-    if (['SHIPPING'].includes(status)) return 'bg-blue-50 text-blue-600 border-blue-200';
+    if (['DELIVERING', 'SHIPPING'].includes(status)) return 'bg-blue-50 text-blue-600 border-blue-200';
     if (['CANCELLED', 'CANCEL_REQUESTED'].includes(status)) return 'bg-red-50 text-red-600 border-red-200';
     return 'bg-orange-50 text-orange-600 border-orange-200';
   };
@@ -112,23 +116,30 @@ const OrderDetailPage = () => {
       );
     }
 
-    const currentIndex = orderStatuses.findIndex(s => s.key === currentStatus);
+    const normalizedStatus = currentStatus === 'READY_FOR_PICKUP' ? 'PREPARING' : currentStatus;
+    const currentIndex = orderStatuses.findIndex(s => s.key === normalizedStatus);
     
     return (
       <div className="flex flex-row w-full mt-8 px-4 relative">
-        {orderStatuses.map((s, idx) => (
+        {orderStatuses.map((s, idx) => {
+          const isCompleted = idx < currentIndex;
+          const isCurrent = idx === currentIndex;
+          const isActive = idx <= currentIndex;
+          
+          return (
           <div key={s.key} className="flex-1 flex flex-col items-center relative group">
             {idx < orderStatuses.length - 1 && (
-               <div className={`absolute top-5 left-1/2 w-full h-[3px] ${idx < currentIndex ? 'bg-primary' : 'bg-gray-200'} -z-10 transition-all`}></div>
+               <div className={`absolute top-5 left-1/2 w-full h-[3px] ${isActive ? 'bg-primary' : 'bg-gray-200'} -z-10 transition-all`}></div>
             )}
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-[3px] bg-white text-sm transition-all duration-300 ${idx <= currentIndex ? 'border-primary text-primary font-black shadow-[0_0_15px_rgba(var(--color-primary),0.3)] scale-110' : 'border-gray-300 text-gray-400 font-bold'}`}>
-              {idx < currentIndex ? <CheckCircle size={20} /> : idx + 1}
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-[3px] text-sm transition-all duration-300 ${isActive ? 'bg-primary border-primary text-white shadow-[0_0_15px_rgba(var(--color-primary),0.3)] scale-110' : 'bg-white border-gray-300 text-gray-400 font-bold'}`}>
+              {isCompleted ? <CheckCircle size={20} /> : idx + 1}
             </div>
-            <p className={`text-[11px] mt-4 font-black uppercase tracking-wider text-center transition-all ${idx <= currentIndex ? 'text-black translate-y-1' : 'text-gray-400'}`}>
+            <p className={`text-[11px] mt-4 font-black uppercase tracking-wider text-center transition-all ${isActive ? 'text-black translate-y-1' : 'text-gray-400'}`}>
               {s.label}
             </p>
           </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -313,7 +324,7 @@ const OrderDetailPage = () => {
                 {Number(order.points_used) > 0 && (
                   <div className="flex justify-between text-sm font-bold text-gray-400">
                     <span>Điểm đã dùng</span>
-                    <span className="text-red-400">-{(Number(order.points_used) * 100).toLocaleString()}₫ ({order.points_used} điểm)</span>
+                    <span className="text-red-400">-{(Number(order.points_used) * (systemSettings?.redeemRate || 100)).toLocaleString()}₫ ({order.points_used} điểm)</span>
                   </div>
                 )}
                 <div className="flex justify-between items-end pt-4 border-t border-white/20">

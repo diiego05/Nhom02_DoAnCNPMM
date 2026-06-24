@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingBag, ShoppingCart, Search, ChevronDown, User, ShieldCheck } from "lucide-react";
+import {
+  ShoppingBag,
+  ShoppingCart,
+  Search,
+  ChevronDown,
+  User,
+  ShieldCheck,
+} from "lucide-react";
 import { useAppSelector } from "@/stores/hooks";
 import useAuth from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
@@ -18,12 +25,19 @@ const Header = () => {
   const isManager =
     (typeof user?.role === "string"
       ? user.role.toLowerCase() === "manager"
-      : user?.role?.role_name?.toLowerCase() === "manager") || user?.email?.includes("manager");
+      : user?.role?.role_name?.toLowerCase() === "manager") ||
+    user?.email?.includes("manager");
 
   const isAdmin =
     (typeof user?.role === "string"
       ? user.role.toLowerCase() === "admin"
-      : user?.role?.role_name?.toLowerCase() === "admin") || user?.email?.includes("admin");
+      : user?.role?.role_name?.toLowerCase() === "admin") ||
+    user?.email?.includes("admin");
+
+  const isVendor =
+    typeof user?.role === "string"
+      ? user.role.toLowerCase() === "vendor"
+      : user?.role?.role_name?.toLowerCase() === "vendor";
 
   const FACEBOOK_DEFAULT_AVATAR = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23a0a0a0"><rect width="24" height="24" fill="%23e4e6eb"/><circle cx="12" cy="8" r="4"/><path d="M12 14c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z"/></svg>`;
 
@@ -60,10 +74,12 @@ const Header = () => {
     if (avatar.startsWith("http") || avatar.startsWith("data:")) return avatar;
     return `${API_URL}${avatar.startsWith("/") ? "" : "/"}${avatar}`;
   };
-  
+
   // Gọi useCart để fetch data (enabled: isAuthenticated được set trong hook nếu cần)
   const { data: cartData } = useCart();
-  const latestCartItems = cartData?.items ? [...cartData.items].reverse().slice(0, 5) : [];
+  const latestCartItems = cartData?.items
+    ? [...cartData.items].reverse().slice(0, 5)
+    : [];
 
   // Categories
   const { data: categoryList } = useCategories();
@@ -81,7 +97,10 @@ const Header = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const { data: searchResults } = useProducts({ keyword: debouncedSearch, limit: 5 });
+  const { data: searchResults } = useProducts({
+    keyword: debouncedSearch,
+    limit: 5,
+  });
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,14 +118,26 @@ const Header = () => {
           <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-dark text-white rounded-xl flex items-center justify-center shadow-soft group-hover:shadow-premium group-hover:scale-105 transition-all">
             <ShoppingBag size={24} strokeWidth={2.5} />
           </div>
-          <span className="font-serif text-2xl font-black tracking-tighter text-primary uppercase group-hover:text-black transition-colors">UTEShop</span>
+          <span className="font-serif text-2xl font-black tracking-tighter text-primary uppercase group-hover:text-black transition-colors">
+            UTEShop
+          </span>
         </Link>
 
         {/* Navigation */}
         <nav className="hidden lg:flex items-center space-x-8">
-          <Link to="/products?page=1&gender=MALE" className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors">NAM</Link>
-          <Link to="/products?page=1&gender=FEMALE" className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors">NỮ</Link>
-          
+          <Link
+            to="/products?page=1&gender=MALE"
+            className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors"
+          >
+            NAM
+          </Link>
+          <Link
+            to="/products?page=1&gender=FEMALE"
+            className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors"
+          >
+            NỮ
+          </Link>
+
           <div className="relative group py-8">
             <button className="flex items-center gap-1 text-xs font-black uppercase tracking-widest hover:text-primary transition-colors">
               DANH MỤC <ChevronDown size={14} />
@@ -114,29 +145,43 @@ const Header = () => {
             <div className="mega-menu left-[-250px] w-[900px]">
               <div className="grid grid-cols-4 gap-12 p-10 max-w-6xl mx-auto">
                 {parentCategories.map((parent: any) => {
-                  const subCats = categoryList?.filter((c: any) => c.parent_id === parent.id) || [];
+                  const subCats =
+                    categoryList?.filter(
+                      (c: any) => c.parent_id === parent.id,
+                    ) || [];
                   return (
-                  <div key={parent.id}>
-                    <h4 className="font-black text-black mb-6 pb-2 border-b border-black/10 uppercase text-[10px] tracking-widest hover:text-primary transition-colors">
-                      <Link to={`/products?page=1&category=${parent.slug}`}>{parent.name}</Link>
-                    </h4>
-                    <ul className="space-y-4">
-                      {subCats.map((sub: any) => (
-                        <li key={sub.id}>
-                          <Link to={`/products?page=1&category=${sub.slug}`} className="text-sm font-bold text-gray-500 hover:text-primary transition-colors flex items-center gap-2">
-                            <div className="w-1 h-1 bg-gray-300 rounded-full group-hover:bg-primary transition-all"></div>
-                            {sub.name}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )})}
+                    <div key={parent.id}>
+                      <h4 className="font-black text-black mb-6 pb-2 border-b border-black/10 uppercase text-[10px] tracking-widest hover:text-primary transition-colors">
+                        <Link to={`/products?page=1&category=${parent.slug}`}>
+                          {parent.name}
+                        </Link>
+                      </h4>
+                      <ul className="space-y-4">
+                        {subCats.map((sub: any) => (
+                          <li key={sub.id}>
+                            <Link
+                              to={`/products?page=1&category=${sub.slug}`}
+                              className="text-sm font-bold text-gray-500 hover:text-primary transition-colors flex items-center gap-2"
+                            >
+                              <div className="w-1 h-1 bg-gray-300 rounded-full group-hover:bg-primary transition-all"></div>
+                              {sub.name}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
 
-          <Link to="/products" className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors">BỘ SƯU TẬP</Link>
+          <Link
+            to="/products"
+            className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors"
+          >
+            BỘ SƯU TẬP
+          </Link>
         </nav>
 
         {/* Search Bar */}
@@ -154,26 +199,52 @@ const Header = () => {
               onFocus={() => setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
             />
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-primary transition-colors cursor-pointer" size={18} strokeWidth={2.5} onClick={handleSearchSubmit} />
+            <Search
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-primary transition-colors cursor-pointer"
+              size={18}
+              strokeWidth={2.5}
+              onClick={handleSearchSubmit}
+            />
           </form>
 
           {/* Suggestions Dropdown */}
-          {showSuggestions && searchTerm.trim() && searchResults?.products && searchResults.products.length > 0 && (
-            <div className="absolute top-full left-0 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-premium p-2 z-50">
-              {searchResults.products.map((product: any) => (
-                <Link key={product.id} to={`/products/${product.slug}`} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors border-b border-gray-100 last:border-0">
-                  <img src={product.images?.[0]?.image_url || "/placeholder.jpg"} alt={product.name} className="w-10 h-10 object-cover rounded-md border border-gray-200" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-black truncate">{product.name}</p>
-                    <p className="text-[10px] text-primary font-bold">{product.sale_price ? product.sale_price.toLocaleString() : product.price.toLocaleString()}₫</p>
-                  </div>
+          {showSuggestions &&
+            searchTerm.trim() &&
+            searchResults?.products &&
+            searchResults.products.length > 0 && (
+              <div className="absolute top-full left-0 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-premium p-2 z-50">
+                {searchResults.products.map((product: any) => (
+                  <Link
+                    key={product.id}
+                    to={`/products/${product.slug}`}
+                    className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors border-b border-gray-100 last:border-0"
+                  >
+                    <img
+                      src={product.images?.[0]?.image_url || "/placeholder.jpg"}
+                      alt={product.name}
+                      className="w-10 h-10 object-cover rounded-md border border-gray-200"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-black truncate">
+                        {product.name}
+                      </p>
+                      <p className="text-[10px] text-primary font-bold">
+                        {product.sale_price
+                          ? product.sale_price.toLocaleString()
+                          : product.price.toLocaleString()}
+                        ₫
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+                <Link
+                  to={`/products?keyword=${encodeURIComponent(searchTerm.trim())}`}
+                  className="block w-full text-center py-2 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/5 rounded-lg mt-2"
+                >
+                  Xem tất cả kết quả
                 </Link>
-              ))}
-              <Link to={`/products?keyword=${encodeURIComponent(searchTerm.trim())}`} className="block w-full text-center py-2 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/5 rounded-lg mt-2">
-                Xem tất cả kết quả
-              </Link>
-            </div>
-          )}
+              </div>
+            )}
         </div>
 
         {/* Right Icons */}
@@ -192,19 +263,42 @@ const Header = () => {
             </Link>
 
             {/* Cart Dropdown on Hover */}
-            <div className={`${forceShowDropdown ? "block" : "hidden group-hover/cart:block"} absolute right-0 top-full mt-0 pt-3 w-[380px] z-50 animate-in fade-in slide-in-from-top-2 text-left`}>
+            <div
+              className={`${forceShowDropdown ? "block" : "hidden group-hover/cart:block"} absolute right-0 top-full mt-0 pt-3 w-[380px] z-50 animate-in fade-in slide-in-from-top-2 text-left`}
+            >
               <div className="bg-white border border-gray-100 rounded-2xl shadow-premium p-5">
                 {latestCartItems.length > 0 ? (
                   <>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Sản phẩm mới thêm</p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
+                      Sản phẩm mới thêm
+                    </p>
                     <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                       {latestCartItems.map((item: any) => {
-                        const imgUrl = item.variant?.product?.images?.[0]?.image_url || item.product?.images?.[0]?.image_url || item.variant?.image_url;
-                        const displayName = item.variant?.product?.name || item.product?.name || "Sản phẩm";
-                        const variantName = [item.variant?.color, item.variant?.size].filter(Boolean).join(" / ");
-                        const price = Number(item.variant?.sale_price || item.variant?.price || item.unit_price || item.product?.sale_price || item.product?.price || 0);
+                        const imgUrl =
+                          item.variant?.product?.images?.[0]?.image_url ||
+                          item.product?.images?.[0]?.image_url ||
+                          item.variant?.image_url;
+                        const displayName =
+                          item.variant?.product?.name ||
+                          item.product?.name ||
+                          "Sản phẩm";
+                        const variantName = [
+                          item.variant?.color,
+                          item.variant?.size,
+                        ]
+                          .filter(Boolean)
+                          .join(" / ");
+                        const price = Number(
+                          item.variant?.sale_price ||
+                            item.variant?.price ||
+                            item.unit_price ||
+                            item.product?.sale_price ||
+                            item.product?.price ||
+                            0,
+                        );
 
-                        const productSlug = item.variant?.product?.slug || item.product?.slug;
+                        const productSlug =
+                          item.variant?.product?.slug || item.product?.slug;
 
                         return (
                           <Link
@@ -213,19 +307,33 @@ const Header = () => {
                             className="flex gap-3 items-center border-b border-gray-50 pb-2 last:border-0 last:pb-0 hover:bg-gray-50/50 p-1 rounded-lg transition-colors"
                           >
                             <img
-                              src={imgUrl ? (imgUrl.startsWith("http") ? imgUrl : `${API_URL}${imgUrl.startsWith("/") ? "" : "/"}${imgUrl}`) : "/placeholder.jpg"}
+                              src={
+                                imgUrl
+                                  ? imgUrl.startsWith("http")
+                                    ? imgUrl
+                                    : `${API_URL}${imgUrl.startsWith("/") ? "" : "/"}${imgUrl}`
+                                  : "/placeholder.jpg"
+                              }
                               alt={displayName}
                               className="w-12 h-12 object-cover rounded-lg border border-black/10 shrink-0"
                             />
                             <div className="flex-1 min-w-0 text-left">
-                              <h4 className="text-xs font-black text-black truncate">{displayName}</h4>
+                              <h4 className="text-xs font-black text-black truncate">
+                                {displayName}
+                              </h4>
                               {variantName && (
-                                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{variantName}</p>
+                                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
+                                  {variantName}
+                                </p>
                               )}
-                              <p className="text-[9px] text-gray-500 font-bold mt-0.5">Số lượng: {item.quantity}</p>
+                              <p className="text-[9px] text-gray-500 font-bold mt-0.5">
+                                Số lượng: {item.quantity}
+                              </p>
                             </div>
                             <div className="text-right shrink-0">
-                              <span className="text-xs font-black text-primary">{(price * item.quantity).toLocaleString()}₫</span>
+                              <span className="text-xs font-black text-primary">
+                                {(price * item.quantity).toLocaleString()}₫
+                              </span>
                             </div>
                           </Link>
                         );
@@ -233,7 +341,11 @@ const Header = () => {
                     </div>
                     <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
                       <span className="text-[10px] font-black uppercase text-gray-400">
-                        Còn lại: thêm được {99 - (cartData?.items?.length || 0) > 0 ? 99 - (cartData?.items?.length || 0) : 0} sản phẩm
+                        Còn lại: thêm được{" "}
+                        {99 - (cartData?.items?.length || 0) > 0
+                          ? 99 - (cartData?.items?.length || 0)
+                          : 0}{" "}
+                        sản phẩm
                       </span>
                       <Link
                         to="/cart"
@@ -248,17 +360,17 @@ const Header = () => {
                     <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 mb-2 border border-black/5">
                       <ShoppingBag size={20} />
                     </div>
-                    <p className="text-xs font-bold text-gray-500">Chưa có sản phẩm trong giỏ</p>
+                    <p className="text-xs font-bold text-gray-500">
+                      Chưa có sản phẩm trong giỏ
+                    </p>
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {isAuthenticated && (
-            <NotificationDropdown />
-          )}
-          
+          {isAuthenticated && <NotificationDropdown />}
+
           {isAuthenticated && (isManager || isAdmin) && (
             <Link
               to={isAdmin ? "/admin" : "/manager"}
@@ -268,7 +380,7 @@ const Header = () => {
               Quản trị viên
             </Link>
           )}
-          
+
           {isAuthenticated ? (
             <Link
               to="/profile"

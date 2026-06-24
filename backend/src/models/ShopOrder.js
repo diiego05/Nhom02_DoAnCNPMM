@@ -33,7 +33,7 @@ export default (sequelize, DataTypes) => {
       points_earned: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
       status: {
         type: DataTypes.ENUM(
-          "PENDING", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP",
+          "PENDING", "CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP",
           "DELIVERING", "DELIVERED", "CANCELLED", "RETURN_PENDING", "RETURNED"
         ),
         allowNull: false,

@@ -15,6 +15,7 @@ import { useAppSelector } from "@/stores/hooks";
 import { useCart } from "@/hooks/useCart";
 import { useAddresses, useCreateAddress } from "@/hooks/useAddresses";
 import { useCalculateCheckout, useCreateOrder } from "@/hooks/useOrders";
+import { useSystemSettings } from "@/hooks/useSystemSettings";
 import { useProfile } from "@/hooks/useUser";
 import { useValidCoupons } from "@/hooks/useCoupons";
 import { useState, useEffect } from "react";
@@ -49,6 +50,9 @@ const CheckoutPage = () => {
 
   const createOrderMutation = useCreateOrder();
   const createAddressMutation = useCreateAddress();
+  // New settings hook
+  const { data: systemSettings } = useSystemSettings() as any;
+
   const calculateMutation = useCalculateCheckout();
 
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(
@@ -75,6 +79,7 @@ const CheckoutPage = () => {
     formState: { errors },
     reset,
     setValue,
+    getValues,
   } = useForm({
     resolver: yupResolver(addressSchema),
   });
@@ -114,6 +119,29 @@ const CheckoutPage = () => {
     reset({ recipient_name: "", phone_number: "", address_line: "", note: "" });
   };
 
+  const handleSaveNewAddress = async () => {
+    const data = getValues();
+    if (!data.recipient_name || !data.phone_number || !data.address_line) {
+      alert("Vui lòng điền đầy đủ thông tin địa chỉ!");
+      return;
+    }
+    try {
+      const res = await createAddressMutation.mutateAsync({
+        recipient_name: data.recipient_name,
+        phone_number: data.phone_number,
+        address_line: data.address_line,
+        is_default: addresses?.length === 0,
+      });
+      if (res?.id) {
+        setSelectedAddressId(res.id);
+        setIsAddingNewAddress(false);
+      }
+    } catch (error) {
+      console.error("Lỗi khi lưu địa chỉ mới", error);
+      alert("Có lỗi xảy ra khi lưu địa chỉ!");
+    }
+  };
+
   const onSubmit = async (data: any) => {
     const checkoutItems = buyNowItem ? [buyNowItem] : cart?.items || [];
 
@@ -123,17 +151,10 @@ const CheckoutPage = () => {
     }
 
     // Nếu người dùng đang thêm địa chỉ mới, hãy lưu nó vào DB trước
-    if (isAddingNewAddress) {
-      try {
-        await createAddressMutation.mutateAsync({
-          recipient_name: data.recipient_name,
-          phone_number: data.phone_number,
-          address_line: data.address_line,
-          is_default: addresses?.length === 0, // Set default if it's the first address
-        });
-      } catch (error) {
-        console.error("Lỗi khi lưu địa chỉ mới", error);
-      }
+    // (Đã được chuyển sang xử lý ở handleSaveNewAddress, nên ở đây chỉ kiểm tra nếu user chưa lưu)
+    if (isAddingNewAddress && !selectedAddressId) {
+      alert("Vui lòng nhấn Lưu địa chỉ trước khi tiếp tục!");
+      return;
     }
 
     const payload: CreateOrderPayload = {
@@ -381,48 +402,60 @@ const CheckoutPage = () => {
 
                   {(isAddingNewAddress ||
                     (addresses && addresses.length === 0)) && (
-                      <div className="space-y-4 pt-4 border-t border-dashed border-gray-200">
-                        <p className="text-sm font-black uppercase">
-                          Thêm địa chỉ mới
-                        </p>
-                        <div>
-                          <input
-                            {...register("recipient_name")}
-                            placeholder="Họ và tên"
-                            className="input-brutal text-sm"
-                          />
-                          {errors.recipient_name && (
-                            <p className="text-red-500 text-xs mt-1 font-bold">
-                              {errors.recipient_name.message}
-                            </p>
-                          )}
-                        </div>
-                        <div>
-                          <input
-                            {...register("phone_number")}
-                            placeholder="Số điện thoại"
-                            className="input-brutal text-sm"
-                          />
-                          {errors.phone_number && (
-                            <p className="text-red-500 text-xs mt-1 font-bold">
-                              {errors.phone_number.message}
-                            </p>
-                          )}
-                        </div>
-                        <div>
-                          <input
-                            {...register("address_line")}
-                            placeholder="Địa chỉ chi tiết"
-                            className="input-brutal text-sm"
-                          />
-                          {errors.address_line && (
-                            <p className="text-red-500 text-xs mt-1 font-bold">
-                              {errors.address_line.message}
-                            </p>
-                          )}
-                        </div>
+                    <div className="space-y-4 pt-4 border-t border-dashed border-gray-200">
+                      <p className="text-sm font-black uppercase">
+                        Thêm địa chỉ mới
+                      </p>
+                      <div>
+                        <input
+                          {...register("recipient_name")}
+                          placeholder="Họ và tên"
+                          className="input-brutal text-sm"
+                        />
+                        {errors.recipient_name && (
+                          <p className="text-red-500 text-xs mt-1 font-bold">
+                            {errors.recipient_name.message}
+                          </p>
+                        )}
                       </div>
-                    )}
+                      <div>
+                        <input
+                          {...register("phone_number")}
+                          placeholder="Số điện thoại"
+                          className="input-brutal text-sm"
+                        />
+                        {errors.phone_number && (
+                          <p className="text-red-500 text-xs mt-1 font-bold">
+                            {errors.phone_number.message}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <input
+                          {...register("address_line")}
+                          placeholder="Địa chỉ chi tiết"
+                          className="input-brutal text-sm"
+                        />
+                        {errors.address_line && (
+                          <p className="text-red-500 text-xs mt-1 font-bold">
+                            {errors.address_line.message}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex justify-end pt-2">
+                        <button
+                          type="button"
+                          onClick={handleSaveNewAddress}
+                          disabled={createAddressMutation.isPending}
+                          className="bg-black text-white px-6 py-2 rounded-xl font-black text-xs uppercase hover:bg-primary transition-all disabled:opacity-50"
+                        >
+                          {createAddressMutation.isPending
+                            ? "Đang lưu..."
+                            : "Lưu địa chỉ"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mt-8 pt-8 border-t border-dashed border-gray-200">
                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">
@@ -657,7 +690,11 @@ const CheckoutPage = () => {
                             <span className="text-primary">
                               {profile?.loyalty_points || 0} điểm
                             </span>{" "}
-                            (1 điểm = 100₫)
+                            (1 điểm ={" "}
+                            {(
+                              systemSettings?.redeemRate || 100
+                            ).toLocaleString()}
+                            ₫)
                           </p>
                         </div>
                         <input
@@ -771,43 +808,43 @@ const CheckoutPage = () => {
                       {availableShopCoupons.filter(
                         (c: any) => c.shop_id === group.shop?.id,
                       ).length > 0 && (
-                          <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Ticket size={16} className="text-primary" />
-                              <span className="text-xs font-bold text-gray-400 uppercase">
-                                Mã của Shop
-                              </span>
-                            </div>
-                            <select
-                              value={shopCoupons[group.shop?.id] || ""}
-                              onChange={(e) =>
-                                setShopCoupons((prev) => ({
-                                  ...prev,
-                                  [group.shop?.id]: e.target.value,
-                                }))
-                              }
-                              className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
-                            >
-                              <option value="" className="text-black">
-                                Chọn mã giảm giá
-                              </option>
-                              {availableShopCoupons
-                                .filter((c: any) => c.shop_id === group.shop?.id)
-                                .map((c: any) => (
-                                  <option
-                                    key={c.id}
-                                    value={c.code}
-                                    className="text-black"
-                                  >
-                                    {c.code} - Giảm{" "}
-                                    {c.discount_type === "PERCENT"
-                                      ? `${c.discount_value}%`
-                                      : `${Number(c.discount_value).toLocaleString()}đ`}
-                                  </option>
-                                ))}
-                            </select>
+                        <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Ticket size={16} className="text-primary" />
+                            <span className="text-xs font-bold text-gray-400 uppercase">
+                              Mã của Shop
+                            </span>
                           </div>
-                        )}
+                          <select
+                            value={shopCoupons[group.shop?.id] || ""}
+                            onChange={(e) =>
+                              setShopCoupons((prev) => ({
+                                ...prev,
+                                [group.shop?.id]: e.target.value,
+                              }))
+                            }
+                            className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
+                          >
+                            <option value="" className="text-black">
+                              Chọn mã giảm giá
+                            </option>
+                            {availableShopCoupons
+                              .filter((c: any) => c.shop_id === group.shop?.id)
+                              .map((c: any) => (
+                                <option
+                                  key={c.id}
+                                  value={c.code}
+                                  className="text-black"
+                                >
+                                  {c.code} - Giảm{" "}
+                                  {c.discount_type === "PERCENT"
+                                    ? `${c.discount_value}%`
+                                    : `${Number(c.discount_value).toLocaleString()}đ`}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -857,7 +894,11 @@ const CheckoutPage = () => {
                   <div className="flex justify-between text-[10px] font-bold text-gray-400 mt-2">
                     <span>Điểm thưởng nhận được</span>
                     <span className="text-green-500">
-                      +{Math.floor(displayTotal / 10000)} điểm
+                      +
+                      {Math.floor(
+                        displayTotal / (systemSettings?.earnRate || 10000),
+                      )}{" "}
+                      điểm
                     </span>
                   </div>
                 </div>

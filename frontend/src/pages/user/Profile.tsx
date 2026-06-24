@@ -30,7 +30,8 @@ import {
   useUpdateAddress,
   useDeleteAddress,
 } from "@/hooks/useAddresses";
-import { useFavorites, useViewedProducts, useProfile } from "@/hooks/useUser";
+import { useProfile, useFavorites, useViewedProducts } from "@/hooks/useUser";
+import { useSystemSettings } from "@/hooks/useSystemSettings";
 import { useTopShops } from "@/hooks/useShops";
 import { formatPrice } from "@/utils/format";
 import { axiosClient } from "@/services/axiosClient";
@@ -85,7 +86,15 @@ const Profile = () => {
       .string()
       .matches(/^[0-9]{10}$/, "Số điện thoại phải có đúng 10 chữ số")
       .required("Số điện thoại không được để trống"),
-    date_of_birth: yup.string().required("Ngày sinh không được để trống"),
+    date_of_birth: yup
+      .string()
+      .required("Ngày sinh không được để trống")
+      .test("is-valid-age", "Người dùng phải ít nhất 5 tuổi", (value) => {
+        if (!value) return false;
+        const fiveYearsAgo = new Date();
+        fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+        return new Date(value) <= fiveYearsAgo;
+      }),
     gender: yup.string().required("Giới tính không được để trống"),
   });
 
@@ -98,10 +107,16 @@ const Profile = () => {
     defaultValues: {
       full_name: (user as any)?.full_name || (user as any)?.fullName || "",
       phone: (user as any)?.phone || "",
-      date_of_birth: (user as any)?.birthday ? (user as any).birthday.split("T")[0] : (user as any)?.dateOfBirth ? (user as any).dateOfBirth.split("T")[0] : "",
+      date_of_birth: (user as any)?.birthday
+        ? (user as any).birthday.split("T")[0]
+        : (user as any)?.dateOfBirth
+          ? (user as any).dateOfBirth.split("T")[0]
+          : "",
       gender: (user as any)?.gender?.toLowerCase() || "male",
       shipper_shop_id:
-        (user as any)?.profile?.shipper_shop_id || (user as any)?.shipper_shop_id || null,
+        (user as any)?.profile?.shipper_shop_id ||
+        (user as any)?.shipper_shop_id ||
+        null,
     },
     resolver: yupResolver(schema),
   });
@@ -122,9 +137,14 @@ const Profile = () => {
 
   // New features hooks
   const { data: profile } = useProfile({ enabled: !!user });
-  const { data: favorites } = useFavorites({ enabled: !!user }) as { data: any[] };
-  const { data: viewedProducts } = useViewedProducts({ enabled: !!user }) as { data: any[] };
+  const { data: favorites } = useFavorites({ enabled: !!user }) as {
+    data: any[];
+  };
+  const { data: viewedProducts } = useViewedProducts({ enabled: !!user }) as {
+    data: any[];
+  };
   const { data: shopsData } = useTopShops(100);
+  const { data: systemSettings } = useSystemSettings();
 
   // Đồng bộ lại dữ liệu form khi user đã được tải xong từ Redux store
   useEffect(() => {
@@ -134,10 +154,19 @@ const Profile = () => {
       reset({
         full_name: p?.full_name || u?.full_name || u?.fullName || "",
         phone: p?.phone || u?.phone || "",
-        date_of_birth: p?.birthday ? p.birthday.split("T")[0] : u?.birthday ? u.birthday.split("T")[0] : u?.dateOfBirth ? u.dateOfBirth.split("T")[0] : "",
+        date_of_birth: p?.birthday
+          ? p.birthday.split("T")[0]
+          : u?.birthday
+            ? u.birthday.split("T")[0]
+            : u?.dateOfBirth
+              ? u.dateOfBirth.split("T")[0]
+              : "",
         gender: p?.gender?.toLowerCase() || u?.gender?.toLowerCase() || "male",
         shipper_shop_id:
-          p?.shipper_shop_id || u?.profile?.shipper_shop_id || u?.shipper_shop_id || null,
+          p?.shipper_shop_id ||
+          u?.profile?.shipper_shop_id ||
+          u?.shipper_shop_id ||
+          null,
       });
     }
   }, [user, profile, reset]);
@@ -517,7 +546,7 @@ const Profile = () => {
                       <Star size={18} /> Quản lý ví điểm
                     </a>
                     <Link
-                      to="/vendor"
+                      to={hasShop ? "/vendor" : "/register-shop"}
                       className="flex items-center gap-3 px-6 py-4 hover:bg-primary hover:text-white border-b border-black text-primary font-black transition-all group"
                     >
                       <Store
@@ -635,6 +664,15 @@ const Profile = () => {
                                   type="date"
                                   value={field.value}
                                   onChange={field.onChange}
+                                  max={
+                                    new Date(
+                                      new Date().setFullYear(
+                                        new Date().getFullYear() - 5,
+                                      ),
+                                    )
+                                      .toISOString()
+                                      .split("T")[0]
+                                  }
                                 />
                                 {fieldState.error?.message && (
                                   <p className="text-red-500 text-sm mt-1">
@@ -1087,7 +1125,8 @@ const Profile = () => {
                       Tương đương{" "}
                       <strong>
                         {(
-                          (profile?.loyalty_points || 0) * 100
+                          (profile?.loyalty_points || 0) *
+                          (systemSettings?.redeemRate || 100)
                         ).toLocaleString()}
                         ₫
                       </strong>{" "}

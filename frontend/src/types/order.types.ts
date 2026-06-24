@@ -4,6 +4,8 @@ export type OrderStatus =
   | "PENDING"
   | "CONFIRMED"
   | "PREPARING"
+  | "READY_FOR_PICKUP"
+  | "DELIVERING"
   | "SHIPPING"
   | "DELIVERED"
   | "CANCEL_REQUESTED"

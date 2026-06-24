@@ -302,7 +302,13 @@ const createOrder = async (userId, data) => {
 
 const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
   const where = {};
-  if (status) where.status = status;
+  if (status) {
+    if (status === 'PREPARING') {
+      where.status = ['PREPARING', 'READY_FOR_PICKUP'];
+    } else {
+      where.status = status;
+    }
+  }
 
   // Find ParentOrders first
   const parentOrders = await db.ParentOrder.findAll({
@@ -359,7 +365,7 @@ const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
 
 const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = null) => {
   const shopOrder = await db.ShopOrder.findByPk(shopOrderId, {
-    include: [{ model: db.ParentOrder, as: "parentOrder" }]
+    include: [{ model: db.ParentOrder, as: "parentOrder" }, { model: db.OrderItem, as: "items" }]
   });
   if (!shopOrder) throw new Error("Không tìm thấy đơn hàng");
 
@@ -380,9 +386,12 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
 
   const oldStatus = shopOrder.status;
   const updateData = { status: newStatus };
-  if (role === "shipper" && oldStatus === "READY_FOR_PICKUP") {
+  
+  // Always set shipper_id if status changes to DELIVERING and user has shipper permissions (or is currently updating as shipper)
+  if ((role === "shipper" || newStatus === "DELIVERING") && oldStatus === "READY_FOR_PICKUP" && !shopOrder.shipper_id) {
     updateData.shipper_id = userId;
   }
+  
   await shopOrder.update(updateData);
 
   // Add loyalty points when delivered successfully
@@ -511,6 +520,26 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
   }
 
   return shopOrder;
+};
+
+const bulkUpdateOrderStatus = async (shopOrderIds, userId, newStatus, role) => {
+  const results = [];
+  const errors = [];
+  
+  for (const orderId of shopOrderIds) {
+    try {
+      const order = await updateOrderStatus(orderId, userId, newStatus, role);
+      results.push(order);
+    } catch (err) {
+      errors.push({ orderId, message: err.message });
+    }
+  }
+  
+  if (results.length === 0 && errors.length > 0) {
+    throw new Error(`Cập nhật thất bại: ${errors[0].message}`);
+  }
+  
+  return { updated: results.length, errors };
 };
 
 const getShipperOrders = async (userId, { page = 1, limit = 10, status }) => {
@@ -693,4 +722,4 @@ const cancelOrder = async (shopOrderId, userId, reason) => {
   return shopOrder;
 };
 
-export default { calculateCheckout, createOrder, getUserOrders, updateOrderStatus, getOrderDetail, cancelOrder, getShipperOrders };
+export default { calculateCheckout, createOrder, getUserOrders, updateOrderStatus, getOrderDetail, cancelOrder, getShipperOrders, bulkUpdateOrderStatus };

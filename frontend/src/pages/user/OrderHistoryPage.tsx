@@ -41,7 +41,7 @@ const OrderHistoryPage = () => {
       case "preparing":
         return "PREPARING";
       case "shipping":
-        return "SHIPPING";
+        return "DELIVERING";
       case "completed":
         return "DELIVERED";
       case "cancelled":
@@ -85,41 +85,47 @@ const OrderHistoryPage = () => {
     { key: "PENDING", label: "Đơn mới" },
     { key: "CONFIRMED", label: "Đã xác nhận" },
     { key: "PREPARING", label: "Chuẩn bị hàng" },
-    { key: "SHIPPING", label: "Đang giao" },
+    { key: "DELIVERING", label: "Đang giao" },
     { key: "DELIVERED", label: "Thành công" },
   ];
 
   const renderTimeline = (currentStatus: string) => {
     if (currentStatus === "CANCELLED" || currentStatus === "CANCEL_REQUESTED")
       return null;
+      
+    const normalizedStatus = currentStatus === "READY_FOR_PICKUP" ? "PREPARING" : currentStatus;
     const currentIndex = orderStatuses.findIndex(
-      (s) => s.key === currentStatus,
+      (s) => s.key === normalizedStatus,
     );
 
     return (
       <div className="flex flex-row w-full mt-8 px-4 relative">
-        {orderStatuses.map((s, idx) => (
+        {orderStatuses.map((s, idx) => {
+          const isCompleted = idx < currentIndex;
+          const isActive = idx <= currentIndex;
+          
+          return (
           <div
             key={s.key}
-            className="flex-1 flex flex-col items-center relative"
+            className="flex-1 flex flex-col items-center relative group"
           >
             {idx < orderStatuses.length - 1 && (
               <div
-                className={`absolute top-4 left-1/2 w-full h-[2px] ${idx < currentIndex ? "bg-primary" : "bg-gray-200"} -z-10`}
+                className={`absolute top-5 left-1/2 w-full h-[3px] ${isActive ? "bg-primary" : "bg-gray-200"} -z-10 transition-all`}
               ></div>
             )}
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center border-2 bg-white text-xs ${idx <= currentIndex ? "border-primary text-primary font-black shadow-sm" : "border-gray-300 text-gray-400 font-bold"}`}
+              className={`w-10 h-10 rounded-full flex items-center justify-center border-[3px] text-sm transition-all duration-300 ${isActive ? "bg-primary border-primary text-white shadow-[0_0_15px_rgba(var(--color-primary),0.3)] scale-110" : "bg-white border-gray-300 text-gray-400 font-bold"}`}
             >
-              {idx < currentIndex ? <CheckCircle size={16} /> : idx + 1}
+              {isCompleted ? <CheckCircle size={20} /> : idx + 1}
             </div>
             <p
-              className={`text-[10px] mt-3 font-black uppercase tracking-wider text-center ${idx <= currentIndex ? "text-black" : "text-gray-400"}`}
+              className={`text-[11px] mt-4 font-black uppercase tracking-wider text-center transition-all ${isActive ? "text-black translate-y-1" : "text-gray-400"}`}
             >
               {s.label}
             </p>
           </div>
-        ))}
+        )})}
       </div>
     );
   };
@@ -139,6 +145,8 @@ const OrderHistoryPage = () => {
       PENDING: "Chờ xác nhận",
       CONFIRMED: "Đã xác nhận",
       PREPARING: "Đang chuẩn bị",
+      READY_FOR_PICKUP: "Sẵn sàng giao",
+      DELIVERING: "Đang giao hàng",
       SHIPPING: "Đang giao hàng",
       DELIVERED: "Giao thành công",
       CANCEL_REQUESTED: "Yêu cầu hủy",
@@ -150,7 +158,7 @@ const OrderHistoryPage = () => {
   const getStatusColor = (status: OrderStatus) => {
     if (["DELIVERED"].includes(status))
       return "bg-green-50 text-green-600 border-green-200";
-    if (["SHIPPING"].includes(status))
+    if (["DELIVERING", "SHIPPING"].includes(status))
       return "bg-blue-50 text-blue-600 border-blue-200";
     if (["CANCELLED", "CANCEL_REQUESTED"].includes(status))
       return "bg-red-50 text-red-600 border-red-200";
