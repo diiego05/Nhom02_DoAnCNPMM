@@ -9,6 +9,12 @@ const generateOrderCode = (prefix = "ORD") => {
 };
 
 const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupons, usePoints }) => {
+  // Fetch loyalty points settings once
+  const earnRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_EARN_RATE' } });
+  const redeemRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_REDEEM_RATE' } });
+  const earnRate = earnRateSetting ? Number(earnRateSetting.setting_value) : 10000;
+  const redeemRate = redeemRateSetting ? Number(redeemRateSetting.setting_value) : 100;
+
   let isCartCheckout = false;
   let rawItems = [];
 
@@ -116,7 +122,7 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
   if (usePoints) {
     const user = await db.User.findByPk(userId);
     if (user && user.loyalty_points > 0) {
-      pointsDiscount = user.loyalty_points * 100; // 1 point = 100 VND
+      pointsDiscount = user.loyalty_points * redeemRate; // Dynamically calculated
       // Ensure points don't exceed the total order amount
       const remainingTotal = parentSubtotal + totalShippingFee - totalShopDiscount - platformDiscount;
       if (pointsDiscount > remainingTotal) {
@@ -136,7 +142,9 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
     pointsDiscount,
     platformCoupon: platformCouponObj ? { id: platformCouponObj.id, code: platformCouponObj.code } : null,
     totalAmount: finalTotalAmount > 0 ? finalTotalAmount : 0,
-    isCartCheckout
+    isCartCheckout,
+    earnRate,
+    redeemRate
   };
 };
 
@@ -165,7 +173,7 @@ const createOrder = async (userId, data) => {
     }, { transaction });
 
     // Calculate total points to be distributed
-    const totalPointsToUse = calcResult.pointsDiscount > 0 ? Math.ceil(calcResult.pointsDiscount / 100) : 0;
+    const totalPointsToUse = calcResult.pointsDiscount > 0 ? Math.ceil(calcResult.pointsDiscount / calcResult.redeemRate) : 0;
     let pointsUsedRemaining = totalPointsToUse;
 
     // Deduct total used points from user immediately (since they are spending it now)
@@ -194,7 +202,7 @@ const createOrder = async (userId, data) => {
       }
 
       // Calculate earned points for THIS shop order
-      const shopPointsEarned = Math.floor(shop.final_amount / 10000);
+      const shopPointsEarned = Math.floor(shop.final_amount / calcResult.earnRate);
 
       const shopOrder = await db.ShopOrder.create({
         parent_order_id: parentOrder.id,
@@ -261,6 +269,15 @@ const createOrder = async (userId, data) => {
       // Vì hiện tại frontend chưa hỗ trợ thanh toán từng phần giỏ hàng, nên ta xóa luôn toàn bộ giỏ hàng
       await db.CartItem.destroy({ where: { user_id: userId }, transaction });
     }
+
+    // Tạo PaymentLog ban đầu
+    await db.PaymentLog.create({
+      order_code: parentOrder.checkout_code,
+      gateway_name: paymentMethod,
+      amount: parentOrder.total_amount,
+      status: "UNPAID",
+      message: paymentMethod === "COD" ? "Khởi tạo đơn hàng thanh toán khi nhận hàng" : "Đang chờ thanh toán trực tuyến",
+    }, { transaction });
 
     await transaction.commit();
 

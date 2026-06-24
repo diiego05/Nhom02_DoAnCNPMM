@@ -155,5 +155,13 @@ export const adminService = {
     const response = await axiosClient.get("/admin/payment-logs", { params });
     return response.data;
   },
+
+  // ============================================================
+  // 7. QUẢN LÝ ĐƠN HÀNG
+  // ============================================================
+  getOrderByCode: async (code: string) => {
+    const response = await axiosClient.get(`/admin/orders/by-code/${code}`);
+    return response.data;
+  },
 };
 

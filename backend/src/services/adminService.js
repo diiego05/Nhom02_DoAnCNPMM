@@ -384,13 +384,19 @@ const getSystemSettings = async () => {
 };
 
 const updateSystemSetting = async (adminId, key, value) => {
-  const setting = await db.SystemSetting.findByPk(key);
-  if (!setting) throw new Error(`Không tìm thấy cấu hình: ${key}`);
-
-  await setting.update({
-    setting_value: value,
-    updated_by: adminId,
-  });
+  let setting = await db.SystemSetting.findByPk(key);
+  if (!setting) {
+    setting = await db.SystemSetting.create({
+      setting_key: key,
+      setting_value: value,
+      updated_by: adminId,
+    });
+  } else {
+    await setting.update({
+      setting_value: value,
+      updated_by: adminId,
+    });
+  }
   return setting;
 };
 
@@ -488,7 +494,7 @@ const getFinancialReport = async (dateFrom, dateTo) => {
     dateFilter[Op.lte] = endDate;
   }
 
-  const shopOrderWhere = { status: "DELIVERED" };
+  const shopOrderWhere = { status: { [Op.ne]: "CANCELLED" } };
   if (Object.keys(dateFilter).length > 0) {
     shopOrderWhere.updated_at = dateFilter;
   }
@@ -657,16 +663,11 @@ const getFinancialReport = async (dateFrom, dateTo) => {
 // ============================================================
 
 const getPaymentReconciliation = async () => {
-  // Lấy tất cả shop kèm wallet, bank info, và pending payouts
+  // Lấy tất cả shop kèm bank info, và pending payouts
   const shops = await db.Shop.findAll({
     where: { status: "APPROVED" },
     attributes: ["id", "shop_name", "shop_logo", "bank_name", "bank_account_no", "bank_account_name"],
     include: [
-      {
-        model: db.ShopWallet,
-        as: "wallet",
-        attributes: ["balance", "pending_balance", "total_earned"],
-      },
       {
         model: db.User,
         as: "vendor",
@@ -688,8 +689,50 @@ const getPaymentReconciliation = async () => {
   const commissionRate = parseFloat(settingsMap.default_commission_rate || "10.00");
   const gatewayFee = parseFloat(settingsMap.payment_gateway_fee || "5.00");
   const taxRate = parseFloat(settingsMap.tax_rate || "1.50");
+  // Calculate total deduction roughly as 10% (matching vendorService)
+  const totalDeductionRate = 0.1;
 
-  // Cho mỗi shop, lấy payout mới nhất (nếu có)
+  // Lấy tất cả đơn hàng không bị hủy để tính tổng doanh thu
+  const orderItems = await db.OrderItem.findAll({
+    include: [{
+      model: db.ShopOrder,
+      as: "shopOrder",
+      where: { status: { [Op.ne]: "CANCELLED" } },
+      attributes: ["shop_id", "status"],
+      required: true
+    }],
+    attributes: ["unit_price", "quantity"]
+  });
+
+  const shopRevenue = {};
+  const shopPending = {};
+  orderItems.forEach(item => {
+    const shopId = item.shopOrder.shop_id;
+    if (!shopRevenue[shopId]) shopRevenue[shopId] = 0;
+    if (!shopPending[shopId]) shopPending[shopId] = 0;
+
+    const amount = parseFloat(item.unit_price) * item.quantity;
+    
+    // Doanh thu khả dụng (giống vendorService: tất cả đơn không hủy)
+    shopRevenue[shopId] += amount;
+
+    // Doanh thu tạm giữ (chỉ để hiển thị cho vui, các đơn chưa DELIVERED)
+    if (item.shopOrder.status !== "DELIVERED") {
+      shopPending[shopId] += amount;
+    }
+  });
+
+  // Lấy lịch sử rút tiền đã duyệt
+  const payouts = await db.ShopPayout.findAll({
+    where: { status: "COMPLETED" },
+    attributes: ["shop_id", "amount"]
+  });
+  const payoutStats = {};
+  payouts.forEach(p => {
+    if (!payoutStats[p.shop_id]) payoutStats[p.shop_id] = 0;
+    payoutStats[p.shop_id] += parseFloat(p.amount);
+  });
+
   const result = [];
   for (const shop of shops) {
     const latestPayout = await db.ShopPayout.findOne({
@@ -697,15 +740,22 @@ const getPaymentReconciliation = async () => {
       order: [["created_at", "DESC"]],
     });
 
-    // Tính trạng thái
-    let reconciliation_status = "WAITING"; // Chờ đối soát
+    let reconciliation_status = "WAITING";
     if (latestPayout) {
       if (latestPayout.status === "PENDING" || latestPayout.status === "PROCESSING") {
-        reconciliation_status = "WITHDRAWAL_REQUESTED"; // Đang yêu cầu rút
+        reconciliation_status = "WITHDRAWAL_REQUESTED";
       } else if (latestPayout.status === "COMPLETED") {
-        reconciliation_status = "COMPLETED"; // Đã chuyển khoản thành công
+        reconciliation_status = "COMPLETED";
       }
     }
+
+    const totalRevenue = shopRevenue[shop.id] || 0;
+    const netRevenue = totalRevenue * (1 - totalDeductionRate);
+    const approvedWithdrawals = payoutStats[shop.id] || 0;
+    const availableBalance = Math.max(0, netRevenue - approvedWithdrawals);
+    
+    const pendingRevenue = shopPending[shop.id] || 0;
+    const pendingBalance = pendingRevenue * (1 - totalDeductionRate);
 
     result.push({
       shop_id: shop.id,
@@ -716,9 +766,9 @@ const getPaymentReconciliation = async () => {
       bank_name: shop.bank_name,
       bank_account_no: shop.bank_account_no,
       bank_account_name: shop.bank_account_name,
-      pending_balance: parseFloat(shop.wallet?.pending_balance || 0),
-      available_balance: parseFloat(shop.wallet?.balance || 0),
-      total_earned: parseFloat(shop.wallet?.total_earned || 0),
+      pending_balance: pendingBalance,
+      available_balance: availableBalance,
+      total_earned: netRevenue,
       reconciliation_status,
       latest_payout: latestPayout ? {
         id: latestPayout.id,
@@ -815,6 +865,41 @@ const getPaymentLogs = async (page = 1, limit = 20, filters = {}) => {
   };
 };
 
+const getOrderByCode = async (checkoutCode) => {
+  const parentOrder = await db.ParentOrder.findOne({
+    where: { checkout_code: checkoutCode },
+    include: [
+      {
+        model: db.User,
+        as: "user",
+        attributes: ["id", "email", "phone"],
+        include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name"] }]
+      },
+      {
+        model: db.ShopOrder,
+        as: "shopOrders",
+        include: [
+          {
+            model: db.Shop,
+            as: "shop",
+            attributes: ["id", "shop_name", "shop_logo"]
+          },
+          {
+            model: db.OrderItem,
+            as: "items",
+          }
+        ]
+      }
+    ]
+  });
+
+  if (!parentOrder) {
+    throw new Error("Không tìm thấy đơn hàng");
+  }
+
+  return parentOrder;
+};
+
 export default {
   // Manager
   // Users
@@ -843,4 +928,6 @@ export default {
   approveShopPayout,
   // Payment Logs
   getPaymentLogs,
+  // Orders
+  getOrderByCode,
 };

@@ -38,5 +38,6 @@ router.put("/payouts/:id/approve", adminController.approveShopPayout);
 
 // ---- 6. Lịch sử thanh toán ----
 router.get("/payment-logs", adminController.getPaymentLogs);
+router.get("/orders/by-code/:code", adminController.getOrderByCode);
 
 export default router;

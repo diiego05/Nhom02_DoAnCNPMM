@@ -305,7 +305,7 @@ const googleLogin = (accessTokenFromGoogle) => {
           auth_provider: "google",
           auth_provider_id: sub,
           status: "ACTIVE",
-          role_id: 2, // Default user role
+          role_id: 5, // Default user role
         });
 
         await db.UserProfile.create({

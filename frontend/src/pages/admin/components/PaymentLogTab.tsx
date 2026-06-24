@@ -9,6 +9,10 @@ import {
    Search,
    CreditCard,
    RotateCcw,
+   X,
+   Package,
+   User,
+   Store,
 } from 'lucide-react';
 import { adminService } from '@/services/adminService';
 
@@ -29,6 +33,11 @@ export const PaymentLogTab = ({ showToast, showConfirm }: PaymentLogTabProps) =>
    const [searchQuery, setSearchQuery] = useState("");
    const [fromDate, setFromDate] = useState("");
    const [toDate, setToDate] = useState("");
+
+   // Order Detail Modal State
+   const [selectedOrderCode, setSelectedOrderCode] = useState<string | null>(null);
+   const [orderDetails, setOrderDetails] = useState<any>(null);
+   const [loadingDetails, setLoadingDetails] = useState(false);
 
    const fetchLogs = useCallback(async () => {
       setLoading(true);
@@ -67,6 +76,21 @@ export const PaymentLogTab = ({ showToast, showConfirm }: PaymentLogTabProps) =>
             return { label: "Hoàn tiền", color: "bg-blue-100 text-blue-700", icon: <RotateCcw size={12} /> };
          default:
             return { label: status, color: "bg-gray-100 text-gray-700", icon: <Clock size={12} /> };
+      }
+   };
+
+   const handleViewOrderDetails = async (code: string) => {
+      setSelectedOrderCode(code);
+      setLoadingDetails(true);
+      try {
+         const res = await adminService.getOrderByCode(code);
+         setOrderDetails(res.data);
+      } catch (e: any) {
+         console.error(e);
+         showToast("Không tìm thấy thông tin đơn hàng này hoặc đã bị xóa", "error");
+         setSelectedOrderCode(null);
+      } finally {
+         setLoadingDetails(false);
       }
    };
 
@@ -187,7 +211,12 @@ export const PaymentLogTab = ({ showToast, showConfirm }: PaymentLogTabProps) =>
                                     </div>
                                  </td>
                                  <td className="px-6 py-4">
-                                    <span className="text-sm font-black hover:text-red-600 cursor-pointer underline decoration-dashed decoration-gray-300 underline-offset-4">{log.order_code}</span>
+                                    <span 
+                                       onClick={() => handleViewOrderDetails(log.order_code)}
+                                       className="text-sm font-black hover:text-red-600 cursor-pointer underline decoration-dashed decoration-gray-300 underline-offset-4"
+                                    >
+                                       {log.order_code}
+                                    </span>
                                  </td>
                                  <td className="px-6 py-4">
                                     <div className="flex items-center gap-2">
@@ -232,6 +261,140 @@ export const PaymentLogTab = ({ showToast, showConfirm }: PaymentLogTabProps) =>
                </div>
             )}
          </div>
+
+         {/* Order Details Modal */}
+         {selectedOrderCode && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setSelectedOrderCode(null)}>
+               <div className="bg-white border-[3px] border-black rounded-[2.5rem] p-8 max-w-4xl w-full shadow-brutal relative max-h-[90vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => setSelectedOrderCode(null)} className="absolute top-6 right-6 p-2 bg-gray-100 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors z-10">
+                     <X size={20} />
+                  </button>
+                  
+                  <h2 className="text-2xl font-serif font-black tracking-tighter uppercase mb-6 pr-10">
+                     Chi tiết đơn hàng: <span className="text-red-600">{selectedOrderCode}</span>
+                  </h2>
+
+                  {loadingDetails ? (
+                     <div className="flex flex-col items-center justify-center py-20">
+                        <Loader2 size={40} className="animate-spin text-red-600 mb-4" />
+                        <p className="font-bold text-gray-500">Đang tải thông tin...</p>
+                     </div>
+                  ) : orderDetails ? (
+                     <div className="space-y-6">
+                        {/* Summary Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           {/* Customer Info */}
+                           <div className="bg-gray-50 border-2 border-black rounded-2xl p-5">
+                              <h3 className="flex items-center gap-2 font-black uppercase text-xs tracking-widest mb-4 pb-2 border-b-2 border-black/10">
+                                 <User size={16} /> Thông tin khách hàng
+                              </h3>
+                              <div className="space-y-2">
+                                 <div className="flex justify-between">
+                                    <span className="text-gray-500 text-sm font-bold">Họ tên:</span>
+                                    <span className="text-black font-black">{orderDetails.user?.profile?.full_name || "N/A"}</span>
+                                 </div>
+                                 <div className="flex justify-between">
+                                    <span className="text-gray-500 text-sm font-bold">Số ĐT:</span>
+                                    <span className="text-black font-black">{orderDetails.user?.phone || "N/A"}</span>
+                                 </div>
+                                 <div className="flex flex-col mt-2">
+                                    <span className="text-gray-500 text-sm font-bold mb-1">Địa chỉ giao hàng:</span>
+                                    <span className="text-black text-sm font-bold leading-tight">{orderDetails.shipping_address}</span>
+                                 </div>
+                              </div>
+                           </div>
+
+                           {/* Order Info */}
+                           <div className="bg-gray-50 border-2 border-black rounded-2xl p-5">
+                              <h3 className="flex items-center gap-2 font-black uppercase text-xs tracking-widest mb-4 pb-2 border-b-2 border-black/10">
+                                 <Package size={16} /> Thông tin thanh toán
+                              </h3>
+                              <div className="space-y-2">
+                                 <div className="flex justify-between">
+                                    <span className="text-gray-500 text-sm font-bold">Tổng tiền:</span>
+                                    <span className="text-red-600 text-lg font-black">{fmt(orderDetails.total_amount)}₫</span>
+                                 </div>
+                                 <div className="flex justify-between">
+                                    <span className="text-gray-500 text-sm font-bold">Phương thức:</span>
+                                    <span className="text-black font-black bg-white px-2 py-0.5 rounded border border-black">{orderDetails.payment_method}</span>
+                                 </div>
+                                 <div className="flex justify-between">
+                                    <span className="text-gray-500 text-sm font-bold">Trạng thái:</span>
+                                    <span className={`font-black ${orderDetails.payment_status === 'PAID' ? 'text-green-600' : 'text-yellow-600'}`}>
+                                       {orderDetails.payment_status === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                                    </span>
+                                 </div>
+                                 <div className="flex justify-between">
+                                    <span className="text-gray-500 text-sm font-bold">Ngày tạo:</span>
+                                    <span className="text-black font-bold text-sm">{new Date(orderDetails.created_at).toLocaleString('vi-VN')}</span>
+                                 </div>
+                              </div>
+                           </div>
+                        </div>
+
+                        {/* Shop Orders List */}
+                        <div>
+                           <h3 className="font-black uppercase tracking-widest mb-4 text-sm flex items-center gap-2">
+                              <Store size={18} /> Danh sách gói hàng ({orderDetails.shopOrders?.length || 0})
+                           </h3>
+                           <div className="space-y-4">
+                              {orderDetails.shopOrders?.map((shopOrder: any) => (
+                                 <div key={shopOrder.id} className="border-2 border-black rounded-2xl overflow-hidden">
+                                    <div className="bg-red-50 border-b-2 border-black p-4 flex flex-wrap justify-between items-center gap-4">
+                                       <div className="flex items-center gap-3">
+                                          <div className="w-10 h-10 bg-white border-2 border-black rounded-lg overflow-hidden shrink-0">
+                                             <img src={shopOrder.shop?.shop_logo} alt={shopOrder.shop?.shop_name} className="w-full h-full object-cover" />
+                                          </div>
+                                          <div>
+                                             <h4 className="font-black uppercase">{shopOrder.shop?.shop_name}</h4>
+                                             <p className="text-[10px] font-bold text-gray-500">Mã: {shopOrder.shop_order_code}</p>
+                                          </div>
+                                       </div>
+                                       <div className="flex items-center gap-4">
+                                          <div className="text-right">
+                                             <p className="text-[10px] font-black uppercase text-gray-500">Trạng thái</p>
+                                             <p className="font-bold text-sm bg-black text-white px-2 py-0.5 rounded">{shopOrder.status}</p>
+                                          </div>
+                                          <div className="text-right">
+                                             <p className="text-[10px] font-black uppercase text-gray-500">Thành tiền</p>
+                                             <p className="font-black text-red-600">{fmt(shopOrder.final_amount)}₫</p>
+                                          </div>
+                                       </div>
+                                    </div>
+                                    <div className="p-4 bg-white">
+                                       <table className="w-full text-left">
+                                          <thead>
+                                             <tr className="text-[10px] uppercase font-black text-gray-400 border-b border-dashed border-gray-200">
+                                                <th className="pb-2 font-bold">Sản phẩm</th>
+                                                <th className="pb-2 text-center font-bold">SL</th>
+                                                <th className="pb-2 text-right font-bold">Đơn giá</th>
+                                             </tr>
+                                          </thead>
+                                          <tbody>
+                                             {shopOrder.items?.map((item: any) => (
+                                                <tr key={item.id} className="border-b border-gray-50 last:border-0">
+                                                   <td className="py-2">
+                                                      <p className="font-bold text-sm line-clamp-1">{item.product_name}</p>
+                                                      <p className="text-xs text-gray-500 font-medium">Phân loại: {item.size} - {item.color}</p>
+                                                   </td>
+                                                   <td className="py-2 text-center font-black">{item.quantity}</td>
+                                                   <td className="py-2 text-right font-bold text-sm">{fmt(item.unit_price)}₫</td>
+                                                </tr>
+                                             ))}
+                                          </tbody>
+                                       </table>
+                                    </div>
+                                 </div>
+                              ))}
+                           </div>
+                        </div>
+                     </div>
+                  ) : (
+                     <div className="text-center text-red-500 font-bold py-10">Lỗi không tải được dữ liệu</div>
+                  )}
+               </div>
+            </div>
+         )}
       </div>
    );
 };

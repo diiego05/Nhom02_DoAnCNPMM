@@ -148,6 +148,48 @@ export const SettingsTab = ({ showToast, showConfirm }: SettingsTabProps) => {
             </div>
          </div>
 
+         {/* Cấu hình ví điểm */}
+         <div className="bg-white border-2 border-black rounded-[2rem] p-8 shadow-sm">
+            <h3 className="text-lg font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
+               <DollarSign size={20} /> Quy định ví điểm
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               {[
+                  { key: 'LOYALTY_POINT_EARN_RATE', label: 'Tỷ lệ tích điểm', unit: 'VND = 1 Điểm', icon: <DollarSign size={18} className="text-orange-500" /> },
+                  { key: 'LOYALTY_POINT_REDEEM_RATE', label: 'Tỷ lệ quy đổi điểm', unit: 'VND = 1 Điểm', icon: <CreditCard size={18} className="text-orange-500" /> },
+               ].map(fs => {
+                  const current = editValues[fs.key] || '';
+                  const original = settings.find((s: any) => s.setting_key === fs.key)?.setting_value || '';
+                  const changed = current !== original;
+
+                  return (
+                     <div key={fs.key} className="border-2 border-black/10 rounded-2xl p-6 hover:border-black transition-all">
+                        <div className="flex items-center gap-3 mb-4">
+                           <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center border-2 border-black/5">{fs.icon}</div>
+                           <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">{fs.label}</label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <input
+                              type="number" step="1" value={current}
+                              onChange={e => setEditValues({ ...editValues, [fs.key]: e.target.value })}
+                              className="flex-grow border-2 border-black rounded-xl px-4 py-3 font-black text-lg focus:outline-none focus:ring-4 focus:ring-red-500/10 text-center"
+                           />
+                           <span className="text-lg font-black text-gray-400">{fs.unit}</span>
+                        </div>
+                        {changed && (
+                           <button
+                              onClick={() => handleSaveSetting(fs.key)} disabled={savingKey === fs.key}
+                              className="mt-4 w-full py-2.5 border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest bg-red-600 text-white hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                           >
+                              {savingKey === fs.key ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} Lưu thay đổi
+                           </button>
+                        )}
+                     </div>
+                  );
+               })}
+            </div>
+         </div>
+
          {/* Danh mục sản phẩm */}
          <div className="bg-white border-2 border-black rounded-[2rem] p-8 shadow-sm">
             <div className="flex justify-between items-center mb-8">

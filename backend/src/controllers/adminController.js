@@ -272,6 +272,17 @@ const getPaymentLogs = async (req, res) => {
   }
 };
 
+const getOrderByCode = async (req, res) => {
+  try {
+    const { code } = req.params;
+    const data = await adminService.getOrderByCode(code);
+    return res.status(200).json({ message: "Success", data });
+  } catch (error) {
+    console.error("Error getting order by code:", error);
+    return res.status(400).json({ message: error.message });
+  }
+};
+
 
 export default {
   createUser,
@@ -293,4 +304,5 @@ export default {
   getPaymentReconciliation,
   approveShopPayout,
   getPaymentLogs,
+  getOrderByCode,
 };

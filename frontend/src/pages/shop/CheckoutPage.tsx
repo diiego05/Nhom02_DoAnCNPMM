@@ -381,48 +381,48 @@ const CheckoutPage = () => {
 
                   {(isAddingNewAddress ||
                     (addresses && addresses.length === 0)) && (
-                    <div className="space-y-4 pt-4 border-t border-dashed border-gray-200">
-                      <p className="text-sm font-black uppercase">
-                        Thêm địa chỉ mới
-                      </p>
-                      <div>
-                        <input
-                          {...register("recipient_name")}
-                          placeholder="Họ và tên"
-                          className="input-brutal text-sm"
-                        />
-                        {errors.recipient_name && (
-                          <p className="text-red-500 text-xs mt-1 font-bold">
-                            {errors.recipient_name.message}
-                          </p>
-                        )}
+                      <div className="space-y-4 pt-4 border-t border-dashed border-gray-200">
+                        <p className="text-sm font-black uppercase">
+                          Thêm địa chỉ mới
+                        </p>
+                        <div>
+                          <input
+                            {...register("recipient_name")}
+                            placeholder="Họ và tên"
+                            className="input-brutal text-sm"
+                          />
+                          {errors.recipient_name && (
+                            <p className="text-red-500 text-xs mt-1 font-bold">
+                              {errors.recipient_name.message}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <input
+                            {...register("phone_number")}
+                            placeholder="Số điện thoại"
+                            className="input-brutal text-sm"
+                          />
+                          {errors.phone_number && (
+                            <p className="text-red-500 text-xs mt-1 font-bold">
+                              {errors.phone_number.message}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <input
+                            {...register("address_line")}
+                            placeholder="Địa chỉ chi tiết"
+                            className="input-brutal text-sm"
+                          />
+                          {errors.address_line && (
+                            <p className="text-red-500 text-xs mt-1 font-bold">
+                              {errors.address_line.message}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <input
-                          {...register("phone_number")}
-                          placeholder="Số điện thoại"
-                          className="input-brutal text-sm"
-                        />
-                        {errors.phone_number && (
-                          <p className="text-red-500 text-xs mt-1 font-bold">
-                            {errors.phone_number.message}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <input
-                          {...register("address_line")}
-                          placeholder="Địa chỉ chi tiết"
-                          className="input-brutal text-sm"
-                        />
-                        {errors.address_line && (
-                          <p className="text-red-500 text-xs mt-1 font-bold">
-                            {errors.address_line.message}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                    )}
 
                   <div className="mt-8 pt-8 border-t border-dashed border-gray-200">
                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">
@@ -771,43 +771,43 @@ const CheckoutPage = () => {
                       {availableShopCoupons.filter(
                         (c: any) => c.shop_id === group.shop?.id,
                       ).length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Ticket size={16} className="text-primary" />
-                            <span className="text-xs font-bold text-gray-400 uppercase">
-                              Mã của Shop
-                            </span>
+                          <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Ticket size={16} className="text-primary" />
+                              <span className="text-xs font-bold text-gray-400 uppercase">
+                                Mã của Shop
+                              </span>
+                            </div>
+                            <select
+                              value={shopCoupons[group.shop?.id] || ""}
+                              onChange={(e) =>
+                                setShopCoupons((prev) => ({
+                                  ...prev,
+                                  [group.shop?.id]: e.target.value,
+                                }))
+                              }
+                              className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
+                            >
+                              <option value="" className="text-black">
+                                Chọn mã giảm giá
+                              </option>
+                              {availableShopCoupons
+                                .filter((c: any) => c.shop_id === group.shop?.id)
+                                .map((c: any) => (
+                                  <option
+                                    key={c.id}
+                                    value={c.code}
+                                    className="text-black"
+                                  >
+                                    {c.code} - Giảm{" "}
+                                    {c.discount_type === "PERCENT"
+                                      ? `${c.discount_value}%`
+                                      : `${Number(c.discount_value).toLocaleString()}đ`}
+                                  </option>
+                                ))}
+                            </select>
                           </div>
-                          <select
-                            value={shopCoupons[group.shop?.id] || ""}
-                            onChange={(e) =>
-                              setShopCoupons((prev) => ({
-                                ...prev,
-                                [group.shop?.id]: e.target.value,
-                              }))
-                            }
-                            className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
-                          >
-                            <option value="" className="text-black">
-                              Chọn mã giảm giá
-                            </option>
-                            {availableShopCoupons
-                              .filter((c: any) => c.shop_id === group.shop?.id)
-                              .map((c: any) => (
-                                <option
-                                  key={c.id}
-                                  value={c.code}
-                                  className="text-black"
-                                >
-                                  {c.code} - Giảm{" "}
-                                  {c.discount_type === "PERCENT"
-                                    ? `${c.discount_value}%`
-                                    : `${Number(c.discount_value).toLocaleString()}đ`}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-                      )}
+                        )}
                     </div>
                   ))}
                 </div>

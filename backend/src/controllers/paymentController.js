@@ -17,6 +17,14 @@ const vnpayReturn = async (req, res) => {
             { status: "PENDING" },
             { where: { parent_order_id: order.id } }
           );
+          await db.PaymentLog.create({
+            order_code: orderId,
+            gateway_name: "VNPAY",
+            amount: order.total_amount,
+            status: "PAID",
+            trans_id: vnp_Params["vnp_TransactionNo"] || null,
+            message: "Thanh toán thành công qua VNPAY",
+          });
         }
       } catch (e) {
         console.error("Error updating order in vnpayReturn:", e);
@@ -65,12 +73,30 @@ const vnpayIpn = async (req, res) => {
           { where: { parent_order_id: order.id } }
         );
         
+        await db.PaymentLog.create({
+          order_code: orderId,
+          gateway_name: "VNPAY",
+          amount: vnp_Amount,
+          status: "PAID",
+          trans_id: vnp_Params["vnp_TransactionNo"] || null,
+          message: "Thanh toán thành công qua VNPAY",
+        });
+
         return res.status(200).json({ RspCode: "00", Message: "Confirm Success" });
       } else {
         // Payment failed
         order.payment_status = "FAILED";
         await order.save();
         
+        await db.PaymentLog.create({
+          order_code: orderId,
+          gateway_name: "VNPAY",
+          amount: vnp_Amount,
+          status: "FAILED",
+          trans_id: vnp_Params["vnp_TransactionNo"] || null,
+          message: `Giao dịch thất bại. Mã lỗi: ${rspCode}`,
+        });
+
         // Xóa hoặc update trạng thái các shop orders nếu muốn
         return res.status(200).json({ RspCode: "00", Message: "Confirm Success" });
       }

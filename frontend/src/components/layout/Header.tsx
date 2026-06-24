@@ -262,10 +262,10 @@ const Header = () => {
           {isAuthenticated && (isManager || isAdmin) && (
             <Link
               to={isAdmin ? "/admin" : "/manager"}
-              title={isAdmin ? "Admin Dashboard" : "Manager Dashboard"}
-              className="w-11 h-11 bg-gradient-to-br from-gray-800 to-black text-white rounded-full flex items-center justify-center hover:from-primary hover:to-primary-dark transition-all shadow-soft hover:shadow-premium hover:-translate-y-1 active:scale-95 shrink-0"
+              className="flex items-center gap-2 px-4 py-2.5 border-2 border-black rounded-full font-black text-[10px] uppercase tracking-widest bg-black text-white hover:bg-primary transition-all shadow-soft active:scale-95 shrink-0"
             >
-              <ShieldCheck size={22} strokeWidth={2.5} />
+              <ShieldCheck size={16} strokeWidth={2.5} />
+              Quản trị viên
             </Link>
           )}
           

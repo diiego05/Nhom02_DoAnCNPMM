@@ -271,7 +271,6 @@ const AdminDashboard = () => {
                               >
                                  Thông tin cá nhân
                               </button>
-                              <button className="w-full text-left px-3 py-2 hover:bg-gray-50 rounded-lg text-[10px] font-black uppercase tracking-widest text-black transition-all">Cài đặt bảo mật</button>
                               <button onClick={handleLogout} className="w-full text-left px-3 py-2 hover:bg-red-50 text-red-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all mt-2">Đăng xuất</button>
                            </div>
                         </div>
