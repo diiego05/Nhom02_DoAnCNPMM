@@ -34,7 +34,7 @@ export default (sequelize, DataTypes) => {
       status: {
         type: DataTypes.ENUM(
           "PENDING", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP",
-          "DELIVERING", "DELIVERED", "CANCELLED", "RETURN_PENDING", "RETURNED"
+          "DELIVERING", "DELIVERED", "CANCELLED", "RETURN_PENDING", "RETURNED", "COMPLETED"
         ),
         allowNull: false,
         defaultValue: "PENDING",

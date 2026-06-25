@@ -372,6 +372,31 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
     if (shopOrder.points_earned && shopOrder.points_earned > 0) {
       await db.User.increment('loyalty_points', { by: shopOrder.points_earned, where: { id: shopOrder.parentOrder.user_id } });
     }
+    
+    // Update ShopWallet: increase pending_balance and total_earned
+    const netEarning = parseFloat(shopOrder.final_amount) - parseFloat(shopOrder.commission_amount) - parseFloat(shopOrder.shipping_fee);
+    const [wallet] = await db.ShopWallet.findOrCreate({
+      where: { shop_id: shopOrder.shop_id },
+      defaults: { balance: 0, pending_balance: 0, total_earned: 0 }
+    });
+    await wallet.increment({
+      pending_balance: netEarning,
+      total_earned: netEarning
+    });
+  }
+
+  // Release pending balance to available balance when completed successfully
+  if (newStatus === "COMPLETED" && oldStatus !== "COMPLETED") {
+    const netEarning = parseFloat(shopOrder.final_amount) - parseFloat(shopOrder.commission_amount) - parseFloat(shopOrder.shipping_fee);
+    const [wallet] = await db.ShopWallet.findOrCreate({
+      where: { shop_id: shopOrder.shop_id },
+      defaults: { balance: 0, pending_balance: 0, total_earned: 0 }
+    });
+    const newPending = Math.max(0, parseFloat(wallet.pending_balance) - netEarning);
+    await wallet.update({
+      pending_balance: newPending,
+      balance: db.sequelize.literal(`balance + ${netEarning}`)
+    });
   }
 
   // Refund points when cancelled

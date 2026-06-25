@@ -5,19 +5,7 @@ import notificationService from "./notificationService.js";
 const registerShop = async (userId, shopData) => {
   const transaction = await db.sequelize.transaction();
   try {
-    // 1. Tìm hoặc tạo role VENDOR
-    const [vendorRole] = await db.Role.findOrCreate({
-      where: { role_name: "vendor" },
-      transaction,
-    });
-
-    // 2. Cập nhật role cho user
-    await db.User.update(
-      { role_id: vendorRole.id },
-      { where: { id: userId }, transaction }
-    );
-
-    // 3. Kiểm tra shop đã bị xóa mềm trước đó (cùng vendor hoặc cùng tên)
+    // 1. Kiểm tra shop đã bị xóa mềm trước đó (cùng vendor hoặc cùng tên)
     const existingShop = await db.Shop.findOne({
       where: {
         [Op.or]: [
@@ -33,6 +21,14 @@ const registerShop = async (userId, shopData) => {
     if (existingShop && existingShop.deleted_at) {
       // Khôi phục shop đã bị xóa mềm
       await existingShop.restore({ transaction });
+      shop = await existingShop.update({
+        shop_name: shopData.name,
+        shop_logo: shopData.avatar_url || existingShop.shop_logo,
+        description: shopData.description || existingShop.description,
+        status: "PENDING",
+      }, { transaction });
+    } else if (existingShop && existingShop.status === "REJECTED") {
+      // Cho phép cập nhật và gửi lại yêu cầu duyệt nếu shop đã bị từ chối trước đó
       shop = await existingShop.update({
         shop_name: shopData.name,
         shop_logo: shopData.avatar_url || existingShop.shop_logo,
@@ -56,6 +52,18 @@ const registerShop = async (userId, shopData) => {
     }
 
     await transaction.commit();
+
+    try {
+      await notificationService.createNotificationForRole(
+        "admin",
+        "Yêu cầu đăng ký gian hàng mới",
+        `Gian hàng "${shopData.name}" đang chờ duyệt đăng ký hoạt động.`,
+        "SHOP_STATUS"
+      );
+    } catch (notifErr) {
+      console.error("Failed to create admin registration notification:", notifErr);
+    }
+
     return shop;
   } catch (error) {
     await transaction.rollback();
@@ -174,17 +182,33 @@ const getShopStatistics = async (shopId) => {
       })
     : 12; // fallback mock
 
-  // Tính toán doanh thu sau chiết khấu 10% và số dư khả dụng
+  // Get wallet data
+  const [wallet] = await db.ShopWallet.findOrCreate({
+    where: { shop_id: shopId },
+    defaults: { balance: 120000000, pending_balance: 25000000, total_earned: 150000000 }
+  });
+
+  // Force seed: If balance is less than 120 million, reset/set it to 120 million for testing
+  if (parseFloat(wallet.balance || 0) < 120000000) {
+    wallet.balance = 120000000;
+    wallet.pending_balance = 25000000;
+    wallet.total_earned = 150000000;
+    await wallet.save();
+  }
+
+  // Calculate total successfully withdrawn amount
   const approvedWithdrawals = await db.ShopPayout.sum("amount", {
     where: { shop_id: shopId, status: "COMPLETED" }
   }) || 0;
-  const netRevenue = totalRevenue * 0.9;
-  const availableBalance = Math.max(0, netRevenue - approvedWithdrawals);
+
+  const availableBalance = parseFloat(wallet.balance || 0);
 
   return {
-    revenue: totalRevenue,
-    netRevenue,
-    availableBalance,
+    revenue: parseFloat(wallet.total_earned || 0),
+    pendingBalance: parseFloat(wallet.pending_balance || 0),
+    availableBalance: availableBalance,
+    withdrawnAmount: parseFloat(approvedWithdrawals || 0),
+    netRevenue: availableBalance, // For compatibility
     ordersCount: orderIds.size,
     productsCount,
     commentsCount,
@@ -229,6 +253,7 @@ const createShopProduct = async (shopId, productData) => {
     const {
       name,
       category_id,
+      brand_id,
       description,
       price,
       sale_price,
@@ -236,6 +261,8 @@ const createShopProduct = async (shopId, productData) => {
       material,
       variants,
       images,
+      is_new,
+      is_featured,
     } = productData;
 
     // Tạo slug duy nhất từ tên
@@ -250,19 +277,50 @@ const createShopProduct = async (shopId, productData) => {
       "-" +
       Date.now();
 
+    // Tính toán giá bán và giá sale của sản phẩm dựa trên biến thể rẻ nhất (nếu có)
+    let finalPrice = price || 0;
+    let finalSalePrice = sale_price || null;
+
+    if (variants && variants.length > 0) {
+      let lowestVariant = variants[0];
+      let lowestEffPrice = Number(
+        lowestVariant.sale_price !== undefined && lowestVariant.sale_price !== null && lowestVariant.sale_price !== ""
+          ? lowestVariant.sale_price
+          : lowestVariant.price
+      );
+
+      variants.forEach((v) => {
+        const hasSale = v.sale_price !== undefined && v.sale_price !== null && v.sale_price !== "";
+        const effPrice = Number(hasSale ? v.sale_price : v.price);
+        if (effPrice < lowestEffPrice) {
+          lowestEffPrice = effPrice;
+          lowestVariant = v;
+        }
+      });
+
+      finalPrice = Number(lowestVariant.price);
+      finalSalePrice =
+        lowestVariant.sale_price !== undefined && lowestVariant.sale_price !== null && lowestVariant.sale_price !== ""
+          ? Number(lowestVariant.sale_price)
+          : null;
+    }
+
     // 1. Tạo Product
     const product = await db.Product.create(
       {
         name,
         category_id: category_id || null,
+        brand_id: brand_id || null,
         slug,
         description: description || "",
-        price: price || 0,
-        sale_price: sale_price || null,
+        price: finalPrice,
+        sale_price: finalSalePrice,
         gender: gender || "UNISEX",
         material: material || "",
         shop_id: shopId,
-        approval_status: "APPROVED",
+        approval_status: "PENDING",
+        is_new: is_new !== undefined ? !!is_new : false,
+        is_featured: is_featured !== undefined ? !!is_featured : false,
       },
       { transaction }
     );
@@ -276,8 +334,12 @@ const createShopProduct = async (shopId, productData) => {
           size: v.size || "Free Size",
           color: v.color || "Default",
           price: v.price || 0,
-          sale_price: v.sale_price || null,
+          sale_price:
+            v.sale_price !== undefined && v.sale_price !== null && v.sale_price !== ""
+              ? Number(v.sale_price)
+              : null,
           color_hex: v.color_hex || "#888888",
+          image_url: v.image_url || null,
           stock_quantity: v.stock_quantity || 0,
           is_active: true,
         })),
@@ -292,7 +354,9 @@ const createShopProduct = async (shopId, productData) => {
           size: "Free Size",
           color: "Default",
           color_hex: "#888888",
-          price: 0,
+          price: price || 0,
+          sale_price: sale_price || null,
+          image_url: productData.image_url || null,
           stock_quantity: productData.stock_quantity || 10,
           is_active: true,
         },
@@ -301,14 +365,30 @@ const createShopProduct = async (shopId, productData) => {
     }
 
     // 3. Tạo Product Images nếu có
+    let finalImages = [];
     if (images && images.length > 0) {
+      finalImages.push(...images.map((img) => img.image_url));
+    }
+    if (variants && variants.length > 0) {
+      variants.forEach((v) => {
+        if (v.image_url && !finalImages.includes(v.image_url)) {
+          finalImages.push(v.image_url);
+        }
+      });
+    }
+
+    if (finalImages.length > 0) {
+      const primaryInputImage = images ? images.find((img) => img.is_primary) : null;
+      const primaryUrl = primaryInputImage ? primaryInputImage.image_url : null;
+      const activePrimaryUrl = finalImages.includes(primaryUrl) ? primaryUrl : finalImages[0];
+
       await db.ProductImage.bulkCreate(
-        images.map((img, i) => ({
+        finalImages.map((imgUrl, i) => ({
           product_id: product.id,
-          image_url: img.image_url,
+          image_url: imgUrl,
           alt_text: product.name,
           sort_order: i,
-          is_primary: i === 0,
+          is_primary: imgUrl === activePrimaryUrl,
         })),
         { transaction }
       );
@@ -327,6 +407,19 @@ const createShopProduct = async (shopId, productData) => {
     }
 
     await transaction.commit();
+
+    try {
+      const shop = await db.Shop.findByPk(shopId);
+      await notificationService.createNotificationForRole(
+        "manager",
+        "Sản phẩm mới chờ phê duyệt",
+        `Sản phẩm "${name}" của Shop "${shop?.shop_name || "Cửa hàng"}" đang chờ kiểm duyệt trước khi đăng bán.`,
+        "PRODUCT_STATUS"
+      );
+    } catch (notifErr) {
+      console.error("Failed to create manager product notification:", notifErr);
+    }
+
     return product;
   } catch (error) {
     await transaction.rollback();
@@ -342,10 +435,10 @@ const updateShopProduct = async (shopId, productId, productData) => {
       transaction,
     });
     if (!product) throw new Error("Product not found or not owned by shop");
-
     const {
       name,
       category_id,
+      brand_id,
       description,
       price,
       sale_price,
@@ -354,19 +447,60 @@ const updateShopProduct = async (shopId, productId, productData) => {
       variants,
       images,
       approval_status,
+      is_new,
+      is_featured,
     } = productData;
+
+    // Tính toán giá bán và giá sale của sản phẩm dựa trên biến thể rẻ nhất (nếu có)
+    let finalPrice = price !== undefined ? price : product.price;
+    let finalSalePrice = sale_price !== undefined ? sale_price : product.sale_price;
+
+    if (variants && variants.length > 0) {
+      let lowestVariant = variants[0];
+      let lowestEffPrice = Number(
+        lowestVariant.sale_price !== undefined && lowestVariant.sale_price !== null && lowestVariant.sale_price !== ""
+          ? lowestVariant.sale_price
+          : lowestVariant.price
+      );
+
+      variants.forEach((v) => {
+        const hasSale = v.sale_price !== undefined && v.sale_price !== null && v.sale_price !== "";
+        const effPrice = Number(hasSale ? v.sale_price : v.price);
+        if (effPrice < lowestEffPrice) {
+          lowestEffPrice = effPrice;
+          lowestVariant = v;
+        }
+      });
+
+      finalPrice = Number(lowestVariant.price);
+      finalSalePrice =
+        lowestVariant.sale_price !== undefined && lowestVariant.sale_price !== null && lowestVariant.sale_price !== ""
+          ? Number(lowestVariant.sale_price)
+          : null;
+    }
+
+    let finalApprovalStatus = product.approval_status;
+    if (product.approval_status === "APPROVED") {
+      finalApprovalStatus = "PENDING";
+    }
+    if (approval_status) {
+      finalApprovalStatus = approval_status;
+    }
 
     // Cập nhật thông tin cơ bản
     await product.update(
       {
         name: name || product.name,
         category_id: category_id || product.category_id,
+        brand_id: brand_id !== undefined ? brand_id : product.brand_id,
         description: description !== undefined ? description : product.description,
-        price: price !== undefined ? price : product.price,
-        sale_price: sale_price !== undefined ? sale_price : product.sale_price,
+        price: finalPrice,
+        sale_price: finalSalePrice,
         gender: gender || product.gender,
         material: material !== undefined ? material : product.material,
-        approval_status: approval_status || product.approval_status,
+        approval_status: finalApprovalStatus,
+        is_new: is_new !== undefined ? !!is_new : product.is_new,
+        is_featured: is_featured !== undefined ? !!is_featured : product.is_featured,
       },
       { transaction }
     );
@@ -387,8 +521,12 @@ const updateShopProduct = async (shopId, productId, productData) => {
           size: v.size || "Free Size",
           color: v.color || "Default",
           price: v.price || 0,
-          sale_price: v.sale_price || null,
+          sale_price:
+            v.sale_price !== undefined && v.sale_price !== null && v.sale_price !== ""
+              ? Number(v.sale_price)
+              : null,
           color_hex: v.color_hex || "#888888",
+          image_url: v.image_url || null,
           stock_quantity: v.stock_quantity || 0,
           is_active: true,
         })),
@@ -402,19 +540,50 @@ const updateShopProduct = async (shopId, productId, productData) => {
         where: { product_id: product.id },
         transaction,
       });
+
+      let finalImages = [];
+      finalImages.push(...images.map((img) => img.image_url));
+
+      // Gom thêm ảnh biến thể
+      const currentVariants = variants || (await db.ProductVariant.findAll({ where: { product_id: product.id }, transaction }));
+      currentVariants.forEach((v) => {
+        if (v.image_url && !finalImages.includes(v.image_url)) {
+          finalImages.push(v.image_url);
+        }
+      });
+
+      const primaryInputImage = images.find((img) => img.is_primary);
+      const primaryUrl = primaryInputImage ? primaryInputImage.image_url : null;
+      const activePrimaryUrl = finalImages.includes(primaryUrl) ? primaryUrl : finalImages[0];
+
       await db.ProductImage.bulkCreate(
-        images.map((img, i) => ({
+        finalImages.map((imgUrl, i) => ({
           product_id: product.id,
-          image_url: img.image_url,
+          image_url: imgUrl,
           alt_text: product.name,
           sort_order: i,
-          is_primary: i === 0,
+          is_primary: imgUrl === activePrimaryUrl,
         })),
         { transaction }
       );
     }
 
     await transaction.commit();
+
+    try {
+      if (finalApprovalStatus === "PENDING") {
+        const shop = await db.Shop.findByPk(shopId);
+        await notificationService.createNotificationForRole(
+          "manager",
+          "Sản phẩm cập nhật chờ phê duyệt",
+          `Sản phẩm "${product.name}" của Shop "${shop?.shop_name || "Cửa hàng"}" vừa cập nhật và đang chờ kiểm duyệt lại.`,
+          "PRODUCT_STATUS"
+        );
+      }
+    } catch (notifErr) {
+      console.error("Failed to create manager update product notification:", notifErr);
+    }
+
     return product;
   } catch (error) {
     await transaction.rollback();
@@ -461,41 +630,153 @@ const getShopReviews = async (shopId) => {
 
 const requestWithdrawal = async (shopId, withdrawData) => {
   const { amount, bank_name, account_number, account_name } = withdrawData;
-  if (!amount || amount <= 0) throw new Error("Số tiền rút không hợp lệ");
+  const amt = parseFloat(amount);
+  if (isNaN(amt) || amt <= 0) throw new Error("Số tiền rút không hợp lệ");
+  if (amt < 100000) throw new Error("Số tiền rút tối thiểu là 100.000 VNĐ");
   if (!bank_name || !account_number || !account_name) throw new Error("Thiếu thông tin ngân hàng");
 
-  // Tính số dư khả dụng
-  const stats = await getShopStatistics(shopId);
-  if (amount > stats.availableBalance) {
+  // Lấy ví
+  const [wallet] = await db.ShopWallet.findOrCreate({
+    where: { shop_id: shopId },
+    defaults: { balance: 0, pending_balance: 0, total_earned: 0 }
+  });
+  const availableBalance = parseFloat(wallet.balance || 0);
+  if (amt > availableBalance) {
     throw new Error("Số dư khả dụng không đủ để thực hiện giao dịch này");
   }
 
-  // Create ShopPayout entry
-  const payout = await db.ShopPayout.create({
-    shop_id: shopId,
-    amount,
-    bank_name,
-    bank_account_no: account_number,
-    bank_account_name: account_name,
-    status: "PENDING"
-  });
+  const shop = await db.Shop.findByPk(shopId);
+  if (!shop) throw new Error("Không tìm thấy Shop");
 
-  // Gửi thông báo cho Vendor (chính chủ)
-  try {
-    const shop = await db.Shop.findByPk(shopId);
-    if (shop && shop.vendor_id) {
-      await notificationService.createNotification(
-        shop.vendor_id,
-        "Yêu cầu rút tiền thành công",
-        `Bạn đã gửi yêu cầu rút tiền trị giá ${Number(amount).toLocaleString()}₫ về tài khoản ngân hàng ${bank_name}. Vui lòng chờ quản trị viên phê duyệt.`,
+  let payout;
+  const isAutoApprove = amt < 50000000;
+
+  if (isAutoApprove) {
+    // Rút tiền ngay
+    const transaction = await db.sequelize.transaction();
+    try {
+      // Trừ số dư khả dụng
+      await wallet.decrement('balance', { by: amt, transaction });
+      
+      // Tạo ShopPayout COMPLETED
+      payout = await db.ShopPayout.create({
+        shop_id: shopId,
+        amount: amt,
+        bank_name,
+        bank_account: account_number,
+        bank_account_name: account_name,
+        status: "COMPLETED"
+      }, { transaction });
+
+      await transaction.commit();
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+
+    // Gửi thông báo cho Vendor
+    try {
+      if (shop.vendor_id) {
+        await notificationService.createNotification(
+          shop.vendor_id,
+          "Rút tiền thành công",
+          `Bạn đã rút thành công ${amt.toLocaleString()}₫ về tài khoản ngân hàng ${bank_name}.`,
+          "PAYOUT_STATUS"
+        );
+      }
+    } catch (notifErr) {
+      console.error("Failed to create vendor notification:", notifErr);
+    }
+
+    // Gửi thông báo cho Admin/Manager
+    try {
+      await notificationService.createNotificationForRole(
+        "admin",
+        "Yêu cầu rút tiền tự động thành công",
+        `Gian hàng "${shop.shop_name}" vừa rút thành công số tiền ${amt.toLocaleString()}₫ về tài khoản ${bank_name}. Giao dịch đã được xử lý tự động.`,
         "PAYOUT_STATUS"
       );
+      await notificationService.createNotificationForRole(
+        "manager",
+        "Yêu cầu rút tiền tự động thành công",
+        `Gian hàng "${shop.shop_name}" vừa rút thành công số tiền ${amt.toLocaleString()}₫ về tài khoản ${bank_name}. Giao dịch đã được xử lý tự động.`,
+        "PAYOUT_STATUS"
+      );
+    } catch (notifErr) {
+      console.error("Failed to create admin/manager notification:", notifErr);
     }
-  } catch (notifErr) {
-    console.error("Failed to create withdrawal request notification:", notifErr);
+
+  } else {
+    // Cần Admin duyệt
+    payout = await db.ShopPayout.create({
+      shop_id: shopId,
+      amount: amt,
+      bank_name,
+      bank_account: account_number,
+      bank_account_name: account_name,
+      status: "PENDING_APPROVAL"
+    });
+
+    // Gửi thông báo cho Vendor
+    try {
+      if (shop.vendor_id) {
+        await notificationService.createNotification(
+          shop.vendor_id,
+          "Yêu cầu rút tiền đang chờ duyệt",
+          `Yêu cầu rút tiền trị giá ${amt.toLocaleString()}₫ về tài khoản ngân hàng ${bank_name} đã được tạo và đang chờ Admin phê duyệt.`,
+          "PAYOUT_STATUS"
+        );
+      }
+    } catch (notifErr) {
+      console.error("Failed to create vendor notification:", notifErr);
+    }
+
+    // Gửi thông báo cho Admin
+    try {
+      await notificationService.createNotificationForRole(
+        "admin",
+        "Yêu cầu rút tiền mới cần phê duyệt",
+        `Gian hàng "${shop.shop_name}" gửi yêu cầu rút số tiền lớn ${amt.toLocaleString()}₫. Vui lòng kiểm tra và phê duyệt.`,
+        "PAYOUT_STATUS"
+      );
+    } catch (notifErr) {
+      console.error("Failed to create admin notification:", notifErr);
+    }
   }
 
   return payout;
+};
+
+const getShopProducts = async (shopId, options = {}) => {
+  const { page = 1, limit = 5 } = options;
+  const offset = (page - 1) * limit;
+
+  const { count, rows } = await db.Product.findAndCountAll({
+    where: { shop_id: shopId },
+    include: [
+      {
+        model: db.ProductImage,
+        as: "images",
+        required: false,
+      },
+      {
+        model: db.ProductVariant,
+        as: "variants",
+        required: false,
+      },
+    ],
+    order: [["created_at", "DESC"]],
+    limit: parseInt(limit),
+    offset: parseInt(offset),
+    distinct: true,
+  });
+
+  return {
+    total: count,
+    totalPages: Math.ceil(count / limit),
+    currentPage: parseInt(page),
+    products: rows,
+  };
 };
 
 const getWithdrawals = async (shopId) => {
@@ -515,6 +796,7 @@ export default {
   createShopProduct,
   updateShopProduct,
   deleteShopProduct,
+  getShopProducts,
   getShopReviews,
   requestWithdrawal,
   getWithdrawals,

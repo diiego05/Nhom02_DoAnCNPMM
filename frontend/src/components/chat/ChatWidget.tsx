@@ -9,10 +9,15 @@ import {
   ArrowLeft,
   Search,
   MessageSquare,
+  FileText,
+  Download,
+  Loader2,
+  ChevronUp,
 } from "lucide-react";
 import useAuth from "@/hooks/useAuth";
 import { chatService, ChatMessage, ConversationInfo } from "@/services/chatService";
 import { useNavigate } from "react-router-dom";
+import EmojiPicker from "./EmojiPicker";
 
 const DEFAULT_SHOP_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='128' height='128'><rect width='100' height='100' fill='%23FFE4D6' stroke='black' stroke-width='4'/><path d='M20 40 L50 15 L80 40 L80 85 L20 85 Z' fill='white' stroke='black' stroke-width='4'/><rect x='40' y='55' width='20' height='30' fill='%23D97736' stroke='black' stroke-width='4'/><path d='M15 40 L85 40' stroke='black' stroke-width='4'/></svg>";
 
@@ -36,8 +41,14 @@ const ChatWidget = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeShop, setActiveShop] = useState<ActiveShop | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [attachedFile, setAttachedFile] = useState<{ url: string; name: string; type: string } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const prevUnreadCountRef = useRef<number>(0);
+  const isInitialUnreadLoad = useRef<boolean>(true);
+  const messagesLengthRef = useRef<number>(0);
 
   // Cuộn xuống tin nhắn mới nhất
   const scrollToBottom = () => {
@@ -61,6 +72,12 @@ const ChatWidget = () => {
       try {
         const res = await chatService.getUnreadCount();
         if (res && res.data !== undefined) {
+          if (!isInitialUnreadLoad.current && res.data > prevUnreadCountRef.current) {
+            const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2357/2357-84.wav");
+            audio.play().catch(e => console.log("Blocked audio play:", e));
+          }
+          isInitialUnreadLoad.current = false;
+          prevUnreadCountRef.current = res.data;
           setUnreadCount(res.data);
         }
       } catch (err) {
@@ -126,10 +143,20 @@ const ChatWidget = () => {
       return;
     }
 
+    messagesLengthRef.current = 0;
+
     const fetchChatHistory = async () => {
       try {
         const res = await chatService.getChatHistory(activeShop.id);
         if (res && res.data) {
+          if (messagesLengthRef.current > 0 && res.data.length > messagesLengthRef.current) {
+            const lastNewMsg = res.data[res.data.length - 1];
+            if (lastNewMsg.sender_id !== user?.id) {
+              const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2357/2357-84.wav");
+              audio.play().catch(e => console.log("Blocked audio play:", e));
+            }
+          }
+          messagesLengthRef.current = res.data.length;
           setMessages(res.data);
         }
       } catch (err) {
@@ -173,18 +200,66 @@ const ChatWidget = () => {
     setView("detail");
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isImage = file.type.startsWith("image/");
+    const maxSize = isImage ? 5 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert(`Dung lượng file vượt quá giới hạn cho phép (${isImage ? "5MB đối với hình ảnh" : "10MB đối với tài liệu"})`);
+      e.target.value = "";
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const res = await chatService.uploadAttachment(file);
+      if (res && res.data) {
+        setAttachedFile({
+          url: res.data.url,
+          name: res.data.name,
+          type: res.data.type
+        });
+      }
+    } catch (err) {
+      console.error("Lỗi tải tệp lên:", err);
+      alert("Tải tệp lên thất bại. Vui lòng thử lại!");
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleTriggerFileInput = () => {
+    if (isUploading) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleRemoveAttachedFile = () => {
+    setAttachedFile(null);
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || !activeShop || !isAuthenticated) return;
-
     const content = message.trim();
+    if (!content && !attachedFile) return;
+    if (!activeShop || !isAuthenticated || isUploading) return;
+
     setMessage("");
+    const currentAttachment = attachedFile;
+    setAttachedFile(null);
 
     try {
-      const res = await chatService.sendMessage(activeShop.id, content);
+      const res = await chatService.sendMessage(
+        activeShop.id,
+        content,
+        currentAttachment?.url,
+        currentAttachment?.name,
+        currentAttachment?.type
+      );
       if (res && res.data) {
         setMessages((prev) => [...prev, res.data]);
-        // Tải lại unread count
         const unreadRes = await chatService.getUnreadCount();
         if (unreadRes && unreadRes.data !== undefined) {
           setUnreadCount(unreadRes.data);
@@ -192,6 +267,8 @@ const ChatWidget = () => {
       }
     } catch (err) {
       console.error("Lỗi gửi tin nhắn:", err);
+      setAttachedFile(currentAttachment);
+      setMessage(content);
     }
   };
 
@@ -225,11 +302,17 @@ const ChatWidget = () => {
   return (
     <div className={`fixed bottom-8 right-8 w-[380px] bg-white/95 backdrop-blur-xl border border-gray-100 rounded-3xl shadow-premium z-50 overflow-hidden transition-all duration-300 flex flex-col ${isMinimized ? 'h-20' : 'h-[550px]'}`}>
       {/* Header */}
-      <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-white/80 relative z-10 select-none">
+      <div 
+        onClick={() => isMinimized && setIsMinimized(false)}
+        className={`p-5 border-b border-gray-100 flex items-center justify-between bg-white/80 relative z-10 select-none ${isMinimized ? 'cursor-pointer hover:bg-gray-50/50' : ''}`}
+      >
         <div className="flex items-center gap-3">
           {view === "detail" && (
             <button
-              onClick={() => setView("list")}
+              onClick={(e) => {
+                e.stopPropagation();
+                setView("list");
+              }}
               className="p-1.5 border border-gray-200 rounded-lg hover:bg-gray-100 transition-all cursor-pointer active:scale-95 animate-in fade-in duration-200"
               title="Quay lại danh sách"
             >
@@ -266,14 +349,24 @@ const ChatWidget = () => {
         
         <div className="flex gap-1.5">
           <button
-            onClick={() => setIsMinimized(!isMinimized)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMinimized(!isMinimized);
+            }}
             className="p-2 text-gray-400 hover:text-black hover:bg-gray-50 rounded-lg transition-all cursor-pointer active:scale-95"
-            title="Thu nhỏ"
+            title={isMinimized ? "Mở rộng" : "Thu nhỏ"}
           >
-            <Minus size={16} className="stroke-[2px]" />
+            {isMinimized ? (
+              <ChevronUp size={16} className="stroke-[2px]" />
+            ) : (
+              <Minus size={16} className="stroke-[2px]" />
+            )}
           </button>
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(false);
+            }}
             className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all cursor-pointer active:scale-95"
             title="Đóng"
           >
@@ -378,7 +471,7 @@ const ChatWidget = () => {
                 ) : (
                   <>
                     {messages.map((msg, index) => {
-                      const isMe = msg.sender_id === user?.id;
+                      const isMe = String(msg.sender_id) === String(user?.id);
                       
                       // Nhóm tin nhắn theo ngày
                       const showDateSeparator = index === 0 || 
@@ -415,7 +508,35 @@ const ChatWidget = () => {
                             )}
                             <div className="space-y-1 max-w-[calc(100%-2.5rem)]">
                               <div className={`p-3.5 rounded-2xl shadow-sm text-left ${isMe ? "bg-primary text-white rounded-tr-none" : "bg-white text-black rounded-tl-none border border-gray-100"}`}>
-                                <p className="text-[11px] font-medium leading-relaxed break-words">{msg.body}</p>
+                                {msg.attachment_url && (
+                                  <div className="mb-2 max-w-full overflow-hidden rounded-xl">
+                                    {msg.attachment_type?.startsWith("image/") ? (
+                                      <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="block hover:opacity-90 transition-opacity">
+                                        <img 
+                                          src={msg.attachment_url} 
+                                          alt={msg.attachment_name || "Attachment"} 
+                                          className="max-w-full max-h-[160px] object-cover rounded-lg"
+                                        />
+                                      </a>
+                                    ) : (
+                                      <a 
+                                        href={msg.attachment_url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className={`flex items-center gap-2 p-2.5 rounded-xl border text-[10px] font-bold transition-all ${isMe ? "bg-primary-dark/30 border-white/20 text-white hover:bg-primary-dark/50" : "bg-gray-50 border-gray-100 text-black hover:bg-gray-100"}`}
+                                      >
+                                        <FileText size={16} className={isMe ? "text-white/80" : "text-primary"} />
+                                        <span className="truncate max-w-[120px]" title={msg.attachment_name || "File"}>
+                                          {msg.attachment_name || "Tệp đính kèm"}
+                                        </span>
+                                        <Download size={14} className="ml-auto opacity-70 shrink-0" />
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+                                {msg.body && (
+                                  <p className="text-[11px] font-medium leading-relaxed break-words">{msg.body}</p>
+                                )}
                               </div>
                               <span className="text-[8px] font-bold text-gray-400 block px-1 select-none">
                                 {new Date(msg.sent_at).toLocaleTimeString("vi-VN", {
@@ -435,9 +556,57 @@ const ChatWidget = () => {
 
               {/* Input Area */}
               <form onSubmit={handleSend} className="p-5 border-t border-gray-100 bg-white select-none">
+                {/* File Upload Preview */}
+                {(isUploading || attachedFile) && (
+                  <div className="mb-3 p-2 bg-gray-50 border border-gray-100 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    {isUploading ? (
+                      <div className="flex items-center gap-2 text-gray-400 text-[10px] font-bold py-1">
+                        <Loader2 className="animate-spin text-primary" size={14} />
+                        <span>Đang tải tệp lên...</span>
+                      </div>
+                    ) : attachedFile ? (
+                      <>
+                        <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 shrink-0 flex items-center justify-center bg-white shadow-sm">
+                          {attachedFile.type.startsWith("image/") ? (
+                            <img src={attachedFile.url} alt="Attached Preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <FileText size={18} className="text-primary" />
+                          )}
+                        </div>
+                        <div className="flex-grow min-w-0">
+                          <p className="text-[10px] font-black uppercase text-gray-600 truncate">
+                            {attachedFile.name}
+                          </p>
+                          <span className="text-[8px] text-gray-400 font-bold uppercase tracking-wider">
+                            {attachedFile.type.startsWith("image/") ? "Hình ảnh" : "Tài liệu"}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemoveAttachedFile}
+                          className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all shrink-0 cursor-pointer active:scale-95"
+                          title="Hủy đính kèm"
+                        >
+                          <X size={14} />
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+                )}
+
                 <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl p-1.5 pl-3 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
-                  <button type="button" className="text-gray-400 hover:text-black transition-colors cursor-pointer" title="Emoji">
-                    <Smile size={18} />
+                  <EmojiPicker
+                    onSelectEmoji={(emoji) => setMessage((prev) => prev + emoji)}
+                    theme="modern"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleTriggerFileInput}
+                    disabled={isUploading}
+                    className="text-gray-400 hover:text-black transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center p-2 rounded-xl hover:bg-gray-100 shrink-0"
+                    title="Đính kèm tệp"
+                  >
+                    <Paperclip size={18} />
                   </button>
                   <input
                     type="text"
@@ -446,22 +615,24 @@ const ChatWidget = () => {
                     onKeyDown={handleKeyPress}
                     placeholder="Nhập tin nhắn..."
                     className="flex-grow bg-transparent border-none focus:outline-none text-[11px] font-bold py-1.5"
-                    disabled={!activeShop}
+                    disabled={!activeShop || isUploading}
+                  />
+                  <input 
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
                   />
                   <button
                     type="submit"
-                    className={`p-2 rounded-xl transition-all ${message.trim() ? "bg-primary text-white shadow-soft hover:bg-primary-dark cursor-pointer active:scale-95" : "text-gray-300 cursor-not-allowed"}`}
-                    disabled={!message.trim() || !activeShop}
+                    className={`p-2 rounded-xl transition-all ${(message.trim() || attachedFile) && !isUploading ? "bg-primary text-white shadow-soft hover:bg-primary-dark cursor-pointer active:scale-95" : "text-gray-300 cursor-not-allowed"}`}
+                    disabled={(!message.trim() && !attachedFile) || !activeShop || isUploading}
                   >
                     <Send size={18} />
                   </button>
                 </div>
-                <div className="flex justify-between items-center mt-3 px-1">
-                  <div className="flex gap-2">
-                    <button type="button" className="text-[8px] font-bold uppercase text-gray-400 hover:text-primary transition-all flex items-center gap-1 cursor-pointer">
-                      <Paperclip size={12} /> Đính kèm
-                    </button>
-                  </div>
+                <div className="flex justify-end mt-2 px-1">
                   <span className="text-[8px] font-bold text-gray-300">Nhấn Enter để gửi</span>
                 </div>
               </form>

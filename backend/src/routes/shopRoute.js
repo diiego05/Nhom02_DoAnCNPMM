@@ -15,17 +15,18 @@ router.use(verifyToken);
 
 // Chỉ đăng ký mới shop là cho phép User thường chưa có vai trò Vendor
 router.post("/", shopController.registerShop);
+router.get("/my-shop/info", shopController.getMyShop);
 
 // Các routes quản trị shop chỉ dành riêng cho Vendor
 router.use(isVendor);
 
-router.get("/my-shop/info", shopController.getMyShop);
 router.put("/my-shop/info", shopController.updateMyShop);
 router.get("/my-shop/statistics", shopController.getShopStatistics);
 router.get("/my-shop/orders", shopController.getShopOrders);
 router.get("/my-shop/reviews", shopController.getShopReviews);
 
 // Quản lý sản phẩm của shop
+router.get("/my-shop/products", shopController.getShopProducts);
 router.post("/my-shop/products", shopController.createProduct);
 router.put("/my-shop/products/:id", shopController.updateProduct);
 router.delete("/my-shop/products/:id", shopController.deleteProduct);

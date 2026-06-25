@@ -1,5 +1,6 @@
 import db from "../models/index.js";
 import { Op } from "sequelize";
+import notificationService from "./notificationService.js";
 
 const getMessages = async (userId, partnerId) => {
   let conversation = null;
@@ -49,9 +50,12 @@ const getMessages = async (userId, partnerId) => {
   });
 };
 
-const sendMessage = async (senderId, receiverId, content) => {
-  if (!content || !content.trim()) {
-    throw new Error("Nội dung tin nhắn không thể bỏ trống");
+const sendMessage = async (senderId, receiverId, content, attachmentUrl = null, attachmentName = null, attachmentType = null) => {
+  const hasContent = content && content.trim();
+  const hasAttachment = attachmentUrl && attachmentUrl.trim();
+
+  if (!hasContent && !hasAttachment) {
+    throw new Error("Tin nhắn phải có nội dung hoặc file đính kèm");
   }
 
   let shopId = null;
@@ -86,12 +90,65 @@ const sendMessage = async (senderId, receiverId, content) => {
     where: { user_id: customerId, shop_id: shopId }
   });
 
-  return await db.Message.create({
+  const message = await db.Message.create({
     conversation_id: conversation.id,
     sender_id: senderId,
-    body: content,
-    is_read: false
+    body: content || null,
+    is_read: false,
+    attachment_url: attachmentUrl,
+    attachment_name: attachmentName,
+    attachment_type: attachmentType
   });
+
+  try {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const recentMessage = await db.Message.findOne({
+      where: {
+        conversation_id: conversation.id,
+        sender_id: senderId,
+        id: { [Op.ne]: message.id },
+        sent_at: { [Op.gt]: tenMinutesAgo }
+      }
+    });
+
+    if (!recentMessage) {
+      let recipientId = null;
+      let senderName = "Người dùng";
+      
+      if (senderId === customerId) {
+        const shop = await db.Shop.findByPk(shopId);
+        recipientId = shop ? shop.vendor_id : null;
+        
+        const customerProfile = await db.UserProfile.findOne({ where: { user_id: customerId } });
+        const customerUser = await db.User.findByPk(customerId, { attributes: ["email"] });
+        senderName = customerProfile?.full_name || customerUser?.email || "Khách hàng";
+      } else {
+        recipientId = customerId;
+        const shop = await db.Shop.findByPk(shopId);
+        senderName = shop ? shop.shop_name : "Cửa hàng";
+      }
+
+      if (recipientId) {
+        let previewText = "";
+        if (content) {
+          previewText = content.length > 50 ? content.substring(0, 50) + "..." : content;
+        } else if (attachmentUrl) {
+          previewText = attachmentType?.startsWith("image/") ? "[Hình ảnh]" : `[Tệp đính kèm: ${attachmentName || "File"}]`;
+        }
+
+        await notificationService.createNotification(
+          recipientId,
+          "Tin nhắn mới",
+          `Bạn có tin nhắn mới từ ${senderName}: "${previewText}"`,
+          "NEW_MESSAGE"
+        );
+      }
+    }
+  } catch (notifErr) {
+    console.error("Failed to create message notification:", notifErr);
+  }
+
+  return message;
 };
 
 const getUnreadMessagesCount = async (userId) => {
@@ -191,7 +248,7 @@ const getConversations = async (userId) => {
       partner,
       lastMessage: lastMessage ? {
         id: lastMessage.id,
-        body: lastMessage.body,
+        body: lastMessage.body || (lastMessage.attachment_type?.startsWith("image/") ? "[Hình ảnh]" : "[Tệp tin]"),
         sent_at: lastMessage.sent_at,
         sender_id: lastMessage.sender_id,
         is_read: lastMessage.is_read

@@ -8,9 +8,19 @@ const getUserProfileById = (id) => {
         where: { user_id: id },
         raw: true,
       });
-      let userAccount = await db.User.findByPk(id, { attributes: ["loyalty_points", "email", "phone"], raw: true });
+      let userAccount = await db.User.findByPk(id, {
+        attributes: ["loyalty_points", "email", "phone", "role_id"],
+        include: [{ model: db.Role, as: "role", attributes: ["role_name"] }],
+      });
       if (userProfile || userAccount) {
-        resolve({ ...userProfile, ...userAccount });
+        resolve({
+          ...userProfile,
+          loyalty_points: userAccount?.loyalty_points,
+          email: userAccount?.email,
+          phone: userAccount?.phone,
+          role_id: userAccount?.role_id,
+          role: userAccount?.role?.role_name,
+        });
       } else {
         resolve({});
       }

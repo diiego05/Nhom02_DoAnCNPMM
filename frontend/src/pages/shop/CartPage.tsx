@@ -292,7 +292,7 @@ const CartPage = () => {
               <button 
                 onClick={handleCheckout} 
                 disabled={cartItems.length === 0}
-                className="btn-brutal w-full mt-4 py-5 rounded-2xl flex items-center justify-center gap-2 text-[11px] font-black tracking-widest shadow-brutal active:shadow-none active:translate-x-[4px] active:translate-y-[4px] whitespace-nowrap disabled:opacity-50 disabled:pointer-events-none"
+                className="w-full bg-primary border-2 border-black text-white mt-4 py-5 rounded-2xl flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[6px] hover:translate-y-[6px] transition-all duration-200 whitespace-nowrap disabled:opacity-50 disabled:pointer-events-none"
               >
                 THANH TOÁN NGAY <ArrowRight size={16} />
               </button>

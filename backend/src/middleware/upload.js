@@ -19,6 +19,20 @@ const storage = new CloudinaryStorage({
   },
 });
 
-const upload = multer({ storage: storage });
+const chatStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "fashion_marketplace/chats",
+    allowed_formats: ["jpg", "jpeg", "png", "webp", "pdf", "doc", "docx", "xls", "xlsx", "txt"],
+    resource_type: "auto",
+  },
+});
 
+const upload = multer({ storage: storage });
+const uploadChatAttachment = multer({ 
+  storage: chatStorage,
+  limits: { fileSize: 10 * 1024 * 1024 } // Giới hạn 10MB
+});
+
+export { uploadChatAttachment };
 export default upload;

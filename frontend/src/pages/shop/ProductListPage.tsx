@@ -396,7 +396,7 @@ const ProductListPage = () => {
                   originalPrice={product.sale_price ? product.price : undefined}
                   image={product.images?.[0]?.image_url || "/placeholder.jpg"}
                   category={product.category?.name || "Danh mục"}
-                  rating={5}
+                  rating={product.rating_average || 0}
                   sales={product.sold_count}
                   badge={product.is_new ? "Mới" : product.sold_count > 15 ? "Hot" : undefined}
                   shop={product.shop}

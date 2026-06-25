@@ -1,6 +1,70 @@
 import db from "../models/index.js";
 import { Op } from "sequelize";
 
+const enrichProductRating = async (product) => {
+  if (!product) return null;
+  const ratingData = await db.ProductReview.findOne({
+    where: { product_id: product.id },
+    attributes: [
+      [db.sequelize.fn("AVG", db.sequelize.col("rating")), "rating_average"],
+      [db.sequelize.fn("COUNT", db.sequelize.col("id")), "review_count"],
+    ],
+    raw: true,
+  });
+
+  const rating_average = ratingData ? parseFloat(ratingData.rating_average || 0) : 0;
+  const review_count = ratingData ? parseInt(ratingData.review_count || 0, 10) : 0;
+
+  if (typeof product.toJSON === "function") {
+    const productJson = product.toJSON();
+    productJson.rating_average = rating_average;
+    productJson.review_count = review_count;
+    return productJson;
+  } else {
+    product.rating_average = rating_average;
+    product.review_count = review_count;
+    return product;
+  }
+};
+
+const enrichProductsRating = async (products) => {
+  if (!products || products.length === 0) return products;
+
+  const productIds = products.map((p) => p.id);
+  const ratings = await db.ProductReview.findAll({
+    where: { product_id: { [Op.in]: productIds } },
+    attributes: [
+      "product_id",
+      [db.sequelize.fn("AVG", db.sequelize.col("rating")), "rating_average"],
+      [db.sequelize.fn("COUNT", db.sequelize.col("id")), "review_count"],
+    ],
+    group: ["product_id"],
+    raw: true,
+  });
+
+  const ratingMap = {};
+  ratings.forEach((r) => {
+    ratingMap[r.product_id] = {
+      rating_average: parseFloat(r.rating_average || 0),
+      review_count: parseInt(r.review_count || 0, 10),
+    };
+  });
+
+  return products.map((product) => {
+    const r = ratingMap[product.id] || { rating_average: 0, review_count: 0 };
+    if (typeof product.toJSON === "function") {
+      const productJson = product.toJSON();
+      productJson.rating_average = r.rating_average;
+      productJson.review_count = r.review_count;
+      return productJson;
+    } else {
+      product.rating_average = r.rating_average;
+      product.review_count = r.review_count;
+      return product;
+    }
+  });
+};
+
 const getProducts = async (filters) => {
   const {
     keyword, // Từ khóa tìm kiếm
@@ -122,11 +186,13 @@ const getProducts = async (filters) => {
       distinct: true,
     });
 
+    const enrichedProducts = await enrichProductsRating(rows);
+
     return {
       total: count,
       totalPages: Math.ceil(count / limit),
       currentPage: parseInt(page),
-      products: rows,
+      products: enrichedProducts,
     };
   } catch (error) {
     console.error("=== [productService.getProducts ERROR] ===");
@@ -154,16 +220,16 @@ const getProductBySlug = async (slug) => {
   await product.increment("view_count", { by: 1 });
 
   // Tính tổng tồn kho từ các variants
-  const totalStock = product.variants.reduce(
-    (sum, v) => sum + v.stock_quantity,
-    0,
-  );
+  const totalStock = product.variants
+    ? product.variants.reduce((sum, v) => sum + v.stock_quantity, 0)
+    : 0;
 
-  return { ...product.toJSON(), totalStock };
+  const productJson = { ...product.toJSON(), totalStock };
+  return await enrichProductRating(productJson);
 };
 
 const getSimilarProducts = async (categoryId, excludeProductId, limit = 6) => {
-  return await db.Product.findAll({
+  const products = await db.Product.findAll({
     where: {
       category_id: categoryId,
       id: { [Op.ne]: excludeProductId }, // Loại trừ sản phẩm hiện tại
@@ -185,13 +251,14 @@ const getSimilarProducts = async (categoryId, excludeProductId, limit = 6) => {
     limit,
     order: [["sold_count", "DESC"]],
   });
+  return await enrichProductsRating(products);
 };
 
 const getFeaturedProducts = async (limit = 10) => {
   // Validate limit
   const parsedLimit = Number(limit) || 10;
 
-  return await db.Product.findAll({
+  const products = await db.Product.findAll({
     where: {
       approval_status: "APPROVED",
       is_featured: true,
@@ -243,12 +310,13 @@ const getFeaturedProducts = async (limit = 10) => {
 
     subQuery: false,
   });
+  return await enrichProductsRating(products);
 };
 
 const getNewestProducts = async (limit = 10) => {
   const parsedLimit = Number(limit) || 10;
 
-  return await db.Product.findAll({
+  const products = await db.Product.findAll({
     where: {
       approval_status: "APPROVED",
       is_new: true,
@@ -299,12 +367,13 @@ const getNewestProducts = async (limit = 10) => {
 
     subQuery: false,
   });
+  return await enrichProductsRating(products);
 };
 
 const getBestSellerProducts = async (limit = 10) => {
   const parsedLimit = Number(limit) || 10;
 
-  return await db.Product.findAll({
+  const products = await db.Product.findAll({
     where: {
       approval_status: "APPROVED",
     },
@@ -352,12 +421,13 @@ const getBestSellerProducts = async (limit = 10) => {
 
     subQuery: false,
   });
+  return await enrichProductsRating(products);
 };
 
 const getMostViewedProducts = async (limit = 10) => {
   const parsedLimit = Number(limit) || 10;
 
-  return await db.Product.findAll({
+  const products = await db.Product.findAll({
     where: {
       approval_status: "APPROVED",
     },
@@ -399,6 +469,7 @@ const getMostViewedProducts = async (limit = 10) => {
     limit: parsedLimit,
     subQuery: false,
   });
+  return await enrichProductsRating(products);
 };
 
 // POST /products/:id/favorite

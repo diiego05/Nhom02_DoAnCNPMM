@@ -1,12 +1,12 @@
-import { MapPin, Truck, CreditCard, Wallet, ShieldCheck, ChevronLeft, Package, Loader2, Store } from 'lucide-react';
+import { MapPin, Truck, CreditCard, Wallet, ShieldCheck, ChevronLeft, ChevronDown, Package, Loader2, Store, Pencil, Trash2 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAppSelector } from '@/stores/hooks';
 import { useCart } from '@/hooks/useCart';
-import { useAddresses, useCreateAddress } from '@/hooks/useAddresses';
+import { useAddresses, useCreateAddress, useUpdateAddress, useDeleteAddress } from '@/hooks/useAddresses';
 import { useCalculateCheckout, useCreateOrder } from '@/hooks/useOrders';
 import { useProfile } from '@/hooks/useUser';
 import { useValidCoupons } from '@/hooks/useCoupons';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -38,11 +38,16 @@ const CheckoutPage = () => {
   
   const createOrderMutation = useCreateOrder();
   const createAddressMutation = useCreateAddress();
+  const updateAddressMutation = useUpdateAddress();
+  const deleteAddressMutation = useDeleteAddress();
   const calculateMutation = useCalculateCheckout();
 
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"COD" | "VNPAY">("COD");
   const [isAddingNewAddress, setIsAddingNewAddress] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
+  const [openShopCouponDropdownId, setOpenShopCouponDropdownId] = useState<number | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [currentStep, setCurrentStep] = useState(1);
 
   // Coupon and Points state
@@ -55,9 +60,7 @@ const CheckoutPage = () => {
   const platformCoupons = validCoupons?.filter((c: any) => !c.shop_id) || [];
   const availableShopCoupons = validCoupons?.filter((c: any) => c.shop_id) || [];
 
-  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm({
-    resolver: yupResolver(addressSchema),
-  });
+  const { register, handleSubmit, formState: { errors }, reset, setValue, getValues } = useForm();
 
   // Khi danh sách địa chỉ thay đổi, chọn địa chỉ mặc định
   useEffect(() => {
@@ -71,6 +74,20 @@ const CheckoutPage = () => {
       setIsAddingNewAddress(true);
     }
   }, [addresses, selectedAddressId, isAddingNewAddress, setValue]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpenShopCouponDropdownId(null);
+      }
+    };
+    if (openShopCouponDropdownId !== null) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openShopCouponDropdownId]);
 
   const handleSelectAddress = (id: number) => {
     setSelectedAddressId(id);
@@ -86,7 +103,145 @@ const CheckoutPage = () => {
   const handleAddNewAddress = () => {
     setSelectedAddressId(null);
     setIsAddingNewAddress(true);
-    reset({ recipient_name: '', phone_number: '', address_line: '', note: '' });
+    setEditingAddressId(null);
+    setValue('recipient_name', '');
+    setValue('phone_number', '');
+    setValue('address_line', '');
+  };
+
+  const handleSaveAddress = async () => {
+    const name = getValues('recipient_name');
+    const phone = getValues('phone_number');
+    const line = getValues('address_line');
+
+    if (!name || !phone || !line) {
+      alert("Vui lòng điền đầy đủ thông tin địa chỉ!");
+      return;
+    }
+
+    try {
+      if (editingAddressId) {
+        await updateAddressMutation.mutateAsync({
+          id: editingAddressId,
+          payload: {
+            recipient_name: name,
+            phone_number: phone,
+            address_line: line,
+          }
+        });
+        alert("Cập nhật địa chỉ thành công!");
+      } else {
+        const newAddr = await createAddressMutation.mutateAsync({
+          recipient_name: name,
+          phone_number: phone,
+          address_line: line,
+          is_default: addresses?.length === 0,
+        });
+        if (newAddr && newAddr.id) {
+          setSelectedAddressId(newAddr.id);
+        }
+        alert("Thêm địa chỉ thành công!");
+      }
+      setIsAddingNewAddress(false);
+      setEditingAddressId(null);
+      setValue('recipient_name', '');
+      setValue('phone_number', '');
+      setValue('address_line', '');
+    } catch (error) {
+      console.error(error);
+      alert(editingAddressId ? "Cập nhật địa chỉ thất bại!" : "Thêm địa chỉ thất bại!");
+    }
+  };
+
+  const handleCancelAddressEdit = () => {
+    setIsAddingNewAddress(false);
+    setEditingAddressId(null);
+    if (selectedAddressId) {
+      const addr = addresses?.find(a => a.id === selectedAddressId);
+      if (addr) {
+        setValue('recipient_name', addr.recipient_name);
+        setValue('phone_number', addr.phone_number);
+        setValue('address_line', addr.address_line);
+      }
+    } else {
+      setValue('recipient_name', '');
+      setValue('phone_number', '');
+      setValue('address_line', '');
+    }
+  };
+
+  const handleEditAddress = (e: React.MouseEvent, addr: any) => {
+    e.stopPropagation();
+    setEditingAddressId(addr.id);
+    setIsAddingNewAddress(true);
+    setValue('recipient_name', addr.recipient_name);
+    setValue('phone_number', addr.phone_number);
+    setValue('address_line', addr.address_line);
+  };
+
+  const handleDeleteAddress = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    if (window.confirm("Bạn có chắc chắn muốn xóa địa chỉ này?")) {
+      try {
+        await deleteAddressMutation.mutateAsync(id);
+        alert("Xóa địa chỉ thành công!");
+        if (selectedAddressId === id) {
+          setSelectedAddressId(null);
+        }
+      } catch (error) {
+        alert("Xóa địa chỉ thất bại!");
+      }
+    }
+  };
+
+  const handleNextStep = async () => {
+    if (isAddingNewAddress) {
+      const name = getValues('recipient_name');
+      const phone = getValues('phone_number');
+      const line = getValues('address_line');
+
+      if (!name || !phone || !line) {
+        alert("Vui lòng điền đầy đủ thông tin địa chỉ trước khi tiếp tục!");
+        return;
+      }
+
+      try {
+        if (editingAddressId) {
+          await updateAddressMutation.mutateAsync({
+            id: editingAddressId,
+            payload: {
+              recipient_name: name,
+              phone_number: phone,
+              address_line: line,
+            }
+          });
+          alert("Cập nhật địa chỉ thành công!");
+        } else {
+          const newAddr = await createAddressMutation.mutateAsync({
+            recipient_name: name,
+            phone_number: phone,
+            address_line: line,
+            is_default: addresses?.length === 0,
+          });
+          if (newAddr && newAddr.id) {
+            setSelectedAddressId(newAddr.id);
+          }
+          alert("Thêm địa chỉ thành công!");
+        }
+        setIsAddingNewAddress(false);
+        setEditingAddressId(null);
+        setCurrentStep(2);
+      } catch (error) {
+        console.error(error);
+        alert(editingAddressId ? "Cập nhật địa chỉ thất bại!" : "Lưu địa chỉ thất bại!");
+      }
+    } else {
+      if (!selectedAddressId) {
+        alert("Vui lòng chọn hoặc thêm địa chỉ nhận hàng!");
+        return;
+      }
+      setCurrentStep(2);
+    }
   };
 
   const onSubmit = async (data: any) => {
@@ -266,9 +421,13 @@ const CheckoutPage = () => {
                   <div 
                     key={addr.id} 
                     onClick={() => handleSelectAddress(addr.id)}
-                    className={`p-5 rounded-2xl relative cursor-pointer group transition-all border ${selectedAddressId === addr.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-black/10 hover:border-black hover:shadow-subtle hover:-translate-y-1'}`}
+                    className={`p-5 rounded-2xl relative cursor-pointer group transition-all border-2 ${
+                      selectedAddressId === addr.id 
+                        ? 'border-primary bg-primary/5 shadow-brutal translate-x-[-2px] translate-y-[-2px]' 
+                        : 'border-black bg-white hover:border-black hover:shadow-subtle hover:-translate-y-0.5'
+                    }`}
                   >
-                    <div className={`absolute top-4 right-4 w-5 h-5 rounded-full flex items-center justify-center bg-white border ${selectedAddressId === addr.id ? 'border-primary' : 'border-gray-300'}`}>
+                    <div className={`absolute top-4 right-4 w-5 h-5 rounded-full flex items-center justify-center bg-white border-2 ${selectedAddressId === addr.id ? 'border-primary' : 'border-black'}`}>
                       {selectedAddressId === addr.id && <div className="w-2.5 h-2.5 rounded-full bg-primary"></div>}
                     </div>
                     <p className="text-xs font-black uppercase mb-1">
@@ -276,25 +435,66 @@ const CheckoutPage = () => {
                       {addr.is_default && <span className="ml-2 text-[10px] text-primary bg-white px-2 py-0.5 border border-primary rounded font-bold">Mặc định</span>}
                     </p>
                     <p className="text-xs font-bold text-gray-500">{addr.phone_number}</p>
-                    <p className="text-xs font-medium text-gray-600 mt-2 leading-relaxed">{addr.address_line}</p>
+                    <p className="text-xs font-medium text-gray-600 mt-2 leading-relaxed max-w-[80%]">{addr.address_line}</p>
+
+                    {/* Edit / Delete action buttons */}
+                    <div className="absolute bottom-4 right-4 flex items-center gap-2 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                      <button 
+                        type="button" 
+                        onClick={(e) => handleEditAddress(e, addr)}
+                        className="p-2 bg-white border-2 border-black rounded-xl hover:bg-black hover:text-white transition-all shadow-subtle active:shadow-none active:translate-x-[1px] active:translate-y-[1px]"
+                        title="Chỉnh sửa địa chỉ"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={(e) => handleDeleteAddress(e, addr.id)}
+                        className="p-2 bg-white border-2 border-red-500 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-subtle active:shadow-none active:translate-x-[1px] active:translate-y-[1px]"
+                        title="Xóa địa chỉ"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
 
               {(isAddingNewAddress || (addresses && addresses.length === 0)) && (
-                <div className="space-y-4 pt-4 border-t border-dashed border-gray-200">
-                  <p className="text-sm font-black uppercase">Thêm địa chỉ mới</p>
-                  <div>
-                    <input {...register('recipient_name')} placeholder="Họ và tên" className="input-brutal text-sm" />
-                    {errors.recipient_name && <p className="text-red-500 text-xs mt-1 font-bold">{errors.recipient_name.message}</p>}
-                  </div>
-                  <div>
-                    <input {...register('phone_number')} placeholder="Số điện thoại" className="input-brutal text-sm" />
-                    {errors.phone_number && <p className="text-red-500 text-xs mt-1 font-bold">{errors.phone_number.message}</p>}
+                <div className="border-2 border-dashed border-black rounded-2xl p-6 bg-gray-50/50 space-y-4 mt-6">
+                  <p className="text-sm font-black uppercase">
+                    {editingAddressId ? 'Cập nhật địa chỉ' : 'Thêm địa chỉ mới'}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <input {...register('recipient_name')} placeholder="Họ và tên" className="input-brutal text-sm" />
+                      {errors.recipient_name && <p className="text-red-500 text-xs mt-1 font-bold">{errors.recipient_name.message as string}</p>}
+                    </div>
+                    <div>
+                      <input {...register('phone_number')} placeholder="Số điện thoại" className="input-brutal text-sm" />
+                      {errors.phone_number && <p className="text-red-500 text-xs mt-1 font-bold">{errors.phone_number.message as string}</p>}
+                    </div>
                   </div>
                   <div>
                     <input {...register('address_line')} placeholder="Địa chỉ chi tiết" className="input-brutal text-sm" />
-                    {errors.address_line && <p className="text-red-500 text-xs mt-1 font-bold">{errors.address_line.message}</p>}
+                    {errors.address_line && <p className="text-red-500 text-xs mt-1 font-bold">{errors.address_line.message as string}</p>}
+                  </div>
+                  
+                  <div className="flex gap-3 justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelAddressEdit}
+                      className="btn-brutal-secondary px-5 py-2.5 rounded-xl text-xs shadow-subtle active:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveAddress}
+                      className="btn-brutal px-5 py-2.5 rounded-xl text-xs shadow-subtle active:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
+                    >
+                      {editingAddressId ? 'Cập nhật' : 'Lưu địa chỉ'}
+                    </button>
                   </div>
                 </div>
               )}
@@ -307,9 +507,9 @@ const CheckoutPage = () => {
               <div className="mt-8 flex justify-end">
                 <button
                   type="button"
-                  onClick={() => setCurrentStep(2)}
-                  disabled={!selectedAddressId}
-                  className="bg-black text-white px-10 py-4 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-primary transition-all disabled:opacity-50"
+                  onClick={handleNextStep}
+                  disabled={createAddressMutation.isPending || updateAddressMutation.isPending}
+                  className="btn-brutal px-10 py-4 rounded-xl text-sm shadow-brutal active:shadow-none active:translate-x-[4px] active:translate-y-[4px] disabled:opacity-50"
                 >
                   Tiếp tục thanh toán
                 </button>
@@ -383,7 +583,7 @@ const CheckoutPage = () => {
                   className={`w-full flex items-center justify-between p-6 border-2 rounded-2xl transition-all group ${paymentMethod === 'VNPAY' ? 'bg-primary/5 border-primary' : 'bg-white border-black/10 hover:border-black'}`}
                 >
                   <div className="flex items-center gap-4">
-                    <img src="https://vnpay.vn/wp-content/uploads/2020/07/icon-vnpay.png" alt="VNPAY" className="h-8 object-contain" />
+                    <img src="https://cdn.haitrieu.com/wp-content/uploads/2022/10/Logo-VNPAY-QR-1.png" alt="VNPAY" className="h-8 object-contain" />
                     <p className="text-sm font-black uppercase group-hover:text-primary">Thanh toán qua VNPAY</p>
                   </div>
                   <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center bg-white ${paymentMethod === 'VNPAY' ? 'border-primary' : 'border-gray-300'}`}>
@@ -408,13 +608,13 @@ const CheckoutPage = () => {
                       value={inputCoupon}
                       onChange={(e) => setInputCoupon(e.target.value)}
                       placeholder="Nhập mã voucher..." 
-                      className="flex-1 bg-gray-50 border-2 border-black/20 rounded-xl px-4 py-3 font-bold uppercase text-sm focus:border-primary outline-none transition-colors"
+                      className="flex-1 input-brutal uppercase text-sm"
                     />
                     <button 
                       type="button" 
                       onClick={handleApplyCoupon}
                       disabled={calculateMutation.isPending}
-                      className="bg-black text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-primary transition-all disabled:opacity-50"
+                      className="btn-brutal px-6 py-3 rounded-xl text-xs shadow-subtle active:shadow-none active:translate-x-[2px] active:translate-y-[2px] disabled:opacity-50"
                     >
                       Áp dụng
                     </button>
@@ -472,16 +672,16 @@ const CheckoutPage = () => {
               <button
                 type="button"
                 onClick={() => setCurrentStep(1)}
-                className="bg-white border-2 border-black text-black px-8 py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-gray-50 transition-all shadow-[6px_6px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1"
+                className="btn-brutal-secondary px-8 py-5 rounded-2xl text-sm shadow-brutal active:shadow-none active:translate-x-[4px] active:translate-y-[4px]"
               >
                 Quay lại
               </button>
               <button
                 type="submit"
                 disabled={createOrderMutation.isPending || cartItems.length === 0}
-                className="flex-1 bg-primary text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all active:scale-95 flex items-center justify-center disabled:opacity-50"
+                className="flex-1 bg-primary border-2 border-black text-white py-5 rounded-2xl text-sm font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[6px] hover:translate-y-[6px] transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:pointer-events-none"
               >
-                {createOrderMutation.isPending ? <Loader2 className="animate-spin" size={24} /> : 'ĐẶT HÀNG NGAY'}
+                {createOrderMutation.isPending ? <Loader2 className="animate-spin text-white" size={24} /> : 'ĐẶT HÀNG NGAY'}
               </button>
             </div>
           </div>
@@ -524,26 +724,74 @@ const CheckoutPage = () => {
                     )})}
 
                     {/* Shop Coupon Section */}
-                    {availableShopCoupons.filter((c: any) => c.shop_id === group.shop?.id).length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Ticket size={16} className="text-primary" />
-                          <span className="text-xs font-bold text-gray-400 uppercase">Mã của Shop</span>
+                    {(() => {
+                      const shopCouponsList = availableShopCoupons.filter((c: any) => c.shop_id === group.shop?.id);
+                      if (shopCouponsList.length === 0) return null;
+                      const currentCouponCode = shopCoupons[group.shop?.id] || "";
+                      const selectedCoupon = shopCouponsList.find((c: any) => c.code === currentCouponCode);
+                      return (
+                        <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Ticket size={16} className="text-primary" />
+                            <span className="text-xs font-bold text-gray-400 uppercase">Mã của Shop</span>
+                          </div>
+                          
+                          {/* Custom Dropdown aligning with CustomSelect style in VendorDashboard */}
+                          <div className="relative" ref={openShopCouponDropdownId === group.shop?.id ? dropdownRef : null}>
+                            <button
+                              type="button"
+                              onClick={() => setOpenShopCouponDropdownId(openShopCouponDropdownId === group.shop?.id ? null : group.shop?.id)}
+                              className="w-48 bg-[#1a1a1a] border-2 border-white/20 rounded-xl px-4 py-2.5 font-bold text-left focus:outline-none flex justify-between items-center transition-all select-none hover:border-primary text-white group"
+                            >
+                              <span className="text-xs font-bold truncate">
+                                {selectedCoupon ? selectedCoupon.code : "Chọn mã giảm giá"}
+                              </span>
+                              <ChevronDown size={14} className={`transform transition-transform duration-200 group-hover:text-primary ${openShopCouponDropdownId === group.shop?.id ? 'rotate-180' : 'text-gray-400'}`} style={{ strokeWidth: 3 }} />
+                            </button>
+
+                            {openShopCouponDropdownId === group.shop?.id && (
+                              <ul className="absolute right-0 top-full mt-2 w-64 bg-[#1a1a1a] border-2 border-white/20 rounded-xl z-50 max-h-60 overflow-y-auto divide-y divide-white/10 custom-scrollbar text-white animate-in fade-in slide-in-from-top-1 duration-150 shadow-xl">
+                                <li
+                                  onClick={() => {
+                                    setShopCoupons(prev => ({ ...prev, [group.shop?.id]: "" }));
+                                    setOpenShopCouponDropdownId(null);
+                                  }}
+                                  className={`px-4 py-3 text-xs font-bold cursor-pointer transition-colors ${
+                                    !currentCouponCode 
+                                      ? 'bg-primary text-white font-black' 
+                                      : 'hover:bg-white/10 text-gray-400'
+                                  }`}
+                                >
+                                  Không sử dụng mã
+                                </li>
+                                {shopCouponsList.map((c: any) => {
+                                  const isSelected = c.code === currentCouponCode;
+                                  return (
+                                    <li
+                                      key={c.id}
+                                      onClick={() => {
+                                        setShopCoupons(prev => ({ ...prev, [group.shop?.id]: c.code }));
+                                        setOpenShopCouponDropdownId(null);
+                                      }}
+                                      className={`px-4 py-3 text-xs font-bold cursor-pointer transition-colors flex flex-col gap-0.5 ${
+                                        isSelected 
+                                          ? 'bg-primary text-white font-black' 
+                                          : 'hover:bg-white/10 text-gray-400'
+                                      }`}
+                                    >
+                                      <span className="font-black uppercase tracking-wider">{c.code}</span>
+                                      <span className="text-[10px] opacity-85 font-bold text-gray-400">
+                                        Giảm {c.discount_type === 'PERCENT' ? `${c.discount_value}%` : `${Number(c.discount_value).toLocaleString()}₫`} (Đơn tối thiểu {Number(c.min_order_amount).toLocaleString()}₫)
+                                      </span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                          </div>
                         </div>
-                        <select 
-                          value={shopCoupons[group.shop?.id] || ""}
-                          onChange={(e) => setShopCoupons(prev => ({ ...prev, [group.shop?.id]: e.target.value }))}
-                          className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-primary transition-colors appearance-none cursor-pointer"
-                        >
-                          <option value="" className="text-black">Chọn mã giảm giá</option>
-                          {availableShopCoupons.filter((c: any) => c.shop_id === group.shop?.id).map((c: any) => (
-                            <option key={c.id} value={c.code} className="text-black">
-                              {c.code} - Giảm {c.discount_type === 'PERCENT' ? `${c.discount_value}%` : `${Number(c.discount_value).toLocaleString()}đ`}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 ))}
               </div>

@@ -256,6 +256,19 @@ const approveShopPayout = async (req, res) => {
   }
 };
 
+const rejectShopPayout = async (req, res) => {
+  try {
+    const adminId = req.user.id;
+    const { id } = req.params;
+    const { reject_reason } = req.body;
+    const payout = await adminService.rejectShopPayout(adminId, id, reject_reason);
+    return res.status(200).json({ message: "Từ chối lệnh chuyển tiền thành công", data: payout });
+  } catch (error) {
+    console.error("Error rejecting payout:", error);
+    return res.status(400).json({ message: error.message || "Lỗi từ chối lệnh thanh toán" });
+  }
+};
+
 
 // ============================================================
 // 6. LỊCH SỬ THANH TOÁN (PAYMENT LOGS)
@@ -292,5 +305,6 @@ export default {
   getFinancialReport,
   getPaymentReconciliation,
   approveShopPayout,
+  rejectShopPayout,
   getPaymentLogs,
 };

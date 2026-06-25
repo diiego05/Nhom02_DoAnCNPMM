@@ -12,7 +12,7 @@ import {
   MessageCircle,
   AlertTriangle,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { useProductDetail, useSimilarProducts, useToggleFavorite, useRecordView } from "@/hooks/useProducts";
 import { formatViewCount, formatPrice } from "@/utils/format";
@@ -101,6 +101,91 @@ const ProductDetailPage = () => {
     setQuantity(1);
   }, [product]);
 
+  // Gom tất cả ảnh từ ảnh sản phẩm chính + ảnh từ các biến thể (đảm bảo không bị trùng lặp và không lặp lại ảnh cùng màu sắc)
+  const imgs = useMemo(() => {
+    // 1. Lấy ảnh chính (is_primary === true) hoặc ảnh đầu tiên
+    const mainImages = product?.images
+      ? product.images.filter((img: any) => img.is_primary).map((img: any) => img.image_url)
+      : [];
+    if (mainImages.length === 0 && product?.images && product.images.length > 0) {
+      mainImages.push(product.images[0].image_url);
+    }
+
+    // 2. Thu thập ảnh biến thể duy nhất (mỗi màu sắc 1 ảnh)
+    const colorImagesMap = new Map<string, string>();
+    if (product?.variants) {
+      product.variants.forEach((v: any) => {
+        if (v.image_url && v.color) {
+          const normalizedColor = v.color.trim().toLowerCase();
+          if (!colorImagesMap.has(normalizedColor)) {
+            colorImagesMap.set(normalizedColor, v.image_url);
+          }
+        }
+      });
+    }
+    const uniqueVariantImages = Array.from(colorImagesMap.values());
+
+    // 3. Thu thập các ảnh gallery phụ khác của sản phẩm mà không trùng với các ảnh biến thể
+    const variantUrlsSet = new Set(
+      product?.variants?.map((v: any) => v.image_url).filter(Boolean) || []
+    );
+    const extraGalleryImages = product?.images
+      ? product.images
+          .filter((img: any) => !img.is_primary && !variantUrlsSet.has(img.image_url))
+          .map((img: any) => img.image_url)
+      : [];
+
+    // 4. Kết hợp: ảnh chính + ảnh gallery phụ + ảnh biến thể duy nhất theo màu
+    const rawImgs = Array.from(new Set([...mainImages, ...extraGalleryImages, ...uniqueVariantImages])).filter(Boolean);
+
+    if (rawImgs.length === 0) {
+      rawImgs.push("https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=400");
+    }
+
+    return rawImgs.map((imgUrl) => {
+      if (!imgUrl) return "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=400";
+      return imgUrl.startsWith('http') || imgUrl.startsWith('data:') 
+        ? imgUrl 
+        : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`;
+    });
+  }, [product]);
+
+  // Đồng bộ màu sắc từ chỉ mục ảnh
+  const syncColorFromImageIndex = (index: number) => {
+    if (index < 0 || index >= imgs.length || !product?.variants) return;
+    const currentImgUrl = imgs[index];
+    const matchedVariant = product.variants.find((v: any) => {
+      if (!v.image_url) return false;
+      const formattedUrl = v.image_url.startsWith('http') || v.image_url.startsWith('data:')
+        ? v.image_url
+        : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${v.image_url.startsWith('/') ? '' : '/'}${v.image_url}`;
+      return formattedUrl === currentImgUrl;
+    });
+    if (matchedVariant && matchedVariant.color && matchedVariant.color !== selectedColor) {
+      setSelectedColor(matchedVariant.color);
+    }
+  };
+
+  // Chọn màu sắc -> chuyển ảnh tương ứng
+  const handleColorSelect = (colorName: string) => {
+    setSelectedColor(colorName);
+    if (product?.variants) {
+      const variantWithImg = product.variants.find(
+        (v: any) => v.color === colorName && v.image_url
+      );
+      if (variantWithImg && variantWithImg.image_url) {
+        const formattedUrl = variantWithImg.image_url.startsWith('http') || variantWithImg.image_url.startsWith('data:')
+          ? variantWithImg.image_url
+          : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${variantWithImg.image_url.startsWith('/') ? '' : '/'}${variantWithImg.image_url}`;
+        
+        const idx = imgs.indexOf(formattedUrl);
+        if (idx !== -1) {
+          setActiveImgIndex(idx);
+        }
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="max-w-7xl mx-auto px-6 py-32 text-center">
@@ -155,10 +240,17 @@ const ProductDetailPage = () => {
   const basePrice = activeVariant?.price
     ? Number(activeVariant.price)
     : product.price;
-  const displayPrice = product.sale_price ? product.sale_price : basePrice;
-  const isSale = !!product.sale_price;
+  
+  const displayPrice = activeVariant
+    ? (activeVariant.sale_price ? Number(activeVariant.sale_price) : Number(activeVariant.price))
+    : (product.sale_price ? Number(product.sale_price) : Number(product.price));
+
+  const isSale = activeVariant
+    ? !!activeVariant.sale_price
+    : !!product.sale_price;
+
   const discountPercent = isSale
-    ? Math.round(((basePrice - product.sale_price!) / basePrice) * 100)
+    ? Math.round(((basePrice - (activeVariant?.sale_price ? Number(activeVariant.sale_price) : product.sale_price!)) / basePrice) * 100)
     : 0;
 
   const currentStock = activeVariant
@@ -172,21 +264,24 @@ const ProductDetailPage = () => {
     setQuantity(newQty);
   };
 
-  const imgs =
-    product.images && product.images.length > 0
-      ? product.images.map((img) => 
-          img.image_url.startsWith('http') || img.image_url.startsWith('data:') 
-            ? img.image_url 
-            : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${img.image_url.startsWith('/') ? '' : '/'}${img.image_url}`
-        )
-      : ["/placeholder.jpg"];
+
+
+  // Click chọn ảnh ở gallery -> tự động chọn màu sắc tương ứng (nếu ảnh thuộc về màu đó)
+  const handleThumbnailClick = (index: number) => {
+    setActiveImgIndex(index);
+    syncColorFromImageIndex(index);
+  };
 
   const handlePrevImg = () => {
-    setActiveImgIndex((prev) => (prev - 1 + imgs.length) % imgs.length);
+    const newIndex = (activeImgIndex - 1 + imgs.length) % imgs.length;
+    setActiveImgIndex(newIndex);
+    syncColorFromImageIndex(newIndex);
   };
 
   const handleNextImg = () => {
-    setActiveImgIndex((prev) => (prev + 1) % imgs.length);
+    const newIndex = (activeImgIndex + 1) % imgs.length;
+    setActiveImgIndex(newIndex);
+    syncColorFromImageIndex(newIndex);
   };
 
   return (
@@ -237,7 +332,7 @@ const ProductDetailPage = () => {
             {imgs.map((img, i) => (
               <div
                 key={i}
-                onClick={() => setActiveImgIndex(i)}
+                onClick={() => handleThumbnailClick(i)}
                 className={
                   "aspect-[4/5] rounded-[1.5rem] overflow-hidden cursor-pointer border-2 shadow-subtle transition-all border-black " +
                   (i === activeImgIndex
@@ -332,7 +427,7 @@ const ProductDetailPage = () => {
                       return (
                         <button
                           key={colorObj.name}
-                          onClick={() => setSelectedColor(colorObj.name)}
+                          onClick={() => handleColorSelect(colorObj.name)}
                           className={
                             "w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center " +
                             (isSelected

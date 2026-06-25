@@ -300,7 +300,24 @@ const approveShop = async (adminId, shopId) => {
   if (!shop) throw new Error("Không tìm thấy gian hàng");
   if (shop.status === "APPROVED") throw new Error("Gian hàng đã được duyệt trước đó");
 
-  await shop.update({ status: "APPROVED" });
+  const transaction = await db.sequelize.transaction();
+  try {
+    await shop.update({ status: "APPROVED" }, { transaction });
+
+    // Cập nhật role cho user thành VENDOR khi shop được phê duyệt
+    const vendorRole = await db.Role.findOne({ where: { role_name: "vendor" }, transaction });
+    if (vendorRole && shop.vendor_id) {
+      await db.User.update(
+        { role_id: vendorRole.id },
+        { where: { id: shop.vendor_id }, transaction }
+      );
+    }
+
+    await transaction.commit();
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
 
   // Gửi thông báo cho Vendor
   if (shop.vendor_id) {
@@ -738,10 +755,35 @@ const approveShopPayout = async (adminId, payoutId) => {
   if (!payout) throw new Error("Không tìm thấy lệnh thanh toán");
   if (payout.status === "COMPLETED") throw new Error("Lệnh thanh toán đã được duyệt trước đó");
 
-  await payout.update({
-    status: "COMPLETED",
-    processed_by: adminId,
-  });
+  const transaction = await db.sequelize.transaction();
+  try {
+    // Lấy ví của shop
+    const [wallet] = await db.ShopWallet.findOrCreate({
+      where: { shop_id: payout.shop_id },
+      defaults: { balance: 0, pending_balance: 0, total_earned: 0 },
+      transaction
+    });
+
+    const balance = parseFloat(wallet.balance || 0);
+    const payoutAmt = parseFloat(payout.amount);
+    if (balance < payoutAmt) {
+      throw new Error("Số dư khả dụng của shop hiện tại không đủ để hoàn tất giao dịch này");
+    }
+
+    // Trừ số dư ví
+    await wallet.decrement('balance', { by: payoutAmt, transaction });
+
+    // Cập nhật trạng thái payout
+    await payout.update({
+      status: "COMPLETED",
+      processed_by: adminId,
+    }, { transaction });
+
+    await transaction.commit();
+  } catch (err) {
+    await transaction.rollback();
+    throw err;
+  }
 
   // Gửi thông báo cho Vendor & Admin
   try {
@@ -766,6 +808,46 @@ const approveShopPayout = async (adminId, payoutId) => {
     }
   } catch (notifErr) {
     console.error("Failed to create payout approval notification:", notifErr);
+  }
+
+  return payout;
+};
+
+const rejectShopPayout = async (adminId, payoutId, rejectReason) => {
+  const payout = await db.ShopPayout.findByPk(payoutId);
+  if (!payout) throw new Error("Không tìm thấy lệnh thanh toán");
+  if (payout.status === "COMPLETED") throw new Error("Lệnh thanh toán đã hoàn thành, không thể từ chối");
+  if (payout.status === "REJECTED") throw new Error("Lệnh thanh toán đã bị từ chối trước đó");
+
+  await payout.update({
+    status: "REJECTED",
+    processed_by: adminId,
+    reject_reason: rejectReason || "Không có lý do cụ thể",
+  });
+
+  // Gửi thông báo cho Vendor & Admin
+  try {
+    const shop = await db.Shop.findByPk(payout.shop_id);
+    if (shop) {
+      if (shop.vendor_id) {
+        await notificationService.createNotification(
+          shop.vendor_id,
+          "Lệnh rút tiền bị từ chối",
+          `Lệnh rút tiền trị giá ${Number(payout.amount).toLocaleString()}₫ từ ví gian hàng "${shop.shop_name}" đã bị từ chối. Lý do: ${rejectReason || "Không có lý do cụ thể"}.`,
+          "PAYOUT_STATUS"
+        );
+      }
+      if (adminId) {
+        await notificationService.createNotification(
+          adminId,
+          "Từ chối rút tiền thành công",
+          `Bạn đã từ chối lệnh rút tiền trị giá ${Number(payout.amount).toLocaleString()}₫ của gian hàng "${shop.shop_name}".`,
+          "PAYOUT_STATUS"
+        );
+      }
+    }
+  } catch (notifErr) {
+    console.error("Failed to create payout rejection notification:", notifErr);
   }
 
   return payout;
@@ -841,6 +923,7 @@ export default {
   // Reconciliation
   getPaymentReconciliation,
   approveShopPayout,
+  rejectShopPayout,
   // Payment Logs
   getPaymentLogs,
 };

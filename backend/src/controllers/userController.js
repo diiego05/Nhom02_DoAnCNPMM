@@ -11,6 +11,10 @@ const getUserProfile = async (req, res) => {
     return res.status(200).json({
       message: "Profile retrieved successfully",
       data: {
+        id: user.user_id || userId,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
         fullName: user.full_name,
         dateOfBirth: user.birthday,
         gender: user.gender,

@@ -19,7 +19,11 @@ export interface ShopProfileData extends ShopRegistrationData {
   followers_count: number;
   response_rate: number;
   status: string;
+  reject_reason?: string;
   created_at?: string;
+  bank_name?: string;
+  bank_account_no?: string;
+  bank_account_name?: string;
 }
 
 export interface ProductData {
@@ -32,10 +36,13 @@ export interface ProductData {
   gender?: string;
   material?: string;
   stock_quantity?: number;
+  is_new?: boolean;
+  is_featured?: boolean;
   variants?: Array<{
     size: string;
     color: string;
     color_hex?: string;
+    image_url?: string;
     price: number;
     sale_price?: number;
     stock_quantity: number;
@@ -121,6 +128,14 @@ export const vendorService = {
   getShopProducts: async (shopId: number | string, params: any = {}) => {
     const response = await publicAxios.get("/products", {
       params: { ...params, shopId },
+    });
+    return response.data;
+  },
+
+  // Lấy sản phẩm quản lý của shop (Phía Vendor/Private)
+  getMyShopProducts: async (params: any = {}) => {
+    const response = await axiosClient.get("/shops/my-shop/products", {
+      params,
     });
     return response.data;
   },

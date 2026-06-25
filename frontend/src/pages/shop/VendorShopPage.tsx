@@ -450,7 +450,7 @@ const VendorShopPage: React.FC = () => {
                                 originalPrice={p.sale_price ? p.price : undefined}
                                 image={p.images?.[0]?.image_url || "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400"}
                                 category={p.category?.name || "Danh mục"}
-                                rating={5}
+                                rating={p.rating_average || 0}
                                 sales={p.sold_count}
                                 badge="Sale"
                                 shop={shop}
@@ -518,7 +518,7 @@ const VendorShopPage: React.FC = () => {
                                 originalPrice={p.sale_price ? p.price : undefined}
                                 image={p.images?.[0]?.image_url || "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400"}
                                 category={p.category?.name || "Danh mục"}
-                                rating={5}
+                                rating={p.rating_average || 0}
                                 sales={p.sold_count}
                                 badge={p.sold_count > 15 ? "Hot" : undefined}
                                 shop={shop}
@@ -586,7 +586,7 @@ const VendorShopPage: React.FC = () => {
                                 originalPrice={p.sale_price ? p.price : undefined}
                                 image={p.images?.[0]?.image_url || "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400"}
                                 category={p.category?.name || "Danh mục"}
-                                rating={5}
+                                rating={p.rating_average || 0}
                                 sales={p.sold_count}
                                 badge="Nổi bật"
                                 shop={shop}
@@ -653,7 +653,7 @@ const VendorShopPage: React.FC = () => {
                         originalPrice={p.sale_price ? p.price : undefined}
                         image={p.images?.[0]?.image_url || "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400"}
                         category={p.category?.name || "Danh mục"}
-                        rating={5}
+                        rating={p.rating_average || 0}
                         sales={p.sold_count}
                         badge={p.is_new ? "Mới" : p.sold_count > 15 ? "Hot" : undefined}
                         shop={shop}
