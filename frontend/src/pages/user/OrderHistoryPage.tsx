@@ -11,6 +11,7 @@ import {
   Loader2,
   Store,
 } from "lucide-react";
+import PaymentCountdownButton from "@/components/ui/PaymentCountdownButton";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -18,6 +19,7 @@ import {
   useCancelOrder,
   useRetryPayment,
 } from "@/hooks/useOrders";
+import { useAddToCart } from "@/hooks/useCart";
 import { OrderStatus } from "@/types/order.types";
 
 const OrderHistoryPage = () => {
@@ -51,19 +53,50 @@ const OrderHistoryPage = () => {
     }
   };
 
+  const cancelledSuggestions = [
+    "Muốn thay đổi địa chỉ giao hàng",
+    "Muốn thay đổi sản phẩm (màu sắc, kích thước...)",
+    "Thay đổi ý định không muốn mua nữa",
+    "Nhập sai thông tin (số điện thoại, email, địa chỉ...)",
+    "Phát sinh việc đột xuất",
+    "Giá cao",
+    "Không hài lòng với sản phẩm/dịch vụ",
+    "Lý do khác",
+  ];
+
   const { data: orderResponse, isLoading } = useMyOrders(getStatusQuery());
   const cancelOrderMutation = useCancelOrder();
   const retryPaymentMutation = useRetryPayment();
+  const addToCartMutation = useAddToCart();
 
-  const handleCancelOrder = (id: number, status: string) => {
-    const isRequest = status === "PREPARING";
-    const message = isRequest
-      ? "Bạn có chắc chắn muốn gửi yêu cầu hủy đơn hàng này cho shop không?"
-      : "Bạn có chắc chắn muốn hủy đơn hàng này không?";
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [orderToCancel, setOrderToCancel] = useState<{
+    id: number;
+    status: string;
+  } | null>(null);
 
-    if (window.confirm(message)) {
-      cancelOrderMutation.mutate({ id, reason: "Người dùng hủy đơn" });
+  const handleOpenCancelModal = (id: number, status: string) => {
+    setOrderToCancel({ id, status });
+    setCancelReason("");
+    setCancelModalOpen(true);
+  };
+
+  const submitCancelOrder = () => {
+    if (!orderToCancel) return;
+    if (!cancelReason.trim()) {
+      alert("Vui lòng nhập lý do hủy đơn");
+      return;
     }
+    cancelOrderMutation.mutate(
+      { id: orderToCancel.id, reason: cancelReason },
+      {
+        onSuccess: () => {
+          setCancelModalOpen(false);
+          setOrderToCancel(null);
+        },
+      },
+    );
   };
 
   const handleRetryPayment = (parentOrderId: number) => {
@@ -81,6 +114,27 @@ const OrderHistoryPage = () => {
     });
   };
 
+  const handleRepurchase = async (items: any[]) => {
+    try {
+      const promises = items.map((item) => {
+        const productId = item.product_id || item.variant?.product_id;
+        const variantId = item.variant_id;
+        const product = item.variant?.product || item.product;
+        return addToCartMutation.mutateAsync({
+          productId,
+          variantId,
+          quantity: item.quantity,
+          product,
+          variant: item.variant,
+        });
+      });
+      await Promise.all(promises);
+      navigate("/cart");
+    } catch (error) {
+      alert("Có lỗi xảy ra khi thêm vào giỏ hàng");
+    }
+  };
+
   const orderStatuses = [
     { key: "PENDING", label: "Đơn mới" },
     { key: "CONFIRMED", label: "Đã xác nhận" },
@@ -92,8 +146,9 @@ const OrderHistoryPage = () => {
   const renderTimeline = (currentStatus: string) => {
     if (currentStatus === "CANCELLED" || currentStatus === "CANCEL_REQUESTED")
       return null;
-      
-    const normalizedStatus = currentStatus === "READY_FOR_PICKUP" ? "PREPARING" : currentStatus;
+
+    const normalizedStatus =
+      currentStatus === "READY_FOR_PICKUP" ? "PREPARING" : currentStatus;
     const currentIndex = orderStatuses.findIndex(
       (s) => s.key === normalizedStatus,
     );
@@ -103,29 +158,30 @@ const OrderHistoryPage = () => {
         {orderStatuses.map((s, idx) => {
           const isCompleted = idx < currentIndex;
           const isActive = idx <= currentIndex;
-          
+
           return (
-          <div
-            key={s.key}
-            className="flex-1 flex flex-col items-center relative group"
-          >
-            {idx < orderStatuses.length - 1 && (
-              <div
-                className={`absolute top-5 left-1/2 w-full h-[3px] ${isActive ? "bg-primary" : "bg-gray-200"} -z-10 transition-all`}
-              ></div>
-            )}
             <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center border-[3px] text-sm transition-all duration-300 ${isActive ? "bg-primary border-primary text-white shadow-[0_0_15px_rgba(var(--color-primary),0.3)] scale-110" : "bg-white border-gray-300 text-gray-400 font-bold"}`}
+              key={s.key}
+              className="flex-1 flex flex-col items-center relative group"
             >
-              {isCompleted ? <CheckCircle size={20} /> : idx + 1}
+              {idx < orderStatuses.length - 1 && (
+                <div
+                  className={`absolute top-5 left-1/2 w-full h-[3px] ${isActive ? "bg-primary" : "bg-gray-200"} -z-10 transition-all`}
+                ></div>
+              )}
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-[3px] text-sm transition-all duration-300 ${isActive ? "bg-primary border-primary text-white shadow-[0_0_15px_rgba(var(--color-primary),0.3)] scale-110" : "bg-white border-gray-300 text-gray-400 font-bold"}`}
+              >
+                {isCompleted ? <CheckCircle size={20} /> : idx + 1}
+              </div>
+              <p
+                className={`text-[11px] mt-4 font-black uppercase tracking-wider text-center transition-all ${isActive ? "text-black translate-y-1" : "text-gray-400"}`}
+              >
+                {s.label}
+              </p>
             </div>
-            <p
-              className={`text-[11px] mt-4 font-black uppercase tracking-wider text-center transition-all ${isActive ? "text-black translate-y-1" : "text-gray-400"}`}
-            >
-              {s.label}
-            </p>
-          </div>
-        )})}
+          );
+        })}
       </div>
     );
   };
@@ -376,17 +432,21 @@ const OrderHistoryPage = () => {
                   {(() => {
                     const isUnpaidVNPay =
                       order.parentOrder?.payment_method === "VNPAY" &&
-                      order.parentOrder?.payment_status === "UNPAID";
+                      order.parentOrder?.payment_status === "UNPAID" &&
+                      order.status !== "CANCELLED" &&
+                      (new Date().getTime() -
+                        new Date(order.created_at).getTime()) /
+                        (1000 * 60 * 60) <=
+                        24;
                     if (isUnpaidVNPay) {
                       return (
-                        <button
-                          onClick={() =>
+                        <PaymentCountdownButton
+                          createdAt={order.created_at}
+                          onRetryPayment={() =>
                             handleRetryPayment(order.parentOrder!.id)
                           }
-                          className="flex items-center gap-2 px-6 py-3 border-2 border-primary text-white bg-primary rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:border-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 active:translate-y-1"
-                        >
-                          Thanh toán lại
-                        </button>
+                          className="flex items-center justify-center min-w-[140px] px-6 py-3 border-2 border-primary text-white bg-primary rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:border-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 active:translate-y-1"
+                        />
                       );
                     }
                   })()}
@@ -406,7 +466,7 @@ const OrderHistoryPage = () => {
                       return (
                         <button
                           onClick={() =>
-                            handleCancelOrder(order.id, order.status)
+                            handleOpenCancelModal(order.id, order.status)
                           }
                           disabled={cancelOrderMutation.isPending}
                           className="flex items-center gap-2 px-6 py-3 border-2 border-red-200 text-red-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 transition-all active:translate-y-1 disabled:opacity-50"
@@ -429,6 +489,23 @@ const OrderHistoryPage = () => {
                       />{" "}
                       Đánh giá sản phẩm
                     </button>
+                  ) : order.status === "CANCELLED" ||
+                    order.status === "CANCEL_REQUESTED" ? (
+                    <>
+                      <button
+                        onClick={() => navigate(`/orders/${order.id}`)}
+                        className="flex items-center gap-2 px-6 py-3 bg-white text-black border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:text-white transition-all active:translate-y-1"
+                      >
+                        Xem chi tiết đơn
+                      </button>
+                      <button
+                        onClick={() => handleRepurchase(order.items || [])}
+                        disabled={addToCartMutation.isPending}
+                        className="flex items-center gap-2 px-6 py-3 bg-primary text-white border-2 border-primary rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:border-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 active:translate-y-1 disabled:opacity-50"
+                      >
+                        Mua lại
+                      </button>
+                    </>
                   ) : (
                     <button
                       onClick={() => navigate(`/orders/${order.id}`)}
@@ -443,6 +520,55 @@ const OrderHistoryPage = () => {
           </div>
         )}
       </div>
+
+      {/* Cancel Order Modal */}
+      {cancelModalOpen && orderToCancel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white border-2 border-black rounded-[2rem] w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-200">
+            <button
+              onClick={() => setCancelModalOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-black hover:rotate-90 transition-all"
+            >
+              <XCircle size={24} />
+            </button>
+            <h2 className="text-2xl font-black uppercase tracking-tighter mb-2">
+              {orderToCancel.status === "PREPARING"
+                ? "Yêu cầu hủy đơn"
+                : "Hủy đơn hàng"}
+            </h2>
+            <p className="text-sm text-gray-500 mb-6 font-medium">
+              Vui lòng cho chúng tôi biết lý do bạn muốn hủy đơn hàng này.
+            </p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {cancelledSuggestions.map((reason, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setCancelReason(reason)}
+                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-full transition-colors border border-gray-200 active:scale-95 text-left"
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Nhập lý do hủy đơn..."
+              className="w-full h-32 p-4 rounded-xl border-2 border-gray-200 focus:border-black focus:ring-4 focus:ring-primary/10 outline-none resize-none mb-6 font-medium text-sm transition-all"
+            ></textarea>
+            <button
+              onClick={submitCancelOrder}
+              disabled={cancelOrderMutation.isPending}
+              className="w-full py-4 bg-black text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50"
+            >
+              {cancelOrderMutation.isPending
+                ? "Đang xử lý..."
+                : "Xác nhận hủy đơn"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

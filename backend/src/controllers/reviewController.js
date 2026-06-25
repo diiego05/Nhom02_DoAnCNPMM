@@ -38,7 +38,28 @@ const getProductReviews = async (req, res) => {
   }
 };
 
+const updateReview = async (req, res) => {
+  try {
+    const { id: productId } = req.params;
+    const { order_id, rating, comment, images } = req.body;
+    const userId = req.user.id; 
+
+    const updatedReview = await reviewService.updateReview(userId, productId, {
+      order_id, rating, comment, images
+    });
+
+    return res.status(200).json({
+      message: "Cập nhật đánh giá thành công!",
+      data: updatedReview,
+    });
+  } catch (error) {
+    console.error("Error updating review:", error);
+    return res.status(error.message.includes("Không tìm thấy") ? 404 : 500).json({ message: error.message || "Lỗi máy chủ nội bộ." });
+  }
+};
+
 export default {
   createReview,
   getProductReviews,
+  updateReview,
 };
