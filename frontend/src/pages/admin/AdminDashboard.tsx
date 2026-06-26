@@ -14,6 +14,7 @@ import {
    Menu,
    Landmark,
    Activity,
+   ClipboardList,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
@@ -30,7 +31,8 @@ import { VendorTab } from './components/VendorTab';
 import { SettingsTab } from './components/SettingsTab';
 import { FinanceTab } from './components/FinanceTab';
 import { ReconciliationTab } from './components/ReconciliationTab';
-import { PaymentLogTab } from './components/PaymentLogTab';
+import { WithdrawalLogTab } from './components/WithdrawalLogTab';
+import { SystemLogTab } from './components/SystemLogTab';
 
 // ============================================================
 // ADMIN DASHBOARD
@@ -106,6 +108,8 @@ const AdminDashboard = () => {
    }, [showAdminProfileModal, currentUser]);
 
    const handleUpdateAdminProfile = async () => {
+      if (!currentUser) return;
+
       try {
          const formData = new FormData();
          formData.append("full_name", adminForm.full_name);
@@ -150,7 +154,8 @@ const AdminDashboard = () => {
       { id: "settings", label: "Cấu hình hệ thống", icon: <Settings size={20} /> },
       { id: "finance", label: "Báo cáo tài chính", icon: <BarChart3 size={20} /> },
       { id: "reconciliation", label: "Đối soát thanh toán", icon: <Landmark size={20} /> },
-      { id: "payment_logs", label: "Lịch sử thanh toán", icon: <Activity size={20} /> },
+      { id: "withdrawal_logs", label: "Lịch sử rút tiền", icon: <Activity size={20} /> },
+      { id: "system_logs", label: "Nhật ký hệ thống", icon: <ClipboardList size={20} /> },
    ];
 
    return (
@@ -291,7 +296,8 @@ const AdminDashboard = () => {
                {activeTab === "settings" && <SettingsTab showToast={showToast} showConfirm={showConfirm} />}
                {activeTab === "finance" && <FinanceTab />}
                {activeTab === "reconciliation" && <ReconciliationTab showToast={showToast} showConfirm={showConfirm} />}
-               {activeTab === "payment_logs" && <PaymentLogTab showToast={showToast} showConfirm={showConfirm} />}
+               {activeTab === "withdrawal_logs" && <WithdrawalLogTab showToast={showToast} showConfirm={showConfirm} />}
+               {activeTab === "system_logs" && <SystemLogTab showToast={showToast} showConfirm={showConfirm} />}
 
             </div>
          </main>

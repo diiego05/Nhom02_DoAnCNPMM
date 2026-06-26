@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell, CheckCircle2, ShoppingBag, Wallet, Star, FileText, Check, X } from "lucide-react";
+import { Bell, CheckCircle2, ShoppingBag, Wallet, Star, FileText, Check, X, MessageSquare } from "lucide-react";
 import { notificationService, Notification } from "@/services/notificationService";
 
 export const NotificationDropdown = () => {
@@ -8,11 +8,20 @@ export const NotificationDropdown = () => {
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [selectedNotif, setSelectedNotif] = useState<Notification | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const prevUnreadCountRef = useRef<number>(0);
+  const isInitialLoad = useRef<boolean>(true);
 
   const fetchNotifications = async () => {
     try {
       const res = await notificationService.getNotifications();
       if (res && res.data) {
+        const newUnreadCount = res.data.filter((n: Notification) => !n.is_read).length;
+        if (!isInitialLoad.current && newUnreadCount > prevUnreadCountRef.current) {
+          const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2357/2357-84.wav");
+          audio.play().catch((e) => console.log("Audio play blocked by browser:", e));
+        }
+        isInitialLoad.current = false;
+        prevUnreadCountRef.current = newUnreadCount;
         setNotifications(res.data);
       }
     } catch (err) {
@@ -100,6 +109,12 @@ export const NotificationDropdown = () => {
         return (
           <div className="w-8 h-8 rounded-lg bg-yellow-100 border border-yellow-300 flex items-center justify-center text-yellow-600 shrink-0">
             <Star size={16} className="fill-yellow-500 text-yellow-500" />
+          </div>
+        );
+      case "NEW_MESSAGE":
+        return (
+          <div className="w-8 h-8 rounded-lg bg-indigo-100 border border-indigo-300 flex items-center justify-center text-indigo-600 shrink-0">
+            <MessageSquare size={16} />
           </div>
         );
       default:

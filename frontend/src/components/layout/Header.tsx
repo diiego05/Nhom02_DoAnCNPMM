@@ -39,6 +39,12 @@ const Header = () => {
       ? user.role.toLowerCase() === "vendor"
       : user?.role?.role_name?.toLowerCase() === "vendor";
 
+  const isShipper =
+    (typeof user?.role === "string"
+      ? user.role.toLowerCase() === "shipper"
+      : user?.role?.role_name?.toLowerCase() === "shipper") ||
+    user?.email?.includes("shipper");
+
   const FACEBOOK_DEFAULT_AVATAR = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23a0a0a0"><rect width="24" height="24" fill="%23e4e6eb"/><circle cx="12" cy="8" r="4"/><path d="M12 14c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z"/></svg>`;
 
   const [shouldShake, setShouldShake] = useState(false);
@@ -378,6 +384,16 @@ const Header = () => {
             >
               <ShieldCheck size={16} strokeWidth={2.5} />
               Quản trị viên
+            </Link>
+          )}
+
+          {isAuthenticated && isShipper && (
+            <Link
+              to="/shipper"
+              className="flex items-center gap-2 px-4 py-2.5 border-2 border-black rounded-full font-black text-[10px] uppercase tracking-widest bg-black text-white hover:bg-primary transition-all shadow-soft active:scale-95 shrink-0"
+            >
+              <ShieldCheck size={16} strokeWidth={2.5} />
+              Dashboard Shipper
             </Link>
           )}
 

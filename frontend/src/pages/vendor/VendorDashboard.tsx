@@ -27,19 +27,21 @@ import {
   X,
   Smile,
   AlertCircle,
-} from "lucide-react";
-import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+  BookOpen,
+  FileText,
+  Download,
+  Loader2,
+  Save
+} from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 
-import useAuth from "@/hooks/useAuth";
-import {
-  vendorService,
-  ShopProfileData,
-  ProductData,
-  VoucherData,
-} from "@/services/vendorService";
-import { chatService } from "@/services/chatService";
-import { NotificationDropdown } from "@/components/layout/NotificationDropdown";
+import useAuth from '@/hooks/useAuth';
+import { vendorService, ShopProfileData, ProductData, VoucherData } from '@/services/vendorService';
+import { chatService } from '@/services/chatService';
+import { NotificationDropdown } from '@/components/layout/NotificationDropdown';
+import EmojiPicker from '@/components/chat/EmojiPicker';
+
 
 const DEFAULT_SHOP_LOGO =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='128' height='128'><rect width='100' height='100' fill='%23FFE4D6' stroke='black' stroke-width='4'/><path d='M20 40 L50 15 L80 40 L80 85 L20 85 Z' fill='white' stroke='black' stroke-width='4'/><rect x='40' y='55' width='20' height='30' fill='%23D97736' stroke='black' stroke-width='4'/><path d='M15 40 L85 40' stroke='black' stroke-width='4'/></svg>";
@@ -115,11 +117,10 @@ const CustomSelect = ({
                   onChange(opt.value.toString());
                   setIsOpen(false);
                 }}
-                className={`px-5 py-3 text-xs font-bold cursor-pointer transition-colors ${
-                  isSelected
-                    ? "bg-primary/25 text-black font-black"
-                    : "hover:bg-gray-50 text-gray-700 hover:text-black"
-                }`}
+                className={`px-5 py-3 text-xs font-bold cursor-pointer transition-colors ${isSelected
+                  ? "bg-primary/25 text-black font-black"
+                  : "hover:bg-gray-50 text-gray-700 hover:text-black"
+                  }`}
               >
                 <span>{opt.label}</span>
               </li>
@@ -132,7 +133,7 @@ const CustomSelect = ({
 };
 
 const VendorDashboard = () => {
-  const { user, handleLogout } = useAuth();
+  const { user, handleLogout, handleInitAuth } = useAuth();
   const [isRegistered, setIsRegistered] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -144,10 +145,22 @@ const VendorDashboard = () => {
   // Form Đăng ký Shop removed (moved to RegisterShopPage)
 
   // Overview Stats state
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<{
+    revenue: number;
+    netRevenue: number;
+    availableBalance: number;
+    pendingBalance: number;
+    withdrawnAmount: number;
+    ordersCount: number;
+    productsCount: number;
+    commentsCount: number;
+    dailyRevenue: number[];
+  }>({
     revenue: 0,
     netRevenue: 0,
     availableBalance: 0,
+    pendingBalance: 0,
+    withdrawnAmount: 0,
     ordersCount: 0,
     productsCount: 0,
     commentsCount: 0,
@@ -188,6 +201,8 @@ const VendorDashboard = () => {
     material: "",
     stock_quantity: 10,
     image_url: "",
+    is_new: false,
+    is_featured: false
   });
 
   const [productImageType, setProductImageType] = useState<"url" | "file">(
@@ -198,6 +213,12 @@ const VendorDashboard = () => {
   const [shopCoverType, setShopCoverType] = useState<"url" | "file">("url");
   const [isUploadingShopImage, setIsUploadingShopImage] = useState(false);
 
+  // States cho quản lý nhiều ảnh chính sản phẩm (Gallery)
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
+  const [primaryImageUrl, setPrimaryImageUrl] = useState<string>("");
+  const [pendingImageUrl, setPendingImageUrl] = useState<string>("");
+  const [showPrimaryConfirm, setShowPrimaryConfirm] = useState(false);
+
   // Orders state
   const [orders, setOrders] = useState<any[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
@@ -205,6 +226,12 @@ const VendorDashboard = () => {
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatInputText, setChatInputText] = useState("");
   const [conversations, setConversations] = useState<any[]>([]);
+  const [attachedFile, setAttachedFile] = useState<{ url: string; name: string; type: string } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const prevTotalUnreadRef = useRef<number>(0);
+  const isInitialUnreadLoad = useRef<boolean>(true);
+  const chatMessagesLengthRef = useRef<number>(0);
 
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [withdrawForm, setWithdrawForm] = useState({
@@ -213,6 +240,85 @@ const VendorDashboard = () => {
     accountNumber: "",
     accountName: "",
   });
+
+  // Auto-fill shop's default bank details when shopInfo is loaded
+  useEffect(() => {
+    if (shopInfo) {
+      setWithdrawForm(prev => ({
+        ...prev,
+        bankName: prev.bankName || shopInfo.bank_name || "",
+        accountNumber: prev.accountNumber || shopInfo.bank_account_no || "",
+        accountName: prev.accountName || shopInfo.bank_account_name || ""
+      }));
+    }
+  }, [shopInfo]);
+
+  const [showSavedBanksModal, setShowSavedBanksModal] = useState(false);
+  const [isSavingBank, setIsSavingBank] = useState(false);
+
+  const handleSaveDefaultBank = async () => {
+    if (!withdrawForm.bankName || !withdrawForm.accountNumber || !withdrawForm.accountName) {
+      alert("Vui lòng điền đầy đủ thông tin ngân hàng trước khi lưu!");
+      return;
+    }
+    setIsSavingBank(true);
+    try {
+      await vendorService.updateMyShopInfo({
+        name: settingsForm.name,
+        phone: settingsForm.phone,
+        address: settingsForm.address,
+        industry: settingsForm.industry,
+        description: settingsForm.description,
+        bank_name: withdrawForm.bankName,
+        bank_account_no: withdrawForm.accountNumber,
+        bank_account_name: withdrawForm.accountName
+      });
+
+      const res = await vendorService.getMyShopInfo();
+      if (res && res.data) {
+        setShopInfo(res.data);
+      }
+      alert("Lưu thông tin tài khoản mặc định thành công!");
+    } catch (err: any) {
+      console.error("Lỗi lưu tài khoản mặc định:", err);
+      alert(err.response?.data?.message || "Không thể lưu thông tin tài khoản. Vui lòng thử lại!");
+    } finally {
+      setIsSavingBank(false);
+    }
+  };
+
+  const getHistoricalBankAccounts = () => {
+    const list: Array<{ bank_name: string; bank_account: string; bank_account_name: string; type: "SAVED" | "HISTORY" }> = [];
+
+    if (shopInfo?.bank_name && shopInfo?.bank_account_no) {
+      list.push({
+        bank_name: shopInfo.bank_name,
+        bank_account: shopInfo.bank_account_no,
+        bank_account_name: shopInfo.bank_account_name || "",
+        type: "SAVED"
+      });
+    }
+
+    withdrawals.forEach(w => {
+      const bankName = w.bank_name;
+      const bankAcc = w.bank_account || w.account_number;
+      const bankAccName = w.bank_account_name || w.account_name;
+
+      if (bankName && bankAcc) {
+        const exists = list.some(item => item.bank_account === bankAcc);
+        if (!exists) {
+          list.push({
+            bank_name: bankName,
+            bank_account: bankAcc,
+            bank_account_name: bankAccName || "",
+            type: "HISTORY"
+          });
+        }
+      }
+    });
+
+    return list;
+  };
 
   // Promos state
   const [vouchers, setVouchers] = useState<any[]>([]);
@@ -226,7 +332,7 @@ const VendorDashboard = () => {
     isOpen: false,
     title: "",
     message: "",
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
   const [voucherForm, setVoucherForm] = useState({
     code: "",
@@ -388,6 +494,13 @@ const VendorDashboard = () => {
       try {
         const res = await chatService.getConversations();
         if (res && res.data) {
+          const totalUnread = res.data.reduce((sum: number, c: any) => sum + (c.unreadCount || 0), 0);
+          if (!isInitialUnreadLoad.current && totalUnread > prevTotalUnreadRef.current) {
+            const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2357/2357-84.wav");
+            audio.play().catch(e => console.log("Blocked audio play:", e));
+          }
+          isInitialUnreadLoad.current = false;
+          prevTotalUnreadRef.current = totalUnread;
           setConversations(res.data);
         }
       } catch (err) {
@@ -408,10 +521,20 @@ const VendorDashboard = () => {
     const partner = conversations[activeChatIndex]?.partner;
     if (!partner) return;
 
+    chatMessagesLengthRef.current = 0;
+
     const fetchChat = async () => {
       try {
         const res = await chatService.getChatHistory(partner.id);
         if (res && res.data) {
+          if (chatMessagesLengthRef.current > 0 && res.data.length > chatMessagesLengthRef.current) {
+            const lastNewMsg = res.data[res.data.length - 1];
+            if (lastNewMsg.sender_id !== user?.id) {
+              const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2357/2357-84.wav");
+              audio.play().catch(e => console.log("Blocked audio play:", e));
+            }
+          }
+          chatMessagesLengthRef.current = res.data.length;
           setChatMessages(res.data);
         }
       } catch (err) {
@@ -428,7 +551,7 @@ const VendorDashboard = () => {
   const fetchShopProducts = async () => {
     if (!shopInfo) return;
     try {
-      const res = await vendorService.getShopProducts(shopInfo.id, {
+      const res = await vendorService.getMyShopProducts({
         page: productsPage,
         limit: 5,
       });
@@ -483,11 +606,27 @@ const VendorDashboard = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (galleryImages.length >= 5) {
+      alert("Bạn chỉ được tải lên tối đa 5 ảnh chính cho sản phẩm!");
+      return;
+    }
+
     try {
       setIsUploadingProductImage(true);
       const res = await vendorService.uploadImage(file);
       if (res && res.url) {
-        setProductForm((prev) => ({ ...prev, image_url: res.url }));
+
+        const newUrl = res.url;
+        if (galleryImages.length === 0) {
+          setGalleryImages([newUrl]);
+          setPrimaryImageUrl(newUrl);
+          setProductForm(prev => ({ ...prev, image_url: newUrl }));
+        } else {
+          setGalleryImages(prev => [...prev, newUrl]);
+          setPendingImageUrl(newUrl);
+          setShowPrimaryConfirm(true);
+        }
+
       }
     } catch (err) {
       console.error(err);
@@ -537,27 +676,89 @@ const VendorDashboard = () => {
     }
   };
 
-  // Đăng ký gian hàng moved to RegisterShopPage
+
+  // Đăng ký gian hàng
+  const handleRegisterShopSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await vendorService.registerShop(registerForm);
+      if (res && res.data) {
+        setShopInfo(res.data);
+        setIsRegistered(true);
+        if (handleInitAuth) {
+          await handleInitAuth();
+        }
+        alert("Khởi tạo gian hàng thành công!");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Đăng ký thất bại. Vui lòng thử lại!");
+    }
+  };
+
 
   // Tạo & Cập nhật sản phẩm
   const handleProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Chuẩn bị variants
-      let finalVariants: any[] = [];
-      let totalStock = parseInt(productForm.stock_quantity.toString());
-
-      if (hasVariants) {
+      // VALIDATION GIÁ
+      if (!hasVariants) {
+        const basePrice = parseFloat(productForm.price.toString());
+        if (isNaN(basePrice) || basePrice <= 0) {
+          alert("Giá bán gốc của sản phẩm phải lớn hơn 0!");
+          return;
+        }
+        if (productForm.sale_price) {
+          const salePriceVal = parseFloat(productForm.sale_price.toString());
+          if (isNaN(salePriceVal) || salePriceVal < 0) {
+            alert("Giá khuyến mãi phải lớn hơn hoặc bằng 0!");
+            return;
+          }
+          if (salePriceVal > basePrice) {
+            alert("Giá khuyến mãi không được lớn hơn giá bán gốc!");
+            return;
+          }
+        }
+      } else {
         if (productVariants.length === 0) {
           alert(
             "Vui lòng thêm ít nhất một biến thể hoặc tắt chế độ đa biến thể!",
           );
           return;
         }
-        finalVariants = productVariants.map((v) => ({
+        for (let i = 0; i < productVariants.length; i++) {
+          const v = productVariants[i];
+          const vPrice = parseFloat(v.price?.toString() || "0");
+          if (isNaN(vPrice) || vPrice <= 0) {
+            alert(`Biến thể dòng ${i + 1} (Kích thước: ${v.size}, Màu sắc: ${v.color}) phải có giá gốc lớn hơn 0!`);
+            return;
+          }
+          if (v.sale_price) {
+            const vSalePrice = parseFloat(v.sale_price.toString());
+            if (isNaN(vSalePrice) || vSalePrice < 0) {
+              alert(`Biến thể dòng ${i + 1} phải có giá khuyến mãi hợp lệ!`);
+              return;
+            }
+            if (vSalePrice > vPrice) {
+              alert(`Biến thể dòng ${i + 1} có giá khuyến mãi không được lớn hơn giá gốc (${vSalePrice} > ${vPrice})!`);
+              return;
+            }
+          }
+        }
+      }
+
+      // Chuẩn bị variants
+      let finalVariants: any[] = [];
+      let totalStock = parseInt(productForm.stock_quantity.toString());
+      let finalPrice = parseFloat(productForm.price.toString());
+      let finalSalePrice: number | undefined = productForm.sale_price ? parseFloat(productForm.sale_price.toString()) : undefined;
+
+      if (hasVariants) {
+        finalVariants = productVariants.map((v, i) => ({
           size: v.size || "Free Size",
           color: v.color || "Default",
           color_hex: v.color_hex || "#888888",
+          image_url: v.image_url || "",
           price: parseFloat(v.price.toString()),
           sale_price: v.sale_price
             ? parseFloat(v.sale_price.toString())
@@ -565,21 +766,47 @@ const VendorDashboard = () => {
           stock_quantity: parseInt(v.stock_quantity.toString()),
         }));
         // Tính tổng tồn kho từ tất cả biến thể
-        totalStock = finalVariants.reduce(
-          (sum, v) => sum + v.stock_quantity,
-          0,
-        );
+
+        totalStock = finalVariants.reduce((sum, v) => sum + v.stock_quantity, 0);
+
+        // Tính toán giá chính của sản phẩm bằng biến thể có giá thực tế thấp nhất (sale_price hoặc price)
+        let lowestVariant = finalVariants[0];
+        let lowestEffPrice = lowestVariant.sale_price !== undefined ? lowestVariant.sale_price : lowestVariant.price;
+
+        finalVariants.forEach((v) => {
+          const effPrice = v.sale_price !== undefined ? v.sale_price : v.price;
+          if (effPrice < lowestEffPrice) {
+            lowestEffPrice = effPrice;
+            lowestVariant = v;
+          }
+        });
+
+        finalPrice = lowestVariant.price;
+        finalSalePrice = lowestVariant.sale_price;
       } else {
         // Tự động map một variant mặc định nếu là đơn biến thể
-        finalVariants = [
-          {
-            size: "Free Size",
-            color: "Default",
-            color_hex: "#888888",
-            price: parseFloat(productForm.price.toString()),
-            stock_quantity: parseInt(productForm.stock_quantity.toString()),
-          },
-        ];
+        finalVariants = [{
+          size: "Free Size",
+          color: "Default",
+          color_hex: "#888888",
+          image_url: productForm.image_url || "",
+          price: parseFloat(productForm.price.toString()),
+          sale_price: productForm.sale_price ? parseFloat(productForm.sale_price.toString()) : undefined,
+          stock_quantity: parseInt(productForm.stock_quantity.toString())
+        }];
+
+      }
+
+      let payloadImages = galleryImages.map((url) => ({
+        image_url: url,
+        is_primary: url === primaryImageUrl
+      }));
+
+      if (payloadImages.length === 0 && productForm.image_url) {
+        payloadImages.push({
+          image_url: productForm.image_url,
+          is_primary: true
+        });
       }
 
       const payload: ProductData = {
@@ -589,17 +816,22 @@ const VendorDashboard = () => {
           ? parseInt(productForm.brand_id)
           : undefined,
         description: productForm.description,
-        price: parseFloat(productForm.price.toString()),
-        sale_price: productForm.sale_price
-          ? parseFloat(productForm.sale_price.toString())
-          : undefined,
+        price: finalPrice,
+        sale_price: finalSalePrice,
+
         gender: productForm.gender,
         material: productForm.material,
         stock_quantity: totalStock,
         variants: finalVariants,
-        images: productForm.image_url
-          ? [{ image_url: productForm.image_url }]
-          : [],
+
+        // images: productForm.image_url
+        //   ? [{ image_url: productForm.image_url }]
+        //   : [],
+
+        images: payloadImages,
+        is_new: productForm.is_new,
+        is_featured: productForm.is_featured
+
       };
 
       if (editingProduct) {
@@ -632,7 +864,22 @@ const VendorDashboard = () => {
       material: prod.material || "",
       stock_quantity: prod.stock_quantity || 10,
       image_url: prod.images && prod.images[0] ? prod.images[0].image_url : "",
+      is_new: prod.is_new || false,
+      is_featured: prod.is_featured || false
     });
+
+    if (prod.images && prod.images.length > 0) {
+      const urls = prod.images.map((img: any) => img.image_url);
+      setGalleryImages(urls);
+      const primary = prod.images.find((img: any) => img.is_primary);
+      setPrimaryImageUrl(primary ? primary.image_url : urls[0]);
+    } else if (prod.image_url) {
+      setGalleryImages([prod.image_url]);
+      setPrimaryImageUrl(prod.image_url);
+    } else {
+      setGalleryImages([]);
+      setPrimaryImageUrl("");
+    }
 
     // Nếu sản phẩm có biến thể
     if (prod.variants && prod.variants.length > 0) {
@@ -645,16 +892,27 @@ const VendorDashboard = () => {
 
       if (!isDefault) {
         setHasVariants(true);
-        setProductVariants(
-          prod.variants.map((v: any) => ({
-            size: v.size,
-            color: v.color,
-            color_hex: v.color_hex || "#888888",
-            price: v.price || 0,
-            sale_price: v.sale_price || "",
-            stock_quantity: v.stock_quantity || 0,
-          })),
-        );
+
+        // setProductVariants(
+        //   prod.variants.map((v: any) => ({
+        //     size: v.size,
+        //     color: v.color,
+        //     color_hex: v.color_hex || "#888888",
+        //     price: v.price || 0,
+        //     sale_price: v.sale_price || "",
+        //     stock_quantity: v.stock_quantity || 0,
+        //   })),
+        // );
+        setProductVariants(prod.variants.map((v: any) => ({
+          size: v.size,
+          color: v.color,
+          color_hex: v.color_hex || "#888888",
+          image_url: v.image_url || "",
+          price: v.price || 0,
+          sale_price: v.sale_price || "",
+          stock_quantity: v.stock_quantity || 0
+        })));
+
       } else {
         setHasVariants(false);
         setProductVariants([]);
@@ -681,15 +939,15 @@ const VendorDashboard = () => {
 
     const sizes = bulkSizes
       ? bulkSizes
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
       : ["Free Size"];
     const colors = bulkColors
       ? bulkColors
-          .split(",")
-          .map((c) => c.trim())
-          .filter(Boolean)
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean)
       : ["Default"];
 
     const newVariants: any[] = [];
@@ -706,6 +964,7 @@ const VendorDashboard = () => {
             size,
             color,
             color_hex: "#888888",
+            image_url: "",
             price: parseFloat(productForm.price.toString()) || 0,
             sale_price: "",
             stock_quantity: 10,
@@ -764,6 +1023,7 @@ const VendorDashboard = () => {
         size: "M",
         color: "Mặc định",
         color_hex: "#888888",
+        image_url: "",
         price: parseFloat(productForm.price.toString()) || 0,
         sale_price: "",
         stock_quantity: 10,
@@ -779,11 +1039,69 @@ const VendorDashboard = () => {
 
   const updateVariantField = (index: number, field: string, value: any) => {
     const updated = [...productVariants];
-    updated[index] = {
+    const targetVariant = {
       ...updated[index],
       [field]: value,
     };
+    updated[index] = targetVariant;
+
+    // Propagation logic for same color variants
+    if (field === 'color_hex') {
+      const colorName = targetVariant.color;
+      updated.forEach((v) => {
+        if (v.color === colorName) {
+          v.color_hex = value;
+        }
+      });
+    } else if (field === 'image_url') {
+      const colorName = targetVariant.color;
+      updated.forEach((v) => {
+        if (v.color === colorName) {
+          v.image_url = value;
+        }
+      });
+    } else if (field === 'color') {
+      // Find another variant that already has this new color name
+      // and grab its color_hex/image_url if they are not empty
+      const existing = updated.find((v, idx) => idx !== index && v.color === value);
+      if (existing) {
+        targetVariant.color_hex = existing.color_hex || targetVariant.color_hex;
+        targetVariant.image_url = existing.image_url || targetVariant.image_url;
+      }
+
+      // Also, propagate color_hex and image_url to other variants sharing the same color
+      if (targetVariant.color_hex) {
+        updated.forEach((v) => {
+          if (v.color === value) {
+            v.color_hex = targetVariant.color_hex;
+          }
+        });
+      }
+      if (targetVariant.image_url) {
+        updated.forEach((v) => {
+          if (v.color === value) {
+            v.image_url = targetVariant.image_url;
+          }
+        });
+      }
+    }
+
     setProductVariants(updated);
+  };
+
+  const handleVariantImageUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const res = await vendorService.uploadImage(file);
+      if (res && res.url) {
+        updateVariantField(index, "image_url", res.url);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Tải ảnh biến thể thất bại!");
+    }
   };
 
   const handleDeleteProduct = async (id: number) => {
@@ -867,6 +1185,27 @@ const VendorDashboard = () => {
     });
   };
 
+  // Nhận hàng hoàn
+  const handleConfirmReturn = async (orderId: number) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Xác nhận nhận hàng hoàn",
+      message:
+        "Bạn có chắc chắn đã nhận lại hàng hoàn từ shipper?",
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await vendorService.confirmReturn(orderId);
+          alert("Xác nhận nhận hàng hoàn thành công!");
+          fetchShopOrders();
+        } catch (err: any) {
+          console.error(err);
+          alert(err.response?.data?.message || "Lỗi khi cập nhật!");
+        }
+      },
+    });
+  };
+
   // Xử lý hàng loạt
   const handleBulkUpdate = async (status: string) => {
     let targetStatus = "";
@@ -914,19 +1253,72 @@ const VendorDashboard = () => {
   };
 
   // Gửi tin nhắn chat
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isImage = file.type.startsWith("image/");
+    const maxSize = isImage ? 5 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert(`Dung lượng file vượt quá giới hạn cho phép (${isImage ? "5MB đối với hình ảnh" : "10MB đối với tài liệu"})`);
+      e.target.value = "";
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const res = await chatService.uploadAttachment(file);
+      if (res && res.data) {
+        setAttachedFile({
+          url: res.data.url,
+          name: res.data.name,
+          type: res.data.type
+        });
+      }
+    } catch (err) {
+      console.error("Lỗi tải tệp lên:", err);
+      alert("Tải tệp lên thất bại. Vui lòng thử lại!");
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleTriggerFileInput = () => {
+    if (isUploading) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleRemoveAttachedFile = () => {
+    setAttachedFile(null);
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInputText.trim() || chatCustomers.length === 0) return;
+    const content = chatInputText.trim();
+    if (!content && !attachedFile) return;
+    if (chatCustomers.length === 0 || isUploading) return;
 
     const partner = chatCustomers[activeChatIndex];
     if (!partner) return;
 
+    setChatInputText(""); // Clear input early for responsiveness
+    const currentAttachment = attachedFile;
+    setAttachedFile(null);
+
     try {
-      const textToSend = chatInputText;
-      setChatInputText(""); // Clear input early for responsiveness
-      const res = await chatService.sendMessage(partner.id, textToSend);
+      const res = await chatService.sendMessage(
+        partner.id,
+        content,
+        currentAttachment?.url,
+        currentAttachment?.name,
+        currentAttachment?.type
+      );
       if (res && res.data) {
-        setChatMessages((prev) => [...prev, res.data]);
+
+        setChatMessages(prev => [...prev, res.data]);
+        chatMessagesLengthRef.current += 1;
+
         const convRes = await chatService.getConversations();
         if (convRes && convRes.data) {
           setConversations(convRes.data);
@@ -934,6 +1326,8 @@ const VendorDashboard = () => {
       }
     } catch (err) {
       console.error("Lỗi gửi tin nhắn:", err);
+      setAttachedFile(currentAttachment);
+      setChatInputText(content);
       alert("Không thể gửi tin nhắn. Vui lòng thử lại!");
     }
   };
@@ -958,11 +1352,17 @@ const VendorDashboard = () => {
       alert("Vui lòng nhập số tiền hợp lệ!");
       return;
     }
-    if (
-      !withdrawForm.bankName ||
-      !withdrawForm.accountNumber ||
-      !withdrawForm.accountName
-    ) {
+
+    if (amt < 100000) {
+      alert("Số tiền rút tối thiểu là 100.000 VNĐ!");
+      return;
+    }
+    if (amt > (stats.availableBalance || 0)) {
+      alert("Số dư khả dụng không đủ để thực hiện giao dịch này!");
+      return;
+    }
+    if (!withdrawForm.bankName || !withdrawForm.accountNumber || !withdrawForm.accountName) {
+
       alert("Vui lòng nhập đầy đủ thông tin tài khoản ngân hàng!");
       return;
     }
@@ -980,8 +1380,16 @@ const VendorDashboard = () => {
             account_number: withdrawForm.accountNumber,
             account_name: withdrawForm.accountName,
           });
-          alert("Đã gửi yêu cầu rút tiền thành công. Vui lòng chờ phê duyệt!");
-          setWithdrawForm((prev) => ({ ...prev, amount: "" })); // Xoá trắng số tiền
+
+
+          if (amt < 50000000) {
+            alert("Rút tiền thành công!");
+          } else {
+            alert("Yêu cầu rút tiền từ 50.000.000 VNĐ trở lên đã được gửi và đang chờ Admin phê duyệt.");
+          }
+
+          setWithdrawForm(prev => ({ ...prev, amount: "" })); // Xoá trắng số tiền
+
           fetchWithdrawalHistory();
 
           // Load lại stats để cập nhật số dư khả dụng
@@ -1093,16 +1501,174 @@ const VendorDashboard = () => {
   }
 
   // --- TRANG ĐĂNG KÝ SHOP REMOVED ---
-  if (!isRegistered && !loading) {
+  //   if (!isRegistered && !loading) {
+  //     return (
+  //       <div className="min-h-screen bg-[#F4F4F0] flex items-center justify-center p-6">
+  //         <div className="text-center">
+  //           <h2 className="text-2xl font-black uppercase text-red-500 mb-2">
+  //             Lỗi truy cập
+  //           </h2>
+  //           <p className="text-gray-500">
+  //             Bạn chưa có gian hàng. Vui lòng quay lại trang chủ.
+  //           </p>
+  // =======
+  // --- TRANG CHỜ PHÊ DUYỆT ---
+  if (shopInfo && shopInfo.status === "PENDING") {
     return (
-      <div className="min-h-screen bg-[#F4F4F0] flex items-center justify-center p-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-black uppercase text-red-500 mb-2">
-            Lỗi truy cập
-          </h2>
-          <p className="text-gray-500">
-            Bạn chưa có gian hàng. Vui lòng quay lại trang chủ.
+      <div className="min-h-screen bg-[#F4F4F0] flex flex-col items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white border-2 border-black rounded-[2rem] p-8 text-center shadow-brutal">
+          <div className="w-16 h-16 bg-yellow-100 border-2 border-black rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <Clock className="text-yellow-600 animate-bounce" size={32} />
+          </div>
+          <h1 className="text-2xl font-serif font-black uppercase mb-4">Đang Chờ Phê Duyệt</h1>
+          <p className="text-gray-600 font-medium mb-6">
+            Yêu cầu đăng ký gian hàng <strong>"{shopInfo.shop_name || shopInfo.name}"</strong> của bạn đang được quản trị viên xét duyệt.
           </p>
+          <p className="text-xs text-gray-500 mb-8 font-semibold">
+            Chúng tôi sẽ thông báo cho bạn ngay sau khi gian hàng được phê duyệt hoạt động.
+          </p>
+          <Link to="/" className="w-full btn-brutal py-4 inline-block shadow-brutal hover:bg-primary transition-all text-xs font-bold uppercase">
+            Quay lại Trang chủ
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // --- TRANG BỊ TỪ CHỐI ---
+  if (shopInfo && shopInfo.status === "REJECTED") {
+    return (
+      <div className="min-h-screen bg-[#F4F4F0] flex flex-col items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white border-2 border-black rounded-[2rem] p-8 text-center shadow-brutal">
+          <div className="w-16 h-16 bg-red-100 border-2 border-black rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <X className="text-red-600" size={32} />
+          </div>
+          <h1 className="text-2xl font-serif font-black uppercase mb-4">Đơn Đăng Ký Bị Từ Chối</h1>
+          <p className="text-gray-600 font-medium mb-4">
+            Đơn đăng ký gian hàng <strong>"{shopInfo.shop_name || shopInfo.name}"</strong> của bạn đã bị từ chối.
+          </p>
+          {shopInfo.reject_reason && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-left">
+              <span className="text-xs font-bold text-red-800 uppercase block mb-1">Lý do từ chối:</span>
+              <p className="text-sm text-red-700 font-medium">{shopInfo.reject_reason}</p>
+            </div>
+          )}
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => {
+                // Đưa về trạng thái chưa đăng ký để hiện lại form
+                setRegisterForm({
+                  name: shopInfo.shop_name || "",
+                  phone: shopInfo.phone || "",
+                  address: shopInfo.address || "",
+                  industry: shopInfo.industry || "Thời trang Nam",
+                  description: shopInfo.description || ""
+                });
+                setIsRegistered(false);
+                setShopInfo(null);
+              }}
+              className="w-full btn-brutal py-4 shadow-brutal bg-primary text-xs font-bold uppercase hover:opacity-90 cursor-pointer"
+            >
+              Đăng ký lại
+            </button>
+            <Link to="/" className="w-full border-2 border-black rounded-xl py-4 font-bold hover:bg-gray-50 transition-colors text-xs font-bold uppercase">
+              Quay lại Trang chủ
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- TRANG ĐĂNG KÝ SHOP ---
+  if (!isRegistered) {
+    return (
+      <div className="min-h-screen bg-[#F4F4F0] flex flex-col items-center justify-center p-6">
+        <div className="max-w-2xl w-full">
+          <div className="text-center mb-10">
+            <div className="w-16 h-16 bg-black text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-brutal">
+              <Store size={32} />
+            </div>
+            <h1 className="text-4xl font-serif font-black tracking-tighter uppercase">Trở thành Người bán hàng</h1>
+            <p className="text-gray-500 font-medium mt-2">Mở gian hàng của bạn trên UTEShop và bắt đầu kinh doanh ngay hôm nay</p>
+          </div>
+
+          <div className="bg-white border-2 border-black rounded-[2.5rem] p-10 shadow-brutal">
+            <form className="space-y-8" onSubmit={handleRegisterShopSubmit}>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Tên gian hàng</label>
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: UTEShop Official"
+                    className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-4 font-bold focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                    value={registerForm.name}
+                    onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Số điện thoại kinh doanh</label>
+                    <input
+                      type="tel"
+                      placeholder="0xxx xxx xxx"
+                      className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-4 font-bold focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                      value={registerForm.phone}
+                      onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <CustomSelect
+                    label="Ngành hàng chính"
+                    value={registerForm.industry}
+                    options={[
+                      { value: "Thời trang Nam", label: "Thời trang Nam" },
+                      { value: "Thời trang Nữ", label: "Thời trang Nữ" },
+                      { value: "Phụ kiện & Trang sức", label: "Phụ kiện & Trang sức" },
+                      { value: "Giày dép", label: "Giày dép" }
+                    ]}
+                    onChange={(val) => setRegisterForm({ ...registerForm, industry: val })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Địa chỉ kho hàng (Lấy hàng)</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Số nhà, tên đường, phường/xã..."
+                    className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-4 font-bold focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all resize-none"
+                    value={registerForm.address}
+                    onChange={(e) => setRegisterForm({ ...registerForm, address: e.target.value })}
+                    required
+                  ></textarea>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Mô tả shop (Giới thiệu ngắn gọn)</label>
+                  <input
+                    type="text"
+                    placeholder="Giới thiệu phong cách sản phẩm của shop..."
+                    className="w-full bg-gray-50 border-2 border-black rounded-xl px-5 py-4 font-bold focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                    value={registerForm.description}
+                    onChange={(e) => setRegisterForm({ ...registerForm, description: e.target.value })}
+                  />
+                </div>
+
+                <div className="flex items-start gap-3 p-4 bg-primary/5 border border-primary/20 rounded-2xl">
+                  <input type="checkbox" className="mt-1 w-4 h-4 rounded border-black text-primary focus:ring-primary" required />
+                  <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest leading-relaxed">
+                    Tôi đồng ý với các <span className="text-primary underline cursor-pointer">{"Điều khoản & Chính sách"}</span> dành cho Người bán của UTEShop.
+                  </p>
+                </div>
+              </div>
+
+              <button type="submit" className="w-full btn-brutal py-5 text-sm shadow-brutal hover:bg-primary transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none">
+                KHỞI TẠO GIAN HÀNG NGAY
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     );
@@ -1119,9 +1685,9 @@ const VendorDashboard = () => {
           title: `Đơn hàng mới #${order.order_code} chờ xác nhận`,
           time: order.created_at
             ? new Date(order.created_at).toLocaleTimeString("vi-VN", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
+              hour: "2-digit",
+              minute: "2-digit",
+            })
             : "Vừa xong",
           icon: <Plus size={14} className="text-green-500" />,
         });
@@ -1170,6 +1736,7 @@ const VendorDashboard = () => {
     id: c.partner.id,
     name: c.partner.name,
     avatar: c.partner.avatar,
+    role: c.partner.role,
     unreadCount: c.unreadCount,
     lastMessage: c.lastMessage,
   }));
@@ -1466,7 +2033,13 @@ const VendorDashboard = () => {
                           material: "",
                           stock_quantity: 10,
                           image_url: "",
+
+                          is_new: false,
+                          is_featured: false
+
                         });
+                        setGalleryImages([]);
+                        setPrimaryImageUrl("");
                         setHasVariants(false);
                         setProductVariants([]);
                         setBulkSizes("");
@@ -1561,31 +2134,37 @@ const VendorDashboard = () => {
                                     0}
                                 </td>
                                 <td className="px-8 py-4">
-                                  <span
-                                    className={`text-[9px] font-black uppercase px-2 py-1 rounded border ${prod.status === "ACTIVE" ? "bg-green-50 text-green-600 border-green-100" : "bg-red-50 text-red-600 border-red-100"}`}
-                                  >
-                                    {prod.status === "ACTIVE"
-                                      ? "Đang bán"
-                                      : "Ngừng bán"}
+
+
+
+                                  <span className={`text-[9px] font-black uppercase px-2 py-1 rounded border ${prod.approval_status === 'APPROVED'
+                                    ? 'bg-green-50 text-green-600 border-green-100'
+                                    : prod.approval_status === 'PENDING'
+                                      ? 'bg-yellow-50 text-yellow-600 border-yellow-100'
+                                      : prod.approval_status === 'REJECTED'
+                                        ? 'bg-red-50 text-red-600 border-red-100'
+                                        : 'bg-gray-50 text-gray-600 border-gray-100'
+                                    }`}>
+                                    {prod.approval_status === 'APPROVED'
+                                      ? 'Đang bán'
+                                      : prod.approval_status === 'PENDING'
+                                        ? 'Chờ duyệt'
+                                        : prod.approval_status === 'REJECTED'
+                                          ? 'Bị từ chối'
+                                          : 'Ngừng bán'}
+
                                   </span>
                                 </td>
                                 <td className="px-8 py-4 text-right">
                                   <div className="flex justify-end gap-2">
-                                    <button
-                                      onClick={() => startEditProduct(prod)}
-                                      className="p-2 border-2 border-black rounded-lg text-primary hover:bg-primary hover:text-white transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-                                    >
-                                      <Edit3 size={14} />
-                                    </button>
-                                    {prod.status === "ACTIVE" && (
-                                      <button
-                                        onClick={() =>
-                                          handleDeleteProduct(prod.id)
-                                        }
-                                        className="p-2 border-2 border-black rounded-lg text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-                                      >
-                                        <Trash2 size={14} />
-                                      </button>
+
+
+
+                                    =======
+                                    <button onClick={() => startEditProduct(prod)} className="p-2 border-2 border-black rounded-lg text-primary hover:bg-primary hover:text-white transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"><Edit3 size={14} /></button>
+                                    {prod.approval_status === 'APPROVED' && (
+                                      <button onClick={() => handleDeleteProduct(prod.id)} className="p-2 border-2 border-black rounded-lg text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"><Trash2 size={14} /></button>
+
                                     )}
                                   </div>
                                 </td>
@@ -1727,18 +2306,57 @@ const VendorDashboard = () => {
                           </div>
 
                           {productImageType === "url" ? (
-                            <input
-                              type="text"
-                              placeholder="https://images.unsplash.com/..."
-                              className="w-full bg-gray-50 border-2 border-black rounded-xl px-4 py-3.5 font-bold focus:outline-none focus:ring-4 focus:ring-primary/10"
-                              value={productForm.image_url}
-                              onChange={(e) =>
-                                setProductForm({
-                                  ...productForm,
-                                  image_url: e.target.value,
-                                })
-                              }
-                            />
+
+                            // <input
+                            //   type="text"
+                            //   placeholder="https://images.unsplash.com/..."
+                            //   className="w-full bg-gray-50 border-2 border-black rounded-xl px-4 py-3.5 font-bold focus:outline-none focus:ring-4 focus:ring-primary/10"
+                            //   value={productForm.image_url}
+                            //   onChange={(e) =>
+                            //     setProductForm({
+                            //       ...productForm,
+                            //       image_url: e.target.value,
+                            //     })
+                            //   }
+                            // />
+
+                            <div className="flex gap-3">
+                              <input
+                                type="text"
+                                placeholder="Nhập link ảnh (https://...)"
+                                className="flex-grow bg-gray-50 border-2 border-black rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-primary/10"
+                                id="product-image-url-input"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const input = document.getElementById("product-image-url-input") as HTMLInputElement;
+                                  const url = input?.value?.trim();
+                                  if (!url) {
+                                    alert("Vui lòng nhập đường dẫn ảnh!");
+                                    return;
+                                  }
+                                  if (galleryImages.length >= 5) {
+                                    alert("Bạn chỉ được thêm tối đa 5 ảnh chính!");
+                                    return;
+                                  }
+                                  if (galleryImages.length === 0) {
+                                    setGalleryImages([url]);
+                                    setPrimaryImageUrl(url);
+                                    setProductForm(prev => ({ ...prev, image_url: url }));
+                                  } else {
+                                    setGalleryImages(prev => [...prev, url]);
+                                    setPendingImageUrl(url);
+                                    setShowPrimaryConfirm(true);
+                                  }
+                                  if (input) input.value = "";
+                                }}
+                                className="px-4 py-3 border-2 border-black bg-black text-white rounded-xl text-xs font-black hover:bg-primary transition-all active:translate-y-[1px]"
+                              >
+                                THÊM
+                              </button>
+                            </div>
+
                           ) : (
                             <div className="flex items-center gap-3">
                               <label className="flex-grow flex items-center justify-center border-2 border-dashed border-black rounded-xl py-3 px-4 bg-gray-50 hover:bg-gray-100/50 cursor-pointer transition-colors relative active:translate-y-[1px]">
@@ -1747,24 +2365,68 @@ const VendorDashboard = () => {
                                   accept="image/*"
                                   className="hidden"
                                   onChange={handleProductImageUpload}
-                                  disabled={isUploadingProductImage}
+                                  disabled={isUploadingProductImage || galleryImages.length >= 5}
                                   id="product-image-file"
                                 />
                                 <span className="text-xs font-bold text-gray-600">
-                                  {isUploadingProductImage
-                                    ? "Đang tải ảnh lên..."
-                                    : "Chọn ảnh từ thiết bị của bạn"}
+
+
+
+                                  {isUploadingProductImage ? "Đang tải ảnh lên..." : galleryImages.length >= 5 ? "Đã đạt giới hạn 5 ảnh" : "Chọn ảnh từ thiết bị của bạn"}
                                 </span>
                               </label>
-                              {productForm.image_url && (
-                                <div className="w-12 h-14 bg-gray-100 rounded-lg border-2 border-black overflow-hidden shrink-0">
-                                  <img
-                                    src={productForm.image_url}
-                                    alt="Preview"
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                              )}
+                            </div>
+                          )}
+
+                          {/* Lưới quản lý 5 ảnh Gallery */}
+                          {galleryImages.length > 0 && (
+                            <div className="mt-4 p-4 bg-gray-50 border-2 border-black rounded-[1.5rem] space-y-3">
+                              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 block">
+                                Thư viện ảnh sản phẩm ({galleryImages.length}/5) - Click chọn làm ảnh chính
+                              </label>
+                              <div className="grid grid-cols-5 gap-3">
+                                {galleryImages.map((url, idx) => {
+                                  const isPrimary = url === primaryImageUrl;
+                                  return (
+                                    <div
+                                      key={idx}
+                                      onClick={() => {
+                                        setPrimaryImageUrl(url);
+                                        setProductForm(prev => ({ ...prev, image_url: url }));
+                                      }}
+                                      className={`aspect-[4/5] rounded-xl overflow-hidden border-2 cursor-pointer transition-all relative ${isPrimary ? "border-primary border-[3px] shadow-sm translate-y-[-2px]" : "border-black hover:border-primary"}`}
+                                    >
+                                      <img src={url} alt={`Gallery ${idx}`} className="w-full h-full object-cover" />
+                                      {isPrimary ? (
+                                        <div className="absolute bottom-1 left-1 right-1 bg-primary text-white border border-black rounded text-[7px] font-black uppercase tracking-tight text-center py-0.5">
+                                          ★ CHÍNH
+                                        </div>
+                                      ) : (
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[8px] font-bold text-center">
+                                          CHỌN CHÍNH
+                                        </div>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const updated = galleryImages.filter((_, i) => i !== idx);
+                                          setGalleryImages(updated);
+                                          if (isPrimary) {
+                                            const newPrimary = updated[0] || "";
+                                            setPrimaryImageUrl(newPrimary);
+                                            setProductForm(prev => ({ ...prev, image_url: newPrimary }));
+                                          }
+                                        }}
+                                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white border border-black rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                                        title="Xóa ảnh"
+                                      >
+                                        &times;
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1787,12 +2449,48 @@ const VendorDashboard = () => {
                           placeholder="Mô tả kiểu dáng, số đo mẫu, cách bảo quản..."
                         ></textarea>
                       </div>
+
+                      {/* Phân loại Hàng mới / Hàng nổi bật */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 border-2 border-black rounded-[1.5rem] p-6 mt-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-xs font-black uppercase text-black">Hàng Mới Về</span>
+                            <p className="text-[9px] font-bold text-gray-400 uppercase mt-0.5">Đánh dấu sản phẩm mới trong gian hàng</p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={productForm.is_new}
+                              onChange={(e) => setProductForm({ ...productForm, is_new: e.target.checked })}
+                            />
+                            <div className="w-14 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-6 after:transition-all peer-checked:bg-black border-2 border-black"></div>
+                          </label>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-xs font-black uppercase text-black">Hàng Nổi Bật</span>
+                            <p className="text-[9px] font-bold text-gray-400 uppercase mt-0.5">Hiển thị sản phẩm ở mục nổi bật trang chủ</p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={productForm.is_featured}
+                              onChange={(e) => setProductForm({ ...productForm, is_featured: e.target.checked })}
+                            />
+                            <div className="w-14 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-6 after:transition-all peer-checked:bg-black border-2 border-black"></div>
+                          </label>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Phần 2: Cài đặt biến thể & Phân loại */}
                     <div className="space-y-6 pt-4 border-t border-black/5">
                       <div className="flex items-center justify-between">
                         <div>
+
                           <h3 className="text-sm font-black uppercase tracking-widest text-primary border-l-4 border-primary pl-2">
                             2. Cấu hình phân loại & biến thể
                           </h3>
@@ -1800,6 +2498,7 @@ const VendorDashboard = () => {
                             Bật chế độ này nếu sản phẩm của bạn có nhiều kích cỡ
                             hoặc màu sắc khác nhau
                           </p>
+
                         </div>
                         <div className="flex items-center gap-3">
                           <span
@@ -1882,9 +2581,16 @@ const VendorDashboard = () => {
                           <div className="bg-[#FAF9F6] border-2 border-dashed border-black rounded-[2rem] p-8 space-y-6">
                             <div className="flex items-center gap-2">
                               <Store size={18} className="text-primary" />
-                              <h4 className="text-xs font-black uppercase tracking-wider">
-                                Bảng điều khiển & Tạo biến thể nhanh
-                              </h4>
+                              <h4 className="text-xs font-black uppercase tracking-wider">{"Bảng điều khiển & Tạo biến thể nhanh"}</h4>
+                            </div>
+
+                            <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 text-[11px] font-bold text-blue-700 space-y-1">
+                              <p className="flex items-center gap-1.5 font-black uppercase">
+                                <span>💡 LƯU Ý VỀ TẠO BIẾN THỂ</span>
+                              </p>
+                              <p>• Khi bạn nhập kích thước/màu sắc mới và nhấn <strong>"Tự động sinh"</strong>, hệ thống sẽ chỉ thêm các biến thể mới mà <strong>KHÔNG</strong> làm mất hay đè lên dữ liệu của các biến thể đã có sẵn ở danh sách bên dưới.</p>
+                              <p>• Bạn có thể thoải mái thêm mới kích thước, màu sắc khác. Nếu muốn xóa bỏ phân loại cũ, hãy click vào nút <strong>Xóa (icon dấu x)</strong> ở cột Hành động của biến thể đó trong bảng danh sách bên dưới.</p>
+
                             </div>
 
                             {/* Dòng 1: Tạo tổ hợp biến thể */}
@@ -1995,18 +2701,13 @@ const VendorDashboard = () => {
                                 <table className="w-full text-left">
                                   <thead>
                                     <tr className="border-b-2 border-black/5 text-[9px] font-black uppercase tracking-widest text-gray-400 bg-gray-50/50 sticky top-0 z-10">
-                                      <th className="px-6 py-3">
-                                        Kích thước (Size)
-                                      </th>
-                                      <th className="px-6 py-3">
-                                        Màu sắc (Color)
-                                      </th>
-                                      <th className="px-6 py-3">
-                                        Giá gốc riêng (₫)
-                                      </th>
-                                      <th className="px-6 py-3">
-                                        Giá khuyến mãi riêng (₫)
-                                      </th>
+
+                                      <th className="px-6 py-3">Kích thước (Size)</th>
+                                      <th className="px-6 py-3">{"Màu sắc (Color & Hex)"}</th>
+                                      <th className="px-6 py-3">Ảnh biến thể</th>
+                                      <th className="px-6 py-3">Giá gốc riêng (₫)</th>
+                                      <th className="px-6 py-3">Giá khuyến mãi riêng (₫)</th>
+
                                       <th className="px-6 py-3">% Giảm</th>
                                       <th className="px-6 py-3">Tồn kho</th>
                                       <th className="px-6 py-3 text-right">
@@ -2017,13 +2718,10 @@ const VendorDashboard = () => {
                                   <tbody className="divide-y divide-black/5">
                                     {productVariants.length === 0 ? (
                                       <tr>
-                                        <td
-                                          colSpan={7}
-                                          className="px-6 py-8 text-center text-xs font-bold text-gray-400 uppercase tracking-widest"
-                                        >
-                                          Chưa có biến thể nào được tạo. Hãy sử
-                                          dụng bảng tạo nhanh ở trên hoặc bấm
-                                          thêm biến thể đơn lẻ!
+
+                                        <td colSpan={8} className="px-6 py-8 text-center text-xs font-bold text-gray-400 uppercase tracking-widest">
+                                          Chưa có biến thể nào được tạo. Hãy sử dụng bảng tạo nhanh ở trên hoặc bấm thêm biến thể đơn lẻ!
+
                                         </td>
                                       </tr>
                                     ) : (
@@ -2036,13 +2734,13 @@ const VendorDashboard = () => {
                                         );
                                         const discountPercent =
                                           priceNum &&
-                                          salePriceNum &&
-                                          priceNum > salePriceNum
+                                            salePriceNum &&
+                                            priceNum > salePriceNum
                                             ? Math.round(
-                                                ((priceNum - salePriceNum) /
-                                                  priceNum) *
-                                                  100,
-                                              )
+                                              ((priceNum - salePriceNum) /
+                                                priceNum) *
+                                              100,
+                                            )
                                             : 0;
 
                                         return (
@@ -2066,19 +2764,66 @@ const VendorDashboard = () => {
                                               />
                                             </td>
                                             <td className="px-6 py-3">
-                                              <input
-                                                type="text"
-                                                className="w-28 bg-gray-50 border-2 border-black rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none"
-                                                value={v.color}
-                                                onChange={(e) =>
-                                                  updateVariantField(
-                                                    idx,
-                                                    "color",
-                                                    e.target.value,
-                                                  )
-                                                }
-                                                required
-                                              />
+
+
+                                              <div className="flex items-center gap-2">
+                                                <input
+                                                  type="text"
+                                                  className="w-24 bg-gray-50 border-2 border-black rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none"
+                                                  value={v.color}
+                                                  onChange={(e) => updateVariantField(idx, "color", e.target.value)}
+                                                  required
+                                                />
+                                                <input
+                                                  type="color"
+                                                  className="w-7 h-7 border border-black rounded cursor-pointer p-0 bg-transparent shrink-0"
+                                                  value={v.color_hex || "#888888"}
+                                                  onChange={(e) => updateVariantField(idx, "color_hex", e.target.value)}
+                                                  title="Chọn mã màu"
+                                                />
+                                              </div>
+                                            </td>
+                                            <td className="px-6 py-3">
+                                              <div className="flex items-center gap-2 min-w-[170px]">
+                                                {v.image_url ? (
+                                                  <div className="w-8 h-8 rounded border border-black overflow-hidden bg-gray-50 shrink-0 relative group">
+                                                    <img
+                                                      src={v.image_url.startsWith('http') || v.image_url.startsWith('data:') ? v.image_url : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${v.image_url.startsWith('/') ? '' : '/'}${v.image_url}`}
+                                                      alt="variant"
+                                                      className="w-full h-full object-cover"
+                                                    />
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => updateVariantField(idx, "image_url", "")}
+                                                      className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                      title="Xóa ảnh"
+                                                    >
+                                                      <X size={12} />
+                                                    </button>
+                                                  </div>
+                                                ) : (
+                                                  <div className="w-8 h-8 rounded border-2 border-dashed border-black bg-gray-50 shrink-0" />
+                                                )}
+
+                                                <input
+                                                  type="text"
+                                                  placeholder="URL ảnh"
+                                                  className="flex-grow bg-gray-50 border border-black rounded px-1.5 py-1 text-[10px] font-bold focus:outline-none min-w-[80px]"
+                                                  value={v.image_url || ""}
+                                                  onChange={(e) => updateVariantField(idx, "image_url", e.target.value)}
+                                                />
+
+                                                <label className="shrink-0 cursor-pointer bg-black text-white px-2 py-1 text-[8px] font-black uppercase tracking-widest rounded border border-black hover:bg-primary transition-all active:scale-95">
+                                                  Chọn
+                                                  <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={(e) => handleVariantImageUpload(idx, e)}
+                                                  />
+                                                </label>
+                                              </div>
+
                                             </td>
                                             <td className="px-6 py-3">
                                               <input
@@ -2102,14 +2847,10 @@ const VendorDashboard = () => {
                                                 type="number"
                                                 className="w-28 bg-gray-50 border-2 border-black rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none"
                                                 value={v.sale_price}
-                                                onChange={(e) =>
-                                                  updateVariantField(
-                                                    idx,
-                                                    "sale_price",
-                                                    e.target.value,
-                                                  )
-                                                }
+
+                                                onChange={(e) => updateVariantField(idx, "sale_price", e.target.value)}
                                                 placeholder="Nếu có giảm giá"
+
                                               />
                                             </td>
                                             <td className="px-6 py-3 text-xs font-black text-red-600">
@@ -2367,18 +3108,18 @@ const VendorDashboard = () => {
                 {(filterStatus === "PENDING" ||
                   filterStatus === "CONFIRMED" ||
                   filterStatus === "PREPARING") && (
-                  <button
-                    onClick={() => handleBulkUpdate(filterStatus)}
-                    className="flex items-center gap-2 px-6 py-3 border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest bg-black text-white hover:bg-primary transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-                  >
-                    <CheckCircle2 size={16} />
-                    {filterStatus === "PENDING"
-                      ? "XÁC NHẬN TẤT CẢ"
-                      : filterStatus === "CONFIRMED"
-                        ? "CHUẨN BỊ TẤT CẢ"
-                        : "GIAO TẤT CẢ"}
-                  </button>
-                )}
+                    <button
+                      onClick={() => handleBulkUpdate(filterStatus)}
+                      className="flex items-center gap-2 px-6 py-3 border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest bg-black text-white hover:bg-primary transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+                    >
+                      <CheckCircle2 size={16} />
+                      {filterStatus === "PENDING"
+                        ? "XÁC NHẬN TẤT CẢ"
+                        : filterStatus === "CONFIRMED"
+                          ? "CHUẨN BỊ TẤT CẢ"
+                          : "GIAO TẤT CẢ"}
+                    </button>
+                  )}
               </div>
 
               {/* Bộ lọc trạng thái */}
@@ -2513,20 +3254,40 @@ const VendorDashboard = () => {
                                 </td>
                                 <td className="px-8 py-4">
                                   <span
-                                    className={`text-[9px] font-black uppercase px-2 py-1 rounded border ${order.status === "PENDING" ? "bg-orange-50 text-orange-600 border-orange-100" : order.status === "CONFIRMED" ? "bg-blue-50 text-blue-600 border-blue-100" : order.status === "PREPARING" ? "bg-indigo-50 text-indigo-600 border-indigo-100" : order.status === "READY_FOR_PICKUP" ? "bg-purple-50 text-purple-600 border-purple-100" : order.status === "DELIVERED" || order.status === "COMPLETED" ? "bg-green-50 text-green-600 border-green-100" : "bg-red-50 text-red-600 border-red-100"}`}
+                                    className={`text-[9px] font-black uppercase px-2 py-1 rounded border ${order.status === "PENDING" ? "bg-orange-50 text-orange-600 border-orange-100" :
+                                      order.status === "CONFIRMED" ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                        order.status === "PREPARING" ? "bg-indigo-50 text-indigo-600 border-indigo-100" :
+                                          order.status === "READY_FOR_PICKUP" ? "bg-purple-50 text-purple-600 border-purple-100" :
+                                            order.status === "PICKED_UP" ? "bg-cyan-50 text-cyan-600 border-cyan-100" :
+                                              order.status === "IN_TRANSIT" ? "bg-pink-50 text-pink-600 border-pink-100" :
+                                                order.status === "DELIVERING" ? "bg-yellow-50 text-yellow-600 border-yellow-100" :
+                                                  order.status === "DELIVERED" || order.status === "COMPLETED" ? "bg-green-50 text-green-600 border-green-100" :
+                                                    order.status === "RETURN_PENDING" ? "bg-pink-50 text-pink-700 border-pink-200" :
+                                                      order.status === "RETURNED" ? "bg-gray-50 text-gray-600 border-gray-100" :
+                                                        "bg-red-50 text-red-600 border-red-100"
+                                      }`}
                                   >
                                     {order.status === "PENDING"
-                                      ? "Đang chờ"
+                                      ? "Chờ xác nhận"
                                       : order.status === "CONFIRMED"
                                         ? "Đã xác nhận"
                                         : order.status === "PREPARING"
                                           ? "Đang chuẩn bị"
                                           : order.status === "READY_FOR_PICKUP"
                                             ? "Sẵn sàng giao"
-                                            : order.status === "DELIVERED" ||
-                                                order.status === "COMPLETED"
-                                              ? "Hoàn tất"
-                                              : "Hủy bỏ"}
+                                            : order.status === "PICKED_UP"
+                                              ? "Đã lấy hàng"
+                                              : order.status === "IN_TRANSIT"
+                                                ? "Đang luân chuyển"
+                                                : order.status === "DELIVERING"
+                                                  ? "Đang giao"
+                                                  : order.status === "DELIVERED" || order.status === "COMPLETED"
+                                                    ? "Hoàn tất"
+                                                    : order.status === "RETURN_PENDING"
+                                                      ? "Đang hoàn hàng"
+                                                      : order.status === "RETURNED"
+                                                        ? "Đã hoàn hàng"
+                                                        : "Đã hủy"}
                                   </span>
                                 </td>
                                 <td className="px-8 py-4 text-right">
@@ -2556,6 +3317,14 @@ const VendorDashboard = () => {
                                       className="px-4 py-2 bg-primary text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-black hover:text-white transition-all shadow-subtle active:translate-y-0.5 active:shadow-none"
                                     >
                                       Sẵn sàng giao
+                                    </button>
+                                  )}
+                                  {order.status === "RETURN_PENDING" && (
+                                    <button
+                                      onClick={() => handleConfirmReturn(order.id)}
+                                      className="px-4 py-2 bg-pink-500 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-black hover:text-white transition-all shadow-subtle active:translate-y-0.5 active:shadow-none"
+                                    >
+                                      Nhận hàng hoàn
                                     </button>
                                   )}
                                 </td>
@@ -2663,8 +3432,9 @@ const VendorDashboard = () => {
               {/* Comments column */}
               <div className="space-y-6">
                 <h3 className="text-2xl font-serif font-black uppercase flex items-center gap-3">
-                  <MessageSquare className="text-primary" /> Bình luận & Đánh
-                  giá
+
+                  <MessageSquare className="text-primary" /> {"Bình luận & Đánh giá"}
+
                 </h3>
                 <div className="space-y-4">
                   {reviews.length === 0 ? (
@@ -2718,8 +3488,8 @@ const VendorDashboard = () => {
                           <span className="text-[9px] font-bold text-gray-400">
                             {rev.created_at
                               ? new Date(rev.created_at).toLocaleDateString(
-                                  "vi-VN",
-                                )
+                                "vi-VN",
+                              )
                               : "Gần đây"}
                           </span>
                         </div>
@@ -2809,52 +3579,46 @@ const VendorDashboard = () => {
           {activeTab === "finance" && (
             <div className="space-y-10 animate-in fade-in duration-200">
               <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-serif font-black uppercase">
-                  Tài chính & Rút tiền
-                </h2>
+
+                <h2 className="text-3xl font-serif font-black uppercase">{"Tài chính & Rút tiền"}</h2>
+
               </div>
 
               {/* Cards row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Card 1: Doanh thu tích lũy */}
-                <div className="bg-white border-2 border-black rounded-3xl p-8 shadow-sm">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    Doanh thu tích lũy
-                  </span>
-                  <h4 className="text-3xl font-black tracking-tighter text-black mt-2">
-                    {(stats.revenue || 0).toLocaleString()}₫
-                  </h4>
+
+                <div className="bg-white border-2 border-black rounded-3xl p-6 shadow-sm">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Doanh thu tích lũy</span>
+                  <h4 className="text-2xl font-black tracking-tighter text-black mt-2">{(stats.revenue || 0).toLocaleString()}₫</h4>
                 </div>
 
-                {/* Card 2: Doanh thu thực nhận */}
-                <div className="bg-white border-2 border-black rounded-3xl p-8 shadow-sm">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    Doanh thu thực nhận (Sau khấu trừ 10%)
-                  </span>
-                  <h4 className="text-3xl font-black tracking-tighter text-green-600 mt-2">
-                    {(stats.netRevenue || 0).toLocaleString()}₫
-                  </h4>
+                {/* Card 2: Số dư chờ giải ngân */}
+                <div className="bg-white border-2 border-black rounded-3xl p-6 shadow-sm">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Số dư chờ giải ngân</span>
+                  <h4 className="text-2xl font-black tracking-tighter text-amber-600 mt-2">{(stats.pendingBalance || 0).toLocaleString()}₫</h4>
+
                 </div>
 
                 {/* Card 3: Số dư khả dụng */}
                 <div
-                  onClick={() =>
-                    setWithdrawForm({
-                      ...withdrawForm,
-                      amount: (stats.availableBalance || 0).toString(),
-                    })
-                  }
-                  className="bg-black text-white border-2 border-black rounded-3xl p-8 shadow-brutal flex flex-col justify-between h-36 cursor-pointer active:scale-95 transition-all select-none group hover:bg-neutral-900 animate-pulse"
+
+                  onClick={() => setWithdrawForm({ ...withdrawForm, amount: (stats.availableBalance || 0).toString() })}
+                  className="bg-black text-white border-2 border-black rounded-3xl p-6 shadow-brutal flex flex-col justify-between h-32 cursor-pointer active:scale-95 transition-all select-none group hover:bg-neutral-900"
                   title="Click để điền nhanh số tiền cần rút"
                 >
                   <div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-primary transition-colors">
-                      Số dư khả dụng (Click điền nhanh)
-                    </span>
-                    <h4 className="text-3xl font-black tracking-tighter text-primary mt-2">
-                      {(stats.availableBalance || 0).toLocaleString()}₫
-                    </h4>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-primary transition-colors">Số dư khả dụng</span>
+                    <h4 className="text-2xl font-black tracking-tighter text-primary mt-1">{(stats.availableBalance || 0).toLocaleString()}₫</h4>
+
                   </div>
+                  <span className="text-[9px] font-bold text-gray-400 italic">Click điền nhanh</span>
+                </div>
+
+                {/* Card 4: Đã rút */}
+                <div className="bg-white border-2 border-black rounded-3xl p-6 shadow-sm">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Đã rút</span>
+                  <h4 className="text-2xl font-black tracking-tighter text-red-600 mt-2">{(stats.withdrawnAmount || 0).toLocaleString()}₫</h4>
                 </div>
               </div>
 
@@ -2865,6 +3629,19 @@ const VendorDashboard = () => {
                     Yêu cầu rút tiền
                   </h3>
                   <form onSubmit={handleWithdrawSubmit} className="space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-black/5 mb-4">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Thông tin tài khoản</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowSavedBanksModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-white border-2 border-black rounded-xl hover:bg-gray-50 text-[10px] font-black uppercase tracking-wider active:translate-y-[1px] shadow-sm select-none"
+                        title="Xem sổ tài khoản thụ hưởng"
+                      >
+                        <BookOpen size={14} className="text-black" style={{ strokeWidth: 3 }} />
+                        Chọn từ sổ
+                      </button>
+                    </div>
+
                     <div className="space-y-2">
                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                         Số tiền rút (VND)
@@ -2902,22 +3679,42 @@ const VendorDashboard = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                        Số tài khoản ngân hàng
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Nhập số tài khoản"
-                        value={withdrawForm.accountNumber}
-                        onChange={(e) =>
-                          setWithdrawForm({
-                            ...withdrawForm,
-                            accountNumber: e.target.value,
-                          })
-                        }
-                        className="w-full bg-gray-50 border-2 border-black rounded-xl px-4 py-3 font-bold text-xs focus:outline-none"
-                        required
-                      />
+
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Số tài khoản ngân hàng</label>
+                      <div className="flex items-stretch gap-2">
+                        <input
+                          type="text"
+                          placeholder="Nhập số tài khoản"
+                          value={withdrawForm.accountNumber}
+                          onChange={(e) => setWithdrawForm({ ...withdrawForm, accountNumber: e.target.value })}
+                          className="flex-grow bg-gray-50 border-2 border-black rounded-xl px-4 py-3 font-bold text-xs focus:outline-none"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveDefaultBank}
+                          disabled={isSavingBank}
+                          className="px-4 bg-white border-2 border-black rounded-xl hover:bg-gray-100 transition-all font-black text-[10px] uppercase tracking-widest active:translate-y-[1px] shadow-sm select-none shrink-0 flex items-center justify-center gap-1.5"
+                          title="Lưu tài khoản này làm mặc định nhận tiền của Shop"
+                        >
+                          {isSavingBank ? (
+                            <>
+                              <Loader2 size={12} className="animate-spin" />
+                              Lưu...
+                            </>
+                          ) : (
+                            <>
+                              <Save size={12} style={{ strokeWidth: 3 }} />
+                              Lưu
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      <p className="text-[9px] font-bold text-gray-400 leading-normal flex items-center gap-1">
+                        <span>💡</span>
+                        <span>Nhấn nút này để lưu thông tin tài khoản cho các lần rút tiền sau.</span>
+                      </p>
+
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
@@ -2937,13 +3734,22 @@ const VendorDashboard = () => {
                         required
                       />
                     </div>
-                    <button
-                      type="submit"
-                      className="w-full py-4 bg-black text-white border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest hover:bg-primary transition-all shadow-subtle active:translate-x-[1px] active:translate-y-[1px]"
-                    >
+                    <button type="submit" className="w-full py-4 bg-black text-white border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest hover:bg-primary transition-all shadow-subtle active:translate-x-[1px] active:translate-y-[1px] mt-4">
+
                       GỬI YÊU CẦU RÚT TIỀN
                     </button>
                   </form>
+
+                  {/* Rules note */}
+                  <div className="bg-gray-50 border-2 border-dashed border-black rounded-xl p-4 text-[11px] font-bold text-gray-600 space-y-2 mt-4">
+                    <p className="text-black font-black uppercase text-[10px] tracking-wider">💡 Quy định rút tiền:</p>
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li>Chỉ được rút từ <span className="text-black font-black">Số dư khả dụng</span>.</li>
+                      <li>Số tiền rút tối thiểu là <span className="text-black font-black">100.000 VNĐ</span>.</li>
+                      <li>Rút dưới <span className="text-black font-black">50.000.000 VNĐ</span> sẽ được xử lý ngay.</li>
+                      <li>Rút từ <span className="text-black font-black">50.000.000 VNĐ</span> trở lên cần Admin phê duyệt.</li>
+                    </ul>
+                  </div>
                 </div>
 
                 {/* Column 2: Withdrawal list */}
@@ -2954,61 +3760,121 @@ const VendorDashboard = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
-                        <tr className="border-b-2 border-black/5 text-[10px] font-black uppercase tracking-widest text-gray-400 bg-gray-50/30">
-                          <th className="px-6 py-4">Thời gian</th>
-                          <th className="px-6 py-4">Số tiền</th>
-                          <th className="px-6 py-4">Tài khoản thụ hưởng</th>
-                          <th className="px-6 py-4">Trạng thái</th>
+                        <tr className="border-b-2 border-black/5 text-[10px] font-black uppercase tracking-widest text-gray-400 bg-gray-50/30 whitespace-nowrap">
+                          <th className="px-6 py-4 whitespace-nowrap">Mã yêu cầu</th>
+                          <th className="px-6 py-4 whitespace-nowrap">Thời gian</th>
+                          <th className="px-6 py-4 whitespace-nowrap">Số tiền</th>
+                          <th className="px-6 py-4 whitespace-nowrap">Tài khoản thụ hưởng</th>
+                          <th className="px-6 py-4 whitespace-nowrap">Trạng thái</th>
+                          <th className="px-6 py-4 whitespace-nowrap">Chi tiết / Lý do</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y-2 divide-black/5 text-xs font-bold">
                         {withdrawals.length === 0 ? (
                           <tr>
-                            <td
-                              colSpan={4}
-                              className="px-6 py-8 text-center text-gray-400 uppercase tracking-widest text-[10px]"
-                            >
-                              Chưa có giao dịch rút tiền nào
-                            </td>
+
+                            <td colSpan={6} className="px-6 py-8 text-center text-gray-400 uppercase tracking-widest text-[10px]">Chưa có giao dịch rút tiền nào</td>
                           </tr>
                         ) : (
-                          withdrawals.map((w, idx) => (
-                            <tr key={w.id || idx} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 text-[10px] text-gray-500">
-                                {w.created_at
-                                  ? new Date(w.created_at).toLocaleString(
-                                      "vi-VN",
-                                    )
-                                  : "Gần đây"}
-                              </td>
-                              <td className="px-6 py-4 font-black text-red-600">
-                                -{parseFloat(w.amount).toLocaleString()}₫
-                              </td>
-                              <td className="px-6 py-4">
-                                <p className="uppercase">{w.account_name}</p>
-                                <p className="text-[10px] text-gray-400 font-medium">
-                                  {w.bank_name} | {w.account_number}
-                                </p>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span
-                                  className={`text-[8px] font-black uppercase px-2.5 py-1 rounded border ${w.status === "PENDING" ? "bg-orange-50 text-orange-600 border-orange-100" : w.status === "APPROVED" ? "bg-green-50 text-green-600 border-green-100" : "bg-red-50 text-red-600 border-red-100"}`}
-                                >
-                                  {w.status === "PENDING"
-                                    ? "Đang chờ"
-                                    : w.status === "APPROVED"
-                                      ? "Đã duyệt"
-                                      : "Từ chối"}
-                                </span>
-                              </td>
-                            </tr>
-                          ))
+                          withdrawals.map((w, idx) => {
+                            const isPending = w.status === 'PENDING' || w.status === 'PENDING_APPROVAL';
+                            const isCompleted = w.status === 'COMPLETED' || w.status === 'APPROVED';
+                            const isRejected = w.status === 'REJECTED';
+
+                            let statusLabel = 'Đang xử lý';
+                            let statusColor = 'bg-orange-50 text-orange-600 border-orange-100';
+                            if (isPending) {
+                              statusLabel = 'Chờ duyệt';
+                              statusColor = 'bg-yellow-50 text-yellow-600 border-yellow-100';
+                            } else if (isCompleted) {
+                              statusLabel = 'Thành công';
+                              statusColor = 'bg-green-50 text-green-600 border-green-100';
+                            } else if (isRejected) {
+                              statusLabel = 'Từ chối';
+                              statusColor = 'bg-red-50 text-red-600 border-red-100';
+                            }
+
+                            return (
+                              <tr key={w.id || idx} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 font-black whitespace-nowrap">#WY-{w.id}</td>
+                                <td className="px-6 py-4 text-[10px] text-gray-500 whitespace-nowrap">{w.created_at ? new Date(w.created_at).toLocaleString("vi-VN") : "Gần đây"}</td>
+                                <td className="px-6 py-4 font-black text-red-600 whitespace-nowrap">-{parseFloat(w.amount).toLocaleString()}₫</td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <p className="uppercase font-black text-[11px] whitespace-nowrap">{w.bank_account_name || w.account_name || 'N/A'}</p>
+                                  <p className="text-[10px] text-gray-400 font-bold whitespace-nowrap">{w.bank_name} | {w.bank_account || w.account_number}</p>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`text-[8px] font-black uppercase px-2.5 py-1 rounded border whitespace-nowrap ${statusColor}`}>
+                                    {statusLabel}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-[10px] text-gray-500 max-w-[200px] truncate" title={w.reject_reason || ""}>
+                                  {isRejected ? (
+                                    <span className="text-red-500 font-bold">Lý do: {w.reject_reason || "Không có lý do cụ thể"}</span>
+                                  ) : isPending && parseFloat(w.amount) >= 50000000 ? (
+                                    <span className="text-gray-400 italic">Đợi duyệt (hạn mức lớn)</span>
+                                  ) : (
+                                    <span className="text-gray-400 italic">-</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })
+
                         )}
                       </tbody>
                     </table>
                   </div>
                 </div>
               </div>
+
+              {/* Saved Banks Modal (Cuốn sổ tài khoản) */}
+              {showSavedBanksModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowSavedBanksModal(false)}>
+                  <div className="bg-white border-[3px] border-black rounded-[2rem] p-8 max-w-md w-full shadow-brutal relative" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => setShowSavedBanksModal(false)} className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors">
+                      <X size={20} />
+                    </button>
+
+                    <h3 className="text-xl font-serif font-black tracking-tighter uppercase mb-6 border-b-2 border-black pb-4 text-center text-black flex items-center justify-center gap-2">
+                      <BookOpen size={22} /> Sổ tài khoản thụ hưởng
+                    </h3>
+
+                    <div className="max-h-72 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
+                      {getHistoricalBankAccounts().length === 0 ? (
+                        <p className="text-center text-gray-400 text-xs py-10 uppercase tracking-widest font-black">Chưa có tài khoản nào được lưu</p>
+                      ) : (
+                        getHistoricalBankAccounts().map((acc, index) => (
+                          <div
+                            key={index}
+                            onClick={() => {
+                              setWithdrawForm(prev => ({
+                                ...prev,
+                                bankName: acc.bank_name,
+                                accountNumber: acc.bank_account,
+                                accountName: acc.bank_account_name
+                              }));
+                              setShowSavedBanksModal(false);
+                            }}
+                            className="p-4 border-2 border-black rounded-2xl bg-white hover:bg-red-50/50 hover:shadow-subtle transition-all cursor-pointer select-none space-y-2 relative group"
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-black uppercase text-black">{acc.bank_name}</span>
+                              <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${acc.type === 'SAVED' ? 'bg-green-50 text-green-600 border-green-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
+                                {acc.type === 'SAVED' ? 'Mặc định' : 'Lịch sử'}
+                              </span>
+                            </div>
+                            <p className="text-sm font-black tracking-wider text-black">{acc.bank_account}</p>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase">{acc.bank_account_name}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <p className="text-[10px] font-bold text-gray-400 text-center mt-6">Click vào tài khoản để điền nhanh thông tin vào biểu mẫu rút tiền</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -3061,18 +3927,26 @@ const VendorDashboard = () => {
                         </div>
                         <div className="flex-grow min-w-0">
                           <div className="flex justify-between items-center mb-1">
-                            <span className="text-[10px] font-black uppercase truncate group-hover:text-primary transition-colors">
-                              {cust.name}
-                            </span>
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="text-[10px] font-black uppercase truncate group-hover:text-primary transition-colors">
+                                {cust.name}
+                              </span>
+                              {cust.role?.toUpperCase() === 'MANAGER' && (
+                                <span className="bg-blue-500 text-white text-[7px] font-black uppercase px-1 py-0.5 rounded shadow-sm shrink-0">Quản lý</span>
+                              )}
+                              {cust.role?.toUpperCase() === 'ADMIN' && (
+                                <span className="bg-red-500 text-white text-[7px] font-black uppercase px-1 py-0.5 rounded shadow-sm shrink-0">Admin</span>
+                              )}
+                            </div>
                             <div className="flex flex-col items-end gap-1 shrink-0 pl-2">
                               <span className="text-[8px] font-bold text-gray-400">
                                 {cust.lastMessage
                                   ? new Date(
-                                      cust.lastMessage.sent_at,
-                                    ).toLocaleTimeString("vi-VN", {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
+                                    cust.lastMessage.sent_at,
+                                  ).toLocaleTimeString("vi-VN", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
                                   : ""}
                               </span>
                             </div>
@@ -3129,9 +4003,17 @@ const VendorDashboard = () => {
                           )}
                         </div>
                         <div>
-                          <h4 className="text-sm font-black uppercase tracking-tight">
-                            {chatCustomers[activeChatIndex]?.name}
-                          </h4>
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <h4 className="text-sm font-black uppercase tracking-tight">
+                              {chatCustomers[activeChatIndex]?.name}
+                            </h4>
+                            {chatCustomers[activeChatIndex]?.role?.toUpperCase() === 'MANAGER' && (
+                              <span className="bg-blue-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm shrink-0">Quản lý</span>
+                            )}
+                            {chatCustomers[activeChatIndex]?.role?.toUpperCase() === 'ADMIN' && (
+                              <span className="bg-red-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm shrink-0">Admin</span>
+                            )}
+                          </div>
                           <p className="text-[10px] font-bold text-green-500 flex items-center gap-1 uppercase tracking-widest">
                             <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>{" "}
                             Đang hoạt động
@@ -3152,70 +4034,96 @@ const VendorDashboard = () => {
                           </p>
                         </div>
                       ) : (
+
                         chatMessages.map((msg, idx) => {
-                          const isMe = msg.sender_id === user?.id;
-                          const senderInitials = isMe
-                            ? "VS"
-                            : chatCustomers[activeChatIndex]?.name.substring(
-                                0,
-                                2,
-                              );
-                          const timeStr = msg.sent_at
-                            ? new Date(msg.sent_at).toLocaleTimeString(
-                                "vi-VN",
-                                { hour: "2-digit", minute: "2-digit" },
-                              )
-                            : "";
+                          const isMe = String(msg.sender_id) === String(user?.id);
+                          const senderInitials = isMe ? "VS" : chatCustomers[activeChatIndex]?.name.substring(0, 2);
+                          const timeStr = msg.sent_at ? new Date(msg.sent_at).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }) : "";
 
                           if (isMe) {
                             return (
-                              <div
-                                key={msg.id || idx}
-                                className="flex flex-row-reverse gap-4 max-w-[80%] ml-auto animate-in fade-in duration-200"
-                              >
-                                <div className="w-8 h-8 rounded-full bg-primary border-2 border-black text-white flex items-center justify-center text-[8px] font-black shrink-0 shadow-sm">
-                                  {senderInitials}
-                                </div>
+                              <div key={msg.id || idx} className="flex flex-row-reverse gap-4 max-w-[80%] ml-auto animate-in fade-in duration-200">
+                                <div className="w-8 h-8 rounded-full bg-primary border-2 border-black text-white flex items-center justify-center text-[8px] font-black shrink-0 shadow-sm">{senderInitials}</div>
                                 <div className="space-y-2 text-right">
                                   <div className="bg-black text-white border-2 border-black p-4 rounded-2xl rounded-tr-none shadow-subtle text-left">
-                                    <p className="text-xs font-medium leading-relaxed break-words">
-                                      {msg.body}
-                                    </p>
+                                    {msg.attachment_url && (
+                                      <div className="mb-2 max-w-full overflow-hidden rounded-xl">
+                                        {msg.attachment_type?.startsWith("image/") ? (
+                                          <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="block hover:opacity-90 transition-opacity">
+                                            <img
+                                              src={msg.attachment_url}
+                                              alt={msg.attachment_name || "Attachment"}
+                                              className="max-w-full max-h-[160px] object-cover rounded-lg"
+                                            />
+                                          </a>
+                                        ) : (
+                                          <a
+                                            href={msg.attachment_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 p-2.5 rounded-xl border border-white/20 bg-white/10 text-white hover:bg-white/20 text-[10px] font-bold transition-all"
+                                          >
+                                            <FileText size={16} className="text-white/80" />
+                                            <span className="truncate max-w-[120px]" title={msg.attachment_name || "File"}>
+                                              {msg.attachment_name || "Tệp đính kèm"}
+                                            </span>
+                                            <Download size={14} className="ml-auto opacity-70 shrink-0" />
+                                          </a>
+                                        )}
+                                      </div>
+                                    )}
+                                    {msg.body && (
+                                      <p className="text-xs font-medium leading-relaxed break-words">{msg.body}</p>
+                                    )}
                                   </div>
-                                  <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mr-1">
-                                    {timeStr}
-                                  </span>
+                                  <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mr-1">{timeStr}</span>
+
                                 </div>
                               </div>
                             );
                           } else {
                             return (
-                              <div
-                                key={msg.id || idx}
-                                className="flex gap-4 max-w-[80%] animate-in fade-in duration-200"
-                              >
+                              <div key={msg.id || idx} className="flex gap-4 max-w-[80%] animate-in fade-in duration-200">
                                 <div className="w-8 h-8 rounded-full bg-black text-white border-2 border-black flex items-center justify-center text-[8px] font-black shrink-0 uppercase overflow-hidden shadow-sm">
                                   {chatCustomers[activeChatIndex]?.avatar ? (
-                                    <img
-                                      src={
-                                        chatCustomers[activeChatIndex].avatar
-                                      }
-                                      alt="avatar"
-                                      className="w-full h-full object-cover"
-                                    />
+                                    <img src={chatCustomers[activeChatIndex].avatar} alt="avatar" className="w-full h-full object-cover" />
                                   ) : (
                                     senderInitials
                                   )}
                                 </div>
                                 <div className="space-y-2">
                                   <div className="bg-white border-2 border-black p-4 rounded-2xl rounded-tl-none shadow-subtle">
-                                    <p className="text-xs font-medium leading-relaxed break-words">
-                                      {msg.body}
-                                    </p>
+                                    {msg.attachment_url && (
+                                      <div className="mb-2 max-w-full overflow-hidden rounded-xl">
+                                        {msg.attachment_type?.startsWith("image/") ? (
+                                          <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="block hover:opacity-90 transition-opacity">
+                                            <img
+                                              src={msg.attachment_url}
+                                              alt={msg.attachment_name || "Attachment"}
+                                              className="max-w-full max-h-[160px] object-cover rounded-lg"
+                                            />
+                                          </a>
+                                        ) : (
+                                          <a
+                                            href={msg.attachment_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 p-2.5 rounded-xl border-2 border-black bg-gray-50 text-black hover:bg-gray-150 text-[10px] font-bold transition-all"
+                                          >
+                                            <FileText size={16} className="text-primary" />
+                                            <span className="truncate max-w-[120px]" title={msg.attachment_name || "File"}>
+                                              {msg.attachment_name || "Tệp đính kèm"}
+                                            </span>
+                                            <Download size={14} className="ml-auto opacity-70 shrink-0" />
+                                          </a>
+                                        )}
+                                      </div>
+                                    )}
+                                    {msg.body && (
+                                      <p className="text-xs font-medium leading-relaxed break-words">{msg.body}</p>
+                                    )}
                                   </div>
-                                  <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest ml-1">
-                                    {timeStr}
-                                  </span>
+                                  <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest ml-1">{timeStr}</span>
                                 </div>
                               </div>
                             );
@@ -3225,17 +4133,60 @@ const VendorDashboard = () => {
                     </div>
 
                     {/* Chat Input */}
-                    <form
-                      onSubmit={handleSendMessage}
-                      className="p-6 border-t-4 border-black bg-white select-none"
-                    >
+
+                    <form onSubmit={handleSendMessage} className="p-6 border-t-4 border-black bg-white select-none">
+                      {/* File Upload Preview */}
+                      {(isUploading || attachedFile) && (
+                        <div className="mb-4 p-3 bg-[#F9F9F7] border-2 border-black rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                          {isUploading ? (
+                            <div className="flex items-center gap-2 text-gray-400 text-[10px] font-bold py-1">
+                              <Loader2 className="animate-spin text-black" size={14} />
+                              <span>Đang tải tệp lên...</span>
+                            </div>
+                          ) : attachedFile ? (
+                            <>
+                              <div className="w-10 h-10 rounded-lg overflow-hidden border-2 border-black shrink-0 flex items-center justify-center bg-white shadow-sm">
+                                {attachedFile.type.startsWith("image/") ? (
+                                  <img src={attachedFile.url} alt="Attached Preview" className="w-full h-full object-cover" />
+                                ) : (
+                                  <FileText size={18} className="text-black" />
+                                )}
+                              </div>
+                              <div className="flex-grow min-w-0">
+                                <p className="text-[10px] font-black uppercase text-black truncate">
+                                  {attachedFile.name}
+                                </p>
+                                <span className="text-[8px] text-gray-400 font-bold uppercase tracking-wider">
+                                  {attachedFile.type.startsWith("image/") ? "Hình ảnh" : "Tài liệu"}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleRemoveAttachedFile}
+                                className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all shrink-0 cursor-pointer active:scale-95"
+                                title="Hủy đính kèm"
+                              >
+                                <X size={14} />
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      )}
+
                       <div className="flex items-center gap-4 bg-gray-50 border-2 border-black rounded-2xl p-2 pl-4 shadow-inner">
+                        <EmojiPicker
+                          onSelectEmoji={(emoji) => setChatInputText((prev) => prev + emoji)}
+                          theme="neo"
+                        />
                         <button
                           type="button"
-                          className="text-gray-400 hover:text-black transition-colors cursor-pointer"
-                          title="Emoji"
+                          onClick={handleTriggerFileInput}
+                          disabled={isUploading}
+                          className="text-gray-400 hover:text-black transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center p-2 rounded-xl hover:bg-gray-150 shrink-0"
+                          title="Đính kèm tệp"
                         >
-                          <Smile size={20} />
+                          <Paperclip size={20} />
+
                         </button>
                         <input
                           type="text"
@@ -3243,11 +4194,21 @@ const VendorDashboard = () => {
                           onChange={(e) => setChatInputText(e.target.value)}
                           placeholder="Nhập tin nhắn phản hồi..."
                           className="flex-grow bg-transparent border-none focus:outline-none font-bold text-sm py-2"
+                          disabled={isUploading}
+                        />
+
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleFileChange}
+                          className="hidden"
+                          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
                         />
                         <button
                           type="submit"
-                          className={`p-3 rounded-xl transition-all cursor-pointer active:translate-y-[1px] ${chatInputText.trim() ? "bg-black text-white shadow-subtle" : "text-gray-300"}`}
-                          disabled={!chatInputText.trim()}
+                          className={`p-3 rounded-xl transition-all cursor-pointer active:translate-y-[1px] ${(chatInputText.trim() || attachedFile) && !isUploading ? "bg-black text-white shadow-subtle" : "text-gray-300"}`}
+                          disabled={(!chatInputText.trim() && !attachedFile) || isUploading}
+
                         >
                           <Send size={20} />
                         </button>
@@ -3504,7 +4465,8 @@ const VendorDashboard = () => {
           )}
 
           {/* Phân trang sản phẩm */}
-          {activeTab === "products" && productsTotal > 0 && (
+
+          {activeTab === 'products' && productView === 'list' && productsTotal > 0 && (
             <div className="flex justify-center items-center gap-2 pt-12">
               <button
                 onClick={() => setProductsPage((p) => Math.max(p - 1, 1))}
@@ -3804,6 +4766,49 @@ const VendorDashboard = () => {
                   Từ chối
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- CHỌN ẢNH CHÍNH (PRIMARY IMAGE) CONFIRMATION MODAL --- */}
+      {showPrimaryConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white border-4 border-black rounded-[2.5rem] p-8 max-w-md w-full shadow-brutal animate-bounce-in">
+            <h3 className="text-xl font-serif font-black uppercase tracking-tighter mb-4 text-black">
+              Chọn ảnh chính (Primary Image)
+            </h3>
+            <p className="text-xs font-bold text-gray-500 mb-6 leading-relaxed">
+              Bạn vừa thêm một ảnh mới cho sản phẩm. Bạn có muốn đặt ảnh này làm <strong>Ảnh chính</strong> (ảnh hiển thị đầu tiên) cho sản phẩm không?
+            </p>
+            {pendingImageUrl && (
+              <div className="aspect-[4/5] rounded-[2rem] border-2 border-black overflow-hidden mb-6 max-w-[150px] mx-auto shadow-subtle">
+                <img src={pendingImageUrl} alt="Pending" className="w-full h-full object-cover" />
+              </div>
+            )}
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setPrimaryImageUrl(pendingImageUrl);
+                  setProductForm(prev => ({ ...prev, image_url: pendingImageUrl }));
+                  setShowPrimaryConfirm(false);
+                  setPendingImageUrl("");
+                }}
+                className="flex-grow py-3 border-2 border-black rounded-xl text-[10px] font-black uppercase tracking-widest bg-black text-white hover:bg-primary hover:text-black transition-all active:translate-y-[1px] shadow-subtle"
+              >
+                CÓ, ĐẶT LÀM ẢNH CHÍNH
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPrimaryConfirm(false);
+                  setPendingImageUrl("");
+                }}
+                className="flex-grow py-3 border-2 border-black rounded-xl text-[10px] font-black uppercase tracking-widest bg-white text-black hover:bg-gray-50 transition-all active:translate-y-[1px]"
+              >
+                KHÔNG, GIỮ ẢNH CŨ
+              </button>
             </div>
           </div>
         </div>

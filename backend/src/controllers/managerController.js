@@ -1,5 +1,7 @@
 import managerService from "../services/managerService.js";
 import returnService from "../services/returnService.js";
+import activityLogService from "../services/activityLogService.js";
+import db from "../models/index.js";
 
 const getStats = async (req, res) => {
   try {
@@ -7,6 +9,16 @@ const getStats = async (req, res) => {
     return res.status(200).json({ message: "Success", data });
   } catch (error) {
     return res.status(500).json({ message: error.message });
+  }
+};
+
+const getReportOverview = async (req, res) => {
+  try {
+    const data = await managerService.getReportOverview();
+    return res.status(200).json({ message: "Success", data });
+  } catch (error) {
+    console.error("Error getting report overview:", error);
+    return res.status(500).json({ message: error.message || "Lỗi lấy dữ liệu báo cáo" });
   }
 };
 
@@ -33,6 +45,30 @@ const updateProductStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
     const data = await managerService.updateProductStatus(id, status);
+
+    // Xác định actionType dựa trên status mới
+    let actionType = "PRODUCT_UPDATE";
+    let desc = `Cập nhật trạng thái sản phẩm ID ${id} thành ${status}`;
+    if (status === "APPROVED") {
+      actionType = "PRODUCT_APPROVE";
+      desc = `Phê duyệt sản phẩm: "${data?.name || "N/A"}" (ID: ${id})`;
+    } else if (status === "REJECTED") {
+      actionType = "PRODUCT_REJECT";
+      desc = `Từ chối sản phẩm: "${data?.name || "N/A"}" (ID: ${id})`;
+    } else if (status === "HIDDEN") {
+      actionType = "PRODUCT_LOCK";
+      desc = `Ẩn/Khóa sản phẩm: "${data?.name || "N/A"}" (ID: ${id})`;
+    }
+
+    await activityLogService.logActivity({
+      actionType,
+      entityType: "PRODUCT",
+      entityId: id,
+      description: desc,
+      details: { product_name: data?.name, status, shop_id: data?.shop_id },
+      req,
+    });
+
     return res.status(200).json({ message: "Cập nhật trạng thái sản phẩm thành công", data });
   } catch (error) {
     return res.status(400).json({ message: error.message });
@@ -78,6 +114,21 @@ const getVouchers = async (req, res) => {
 const createVoucher = async (req, res) => {
   try {
     const data = await managerService.createVoucher(req.body);
+
+    await activityLogService.logActivity({
+      actionType: "COUPON_CREATE",
+      entityType: "COUPON",
+      entityId: data?.id,
+      description: `Tạo mã giảm giá sàn mới: "${data?.code || "N/A"}"`,
+      details: {
+        code: data?.code,
+        discount_value: data?.discount_value,
+        discount_type: data?.discount_type,
+        category_id: data?.category_id,
+      },
+      req,
+    });
+
     return res.status(200).json({ message: "Tạo mã giảm giá sàn thành công", data });
   } catch (error) {
     return res.status(400).json({ message: error.message });
@@ -87,7 +138,18 @@ const createVoucher = async (req, res) => {
 const deleteVoucher = async (req, res) => {
   try {
     const { id } = req.params;
+    const voucher = await db.Coupon.findByPk(id);
     await managerService.deleteVoucher(id);
+
+    await activityLogService.logActivity({
+      actionType: "COUPON_DELETE",
+      entityType: "COUPON",
+      entityId: id,
+      description: `Hủy/Xóa mã giảm giá sàn: "${voucher?.code || "N/A"}"`,
+      details: { code: voucher?.code, id },
+      req,
+    });
+
     return res.status(200).json({ message: "Xóa mã giảm giá sàn thành công" });
   } catch (error) {
     return res.status(400).json({ message: error.message });
@@ -164,6 +226,7 @@ const resolveReturnRequest = async (req, res) => {
 
 export default {
   getStats,
+  getReportOverview,
   getPendingProducts,
   getActiveProducts,
   updateProductStatus,

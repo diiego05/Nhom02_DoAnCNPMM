@@ -13,6 +13,8 @@ import {
    AlertTriangle,
    Eye,
    EyeOff,
+   Lock,
+   Unlock,
 } from 'lucide-react';
 import { adminService } from '@/services/adminService';
 
@@ -46,28 +48,86 @@ interface ReconciliationTabProps {
 }
 
 export const ReconciliationTab = ({ showToast, showConfirm }: ReconciliationTabProps) => {
-   const [data, setData] = useState<any[]>([]);
-   const [loading, setLoading] = useState(true);
-   const [qrModal, setQrModal] = useState<any>(null);
-   const [showBalance, setShowBalance] = useState<Record<number, boolean>>({});
+    const [data, setData] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [qrModal, setQrModal] = useState<any>(null);
+    const [showBalance, setShowBalance] = useState<Record<number, boolean>>({});
 
-   const toggleBalance = (shopId: number) => {
-      setShowBalance(prev => ({ ...prev, [shopId]: !prev[shopId] }));
-   };
+    const [activeSubTab, setActiveSubTab] = useState<'shop_payout' | 'shipper_cod'>('shop_payout');
+    const [shipperRecons, setShipperRecons] = useState<any[]>([]);
+    const [shipperLoading, setShipperLoading] = useState(false);
+    const [rejectModal, setRejectModal] = useState<{ type: 'payout' | 'shipper'; id: number | string } | null>(null);
+    const [rejectReason, setRejectReason] = useState("");
 
-   const fetchData = useCallback(async () => {
-      setLoading(true);
-      try {
-         const res = await adminService.getReconciliation();
-         setData(res.data || []);
-      } catch (e: any) {
-         console.error(e);
-      } finally {
-         setLoading(false);
-      }
-   }, []);
+    const toggleBalance = (shopId: number) => {
+       setShowBalance(prev => ({ ...prev, [shopId]: !prev[shopId] }));
+    };
 
-   useEffect(() => { fetchData(); }, [fetchData]);
+    const fetchData = useCallback(async () => {
+       setLoading(true);
+       try {
+          const res = await adminService.getReconciliation();
+          setData(res.data || []);
+       } catch (e: any) {
+          console.error(e);
+       } finally {
+          setLoading(false);
+       }
+    }, []);
+
+    const fetchShipperRecons = useCallback(async () => {
+       setShipperLoading(true);
+       try {
+          const res = await adminService.getPendingShipperReconciliations();
+          setShipperRecons(res.data || []);
+       } catch (e: any) {
+          console.error(e);
+       } finally {
+          setShipperLoading(false);
+       }
+    }, []);
+
+    const handleApproveShipperRecon = async (id: number | string) => {
+       showConfirm("Xác nhận đã nhận đủ tiền mặt từ shipper này và duyệt đối soát?", async () => {
+          try {
+             await adminService.approveShipperReconciliation(id);
+             showToast("Duyệt đối soát COD thành công!", "success");
+             fetchShipperRecons();
+             fetchData();
+          } catch (e: any) {
+             showToast(e.response?.data?.message || "Lỗi duyệt đối soát", "error");
+          }
+       });
+    };
+
+    const handleRejectSubmit = async () => {
+       if (!rejectModal) return;
+       if (!rejectReason.trim()) {
+          showToast("Vui lòng nhập lý do từ chối", "error");
+          return;
+       }
+
+       try {
+          if (rejectModal.type === 'shipper') {
+             await adminService.rejectShipperReconciliation(rejectModal.id, rejectReason);
+             showToast("Đã từ chối đối soát và KHÓA tài khoản shipper thành công!", "success");
+             fetchShipperRecons();
+          } else {
+             await adminService.rejectPayout(rejectModal.id, rejectReason);
+             showToast("Đã từ chối yêu cầu rút tiền của shop thành công!", "success");
+             fetchData();
+          }
+          setRejectModal(null);
+          setRejectReason("");
+       } catch (e: any) {
+          showToast(e.response?.data?.message || "Lỗi xử lý", "error");
+       }
+    };
+
+    useEffect(() => {
+       fetchData();
+       fetchShipperRecons();
+    }, [fetchData, fetchShipperRecons]);
 
    const fmt = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0));
 
@@ -119,19 +179,52 @@ export const ReconciliationTab = ({ showToast, showConfirm }: ReconciliationTabP
       });
    };
 
-   return (
-      <div className="space-y-8">
-         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
-            <div>
-               <h1 className="text-3xl font-serif font-black tracking-tighter uppercase">Đối soát thanh toán</h1>
-               <p className="text-gray-400 font-medium text-sm mt-1 italic">Kiểm soát ví shop, duyệt lệnh rút tiền và chuyển khoản qua QR</p>
-            </div>
-            <button onClick={fetchData} className="p-3 border-2 border-black rounded-xl hover:bg-gray-50 transition-all active:translate-y-1">
-               <RefreshCw size={18} />
-            </button>
-         </div>
+    return (
+       <div className="space-y-8">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
+             <div>
+                <h1 className="text-3xl font-serif font-black tracking-tighter uppercase">Đối soát thanh toán</h1>
+                <p className="text-gray-400 font-medium text-sm mt-1 italic">Kiểm soát ví shop, duyệt lệnh rút tiền và chuyển khoản qua QR</p>
+             </div>
+             <button
+                onClick={async () => {
+                   await fetchData();
+                   await fetchShipperRecons();
+                   showToast("Đã cập nhật dữ liệu mới nhất!", "info");
+                }}
+                className="p-3 border-2 border-black rounded-xl hover:bg-gray-50 transition-all active:translate-y-1"
+             >
+                <RefreshCw size={18} />
+             </button>
+          </div>
 
-         {/* Summary cards */}
+          {/* Sub-tab selection */}
+          <div className="flex border-b-2 border-black">
+             <button
+                onClick={() => setActiveSubTab('shop_payout')}
+                className={`px-6 py-3 font-serif font-black uppercase text-sm border-t-2 border-x-2 border-black rounded-t-2xl -mb-[2px] transition-all ${
+                   activeSubTab === 'shop_payout'
+                      ? 'bg-black text-white'
+                      : 'bg-white text-gray-500 hover:bg-gray-50'
+                }`}
+             >
+                Yêu cầu rút tiền
+             </button>
+             <button
+                onClick={() => setActiveSubTab('shipper_cod')}
+                className={`px-6 py-3 font-serif font-black uppercase text-sm border-t-2 border-x-2 border-black rounded-t-2xl -mb-[2px] ml-2 transition-all ${
+                   activeSubTab === 'shipper_cod'
+                      ? 'bg-black text-white'
+                      : 'bg-white text-gray-500 hover:bg-gray-50'
+                }`}
+             >
+                Đối soát COD Shipper ({shipperRecons.length})
+             </button>
+          </div>
+
+          {activeSubTab === 'shop_payout' ? (
+             <>
+                {/* Summary cards */}
          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
                { label: "Tổng shop", value: data.length, icon: <Store className="text-purple-500" />, color: "purple" },
@@ -203,20 +296,35 @@ export const ReconciliationTab = ({ showToast, showConfirm }: ReconciliationTabP
                                     </span>
                                  </td>
                                  <td className="px-6 py-5 text-center">
-                                    <span className={`inline-flex items-center gap-1.5 text-[9px] font-black uppercase px-3 py-1.5 rounded-full border-2 border-black ${cfg.color}`}>
-                                       {cfg.icon} {cfg.label}
-                                    </span>
+                                    <div className="flex flex-col items-center gap-1">
+                                       <span className={`inline-flex items-center gap-1.5 text-[9px] font-black uppercase px-3 py-1.5 rounded-full border-2 border-black ${cfg.color}`}>
+                                          {cfg.icon} {cfg.label}
+                                       </span>
+                                       {shop.reconciliation_status === "WITHDRAWAL_REQUESTED" && shop.latest_payout && (
+                                          <span className="text-[11px] font-black text-blue-600 block mt-0.5">
+                                             Rút: {fmt(shop.latest_payout.amount)}₫
+                                          </span>
+                                       )}
+                                    </div>
                                  </td>
                                  <td className="px-6 py-5 text-center">
                                     {shop.reconciliation_status === "WITHDRAWAL_REQUESTED" && shop.latest_payout ? (
-                                       <button
-                                          onClick={() => handleApprovePayout(shop)}
-                                          className="px-4 py-2 border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest bg-green-500 text-white hover:bg-green-600 transition-all shadow-subtle active:translate-y-[2px] flex items-center gap-2 mx-auto"
-                                       >
-                                          <QrCode size={14} /> Duyệt chuyển tiền
-                                       </button>
+                                       <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+                                          <button
+                                             onClick={() => handleApprovePayout(shop)}
+                                             className="px-3 py-2 border-2 border-black rounded-xl font-black text-[9px] uppercase tracking-widest bg-green-500 text-white hover:bg-green-600 transition-all shadow-subtle active:translate-y-[1px] flex items-center gap-1.5"
+                                          >
+                                             <QrCode size={12} /> Duyệt tiền
+                                          </button>
+                                          <button
+                                             onClick={() => setRejectModal({ type: 'payout', id: shop.latest_payout.id })}
+                                             className="px-3 py-2 border-2 border-black rounded-xl font-black text-[9px] uppercase tracking-widest bg-red-500 text-white hover:bg-red-600 transition-all shadow-subtle active:translate-y-[1px] flex items-center gap-1.5"
+                                          >
+                                             Từ chối
+                                          </button>
+                                       </div>
                                     ) : shop.reconciliation_status === "COMPLETED" ? (
-                                       <span className="text-[10px] font-black text-green-600 uppercase">✓ Đã xong</span>
+                                       <span className="text-[10px] font-black text-green-600 uppercase font-mono">✓ Đã xong</span>
                                     ) : (
                                        <span className="text-[10px] font-bold text-gray-300 uppercase">Chờ shop rút</span>
                                     )}
@@ -229,6 +337,103 @@ export const ReconciliationTab = ({ showToast, showConfirm }: ReconciliationTabP
                </div>
             )}
          </div>
+             </>
+          ) : (
+             <div className="bg-white border-2 border-black rounded-[2.5rem] overflow-hidden shadow-sm text-left">
+                {shipperLoading ? (
+                   <div className="flex items-center justify-center py-20">
+                      <Loader2 size={32} className="animate-spin text-gray-400" />
+                   </div>
+                ) : shipperRecons.length === 0 ? (
+                   <div className="text-center py-20">
+                      <Wallet size={48} className="mx-auto text-gray-300 mb-4" />
+                      <p className="text-gray-400 font-black text-xs uppercase tracking-widest">Không có yêu cầu đối soát nào chờ duyệt</p>
+                   </div>
+                ) : (
+                   <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                         <thead>
+                            <tr className="border-b-2 border-black/5 bg-gray-50/50 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                               <th className="px-6 py-5">Shipper</th>
+                               <th className="px-6 py-5 text-center">Đơn hàng (Giao/Nhận)</th>
+                               <th className="px-6 py-5 text-right">Tiền mặt đang giữ (COD)</th>
+                               <th className="px-6 py-5">Danh sách đơn hàng chưa nộp</th>
+                               <th className="px-6 py-5 text-center">Thao tác</th>
+                            </tr>
+                         </thead>
+                         <tbody className="divide-y-2 divide-black/5">
+                            {shipperRecons.map((item: any) => (
+                               <tr key={item.id} className="hover:bg-red-50/30 transition-colors font-medium">
+                                  <td className="px-6 py-5">
+                                     <div className="flex items-center gap-3">
+                                        <div className="w-9 h-9 rounded-xl bg-gray-100 border-2 border-black/10 flex items-center justify-center overflow-hidden shrink-0">
+                                           <span className="font-bold text-sm text-gray-500">
+                                              {item.shipper?.full_name?.[0] || 'S'}
+                                           </span>
+                                        </div>
+                                        <div>
+                                           <p className="text-sm font-black text-black">{item.shipper?.full_name}</p>
+                                           <p className="text-[10px] text-gray-400 font-bold">{item.shipper?.email} | {item.shipper?.phone}</p>
+                                           {item.shipper?.status === "LOCKED" && (
+                                              <span className="bg-red-100 text-red-700 text-[8px] font-black uppercase px-1.5 py-0.5 rounded border border-red-200 inline-block mt-1">
+                                                 Bị Khóa
+                                              </span>
+                                           )}
+                                        </div>
+                                     </div>
+                                  </td>
+                                  <td className="px-6 py-5 text-center font-bold text-gray-700">
+                                     <span className="text-sm">{item.deliveredOrders}</span>
+                                     <span className="text-gray-400 font-normal"> / {item.totalOrders}</span>
+                                  </td>
+                                  <td className="px-6 py-5 text-right font-black">
+                                     <span className="text-sm text-primary">
+                                        {fmt(item.totalHeldAmount)}₫
+                                     </span>
+                                  </td>
+                                  <td className="px-6 py-5">
+                                     {item.heldOrders && item.heldOrders.length > 0 ? (
+                                        <div className="flex flex-wrap gap-1 max-w-xs max-h-12 overflow-y-auto">
+                                           {item.heldOrders.map((order: any) => (
+                                              <span
+                                                 key={order.id}
+                                                 className="px-2 py-0.5 bg-gray-100 border border-black/10 rounded font-mono text-[9px] text-gray-600"
+                                                 title={`Số tiền: ${fmt(order.final_amount)}₫`}
+                                              >
+                                                 {order.shop_order_code}
+                                              </span>
+                                           ))}
+                                        </div>
+                                     ) : (
+                                        <span className="text-xs text-gray-400 italic">Không có đơn chưa nộp</span>
+                                     )}
+                                  </td>
+                                  <td className="px-6 py-5 text-center">
+                                     <div className="flex items-center justify-center gap-2">
+                                        <button
+                                           onClick={() => handleApproveShipperRecon(item.id)}
+                                           disabled={item.totalHeldAmount === 0}
+                                           className="px-3 py-1.5 border-2 border-black rounded-lg font-black text-[9px] uppercase tracking-widest bg-green-500 text-white hover:bg-green-600 transition-all shadow-subtle active:translate-y-[1px] disabled:opacity-50 disabled:pointer-events-none flex items-center gap-1"
+                                        >
+                                           Xác nhận đủ
+                                        </button>
+                                        <button
+                                           onClick={() => setRejectModal({ type: 'shipper', id: item.id })}
+                                           disabled={item.totalHeldAmount === 0 || item.shipper?.status === "LOCKED"}
+                                           className="px-3 py-1.5 border-2 border-black rounded-lg font-black text-[9px] uppercase tracking-widest bg-red-500 text-white hover:bg-red-600 transition-all shadow-subtle active:translate-y-[1px] disabled:opacity-50 disabled:pointer-events-none flex items-center gap-1"
+                                        >
+                                           Báo thiếu / Khóa
+                                        </button>
+                                     </div>
+                                  </td>
+                               </tr>
+                            ))}
+                         </tbody>
+                      </table>
+                   </div>
+                )}
+             </div>
+          )}
 
          {/* QR Modal */}
          {qrModal && (
@@ -307,6 +512,60 @@ export const ReconciliationTab = ({ showToast, showConfirm }: ReconciliationTabP
                   <div className="mt-4 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
                      <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
                      <p className="text-[10px] font-bold text-amber-700">Hãy chắc chắn đã chuyển khoản thành công trước khi bấm xác nhận. Thao tác này không thể hoàn tác.</p>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* Reject Modal */}
+         {rejectModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => { setRejectModal(null); setRejectReason(""); }}>
+               <div className="bg-white border-[3px] border-black rounded-[2rem] p-6 max-w-md w-full shadow-brutal relative" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => { setRejectModal(null); setRejectReason(""); }} className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors">
+                     <X size={20} />
+                  </button>
+
+                  <h3 className="text-xl font-serif font-black tracking-tighter uppercase mb-4 text-red-600 border-b-2 border-black pb-2 text-left">
+                     {rejectModal.type === 'shipper' ? 'Từ chối đối soát & Khóa Shipper' : 'Từ chối yêu cầu rút tiền'}
+                  </h3>
+
+                  <div className="space-y-4 text-left">
+                     {rejectModal.type === 'shipper' && (
+                        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+                           <AlertTriangle size={16} className="text-red-600 shrink-0 mt-0.5" />
+                           <p className="text-[10px] font-bold text-red-700">
+                              LƯU Ý: Từ chối đối soát này sẽ lập tức KHÓA tài khoản của shipper trên hệ thống để phục vụ điều tra chênh lệch tiền mặt.
+                           </p>
+                        </div>
+                     )}
+
+                     <div className="space-y-2">
+                        <label className="text-xs font-black uppercase text-gray-400">Lý do từ chối (bắt buộc)</label>
+                        <textarea
+                           value={rejectReason}
+                           onChange={(e) => setRejectReason(e.target.value)}
+                           placeholder="Nhập lý do chi tiết..."
+                           className="w-full border-2 border-black p-3 rounded-xl focus:border-primary outline-none text-xs font-bold min-h-[100px] resize-none"
+                        />
+                     </div>
+
+                     <div className="flex gap-3 pt-2">
+                        <button
+                           onClick={handleRejectSubmit}
+                           className="flex-grow py-3 border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest bg-red-600 text-white hover:bg-red-700 transition-all shadow-subtle active:translate-y-[2px]"
+                        >
+                           Xác nhận từ chối
+                        </button>
+                        <button
+                           onClick={() => {
+                              setRejectModal(null);
+                              setRejectReason("");
+                           }}
+                           className="px-6 py-3 border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest bg-white hover:bg-gray-50 transition-all text-black"
+                        >
+                           Hủy
+                        </button>
+                     </div>
                   </div>
                </div>
             </div>

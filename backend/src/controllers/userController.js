@@ -10,7 +10,18 @@ const getUserProfile = async (req, res) => {
 
     return res.status(200).json({
       message: "Profile retrieved successfully",
-      data: user,
+      data: {
+        id: user.user_id || userId,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        fullName: user.full_name,
+        dateOfBirth: user.birthday,
+        gender: user.gender,
+        avatarUrl: user.avatar_url,
+        loyalty_points: user.loyalty_points,
+        shipper_shop_id: user.shipper_shop_id,
+      },
     });
   } catch (error) {
     return res.status(500).json({ message: "Internal server error" });
@@ -20,6 +31,16 @@ const getUserProfile = async (req, res) => {
 const updateUserProfile = async (req, res) => {
   try {
     const data = { ...req.body, user_id: req.user.id };
+
+    if (req.body.operating_areas) {
+      try {
+        if (typeof req.body.operating_areas === "string") {
+          data.operating_areas = JSON.parse(req.body.operating_areas);
+        }
+      } catch (e) {
+        console.error("Failed to parse operating_areas in controller:", e);
+      }
+    }
 
     // Nếu có file tải lên (Cloudinary), gán URL trực tiếp cho avatar_url
     if (req.body.date_of_birth) {
@@ -45,6 +66,7 @@ const updateUserProfile = async (req, res) => {
         gender: user.gender,
         avatarUrl: user.avatar_url,
         shipper_shop_id: user.shipper_shop_id,
+        operating_areas: user.operating_areas,
       },
     });
   } catch (error) {

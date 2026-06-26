@@ -22,7 +22,7 @@ export const UserTab = ({ showToast, showConfirm }: UserTabProps) => {
    const [users, setUsers] = useState<any[]>([]);
    const [loading, setLoading] = useState(true);
    const [showForm, setShowForm] = useState(false);
-   const [form, setForm] = useState({ email: '', password: '', full_name: '', phone: '', gender: 'MALE', shipper_shop_id: '' });
+   const [form, setForm] = useState({ email: '', password: '', full_name: '', phone: '', gender: 'MALE' });
    const [submitting, setSubmitting] = useState(false);
    const [shops, setShops] = useState<any[]>([]);
 
@@ -126,12 +126,11 @@ export const UserTab = ({ showToast, showConfirm }: UserTabProps) => {
       if (roleTab !== 'shipper' && !form.password) return showToast("Mật khẩu là bắt buộc", "error");
       if (roleTab === 'shipper') {
          if (!form.phone) return showToast("Số điện thoại là bắt buộc", "error");
-         if (!form.shipper_shop_id) return showToast("Vui lòng chọn cửa hàng nhận hàng", "error");
       }
       setSubmitting(true);
       try {
          await adminService.createUser({ ...form, role: roleTab });
-         setForm({ email: '', password: '', full_name: '', phone: '', gender: 'MALE', shipper_shop_id: '' });
+         setForm({ email: '', password: '', full_name: '', phone: '', gender: 'MALE' });
          setShowForm(false);
          showToast("Tạo tài khoản thành công!", "success");
          fetchUsers();
@@ -251,21 +250,6 @@ export const UserTab = ({ showToast, showConfirm }: UserTabProps) => {
                               <option value="MALE">Nam</option>
                               <option value="FEMALE">Nữ</option>
                               <option value="OTHER">Khác</option>
-                           </select>
-                        </div>
-                        <div className="md:col-span-2">
-                           <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 block">Nhận hàng từ cửa hàng *</label>
-                           <select
-                              value={form.shipper_shop_id}
-                              onChange={e => setForm({ ...form, shipper_shop_id: e.target.value })}
-                              className="w-full border-2 border-black rounded-xl px-4 py-3 font-bold text-sm focus:outline-none focus:ring-4 focus:ring-red-500/10 text-black bg-white"
-                           >
-                              <option value="">-- Chọn cửa hàng --</option>
-                              {shops.map((shop: any) => (
-                                 <option key={shop.id} value={shop.id}>
-                                    {shop.shop_name}
-                                 </option>
-                              ))}
                            </select>
                         </div>
                      </>
@@ -395,12 +379,6 @@ export const UserTab = ({ showToast, showConfirm }: UserTabProps) => {
                               <span className="text-xs font-black uppercase text-gray-400">Địa chỉ</span>
                               <span className="text-sm font-bold truncate max-w-[200px]" title={selectedUser.profile?.address}>{selectedUser.profile?.address || "Trống"}</span>
                            </div>
-                           {selectedUser.profile?.shipperShop && (
-                              <div className="flex justify-between items-center py-2 border-b border-dashed border-gray-200">
-                                 <span className="text-xs font-black uppercase text-gray-400">Cửa hàng nhận hàng</span>
-                                 <span className="text-sm font-bold">{selectedUser.profile.shipperShop.shop_name}</span>
-                              </div>
-                           )}
 
                            <button
                               onClick={() => setIsEditingUser(true)}

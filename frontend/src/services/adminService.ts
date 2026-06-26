@@ -141,6 +141,26 @@ export const adminService = {
     return response.data;
   },
 
+  rejectPayout: async (id: number | string, reason?: string) => {
+    const response = await axiosClient.put(`/admin/payouts/${id}/reject`, { reason });
+    return response.data;
+  },
+
+  getPendingShipperReconciliations: async () => {
+    const response = await axiosClient.get("/admin/shipper-reconciliations");
+    return response.data;
+  },
+
+  approveShipperReconciliation: async (id: number | string) => {
+    const response = await axiosClient.put(`/admin/shipper-reconciliations/${id}/approve`);
+    return response.data;
+  },
+
+  rejectShipperReconciliation: async (id: number | string, reason?: string) => {
+    const response = await axiosClient.put(`/admin/shipper-reconciliations/${id}/reject`, { reason });
+    return response.data;
+  },
+
   // ============================================================
   // 6. LỊCH SỬ THANH TOÁN
   // ============================================================
@@ -156,11 +176,35 @@ export const adminService = {
     return response.data;
   },
 
+  getWithdrawalLogs: async (page = 1, limit = 20, filters?: { status?: string; search?: string; from_date?: string; to_date?: string }) => {
+    const params: Record<string, string | number> = { page, limit };
+    if (filters?.status) params.status = filters.status;
+    if (filters?.search) params.search = filters.search;
+    if (filters?.from_date) params.from_date = filters.from_date;
+    if (filters?.to_date) params.to_date = filters.to_date;
+    const response = await axiosClient.get("/admin/withdrawal-logs", { params });
+    return response.data;
+  },
+
   // ============================================================
   // 7. QUẢN LÝ ĐƠN HÀNG
   // ============================================================
   getOrderByCode: async (code: string) => {
     const response = await axiosClient.get(`/admin/orders/by-code/${code}`);
+    return response.data;
+  },
+
+  // ============================================================
+  // 8. NHẬT KÝ HỆ THỐNG
+  // ============================================================
+  getActivityLogs: async (page = 1, limit = 20, filters?: { action_type?: string; entity_type?: string; search?: string; from_date?: string; to_date?: string }) => {
+    const params: Record<string, string | number> = { page, limit };
+    if (filters?.action_type) params.action_type = filters.action_type;
+    if (filters?.entity_type) params.entity_type = filters.entity_type;
+    if (filters?.search) params.search = filters.search;
+    if (filters?.from_date) params.from_date = filters.from_date;
+    if (filters?.to_date) params.to_date = filters.to_date;
+    const response = await axiosClient.get("/admin/activity-logs", { params });
     return response.data;
   },
 };

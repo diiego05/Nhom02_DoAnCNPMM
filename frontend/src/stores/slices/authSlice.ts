@@ -18,6 +18,7 @@ export type User = {
   coverPhotoUrl?: string;
   isVendor?: boolean;
   shipper_shop_id?: number | null;
+  address?: string;
   profile?: any;
 };
 

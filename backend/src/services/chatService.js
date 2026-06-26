@@ -1,5 +1,6 @@
 import db from "../models/index.js";
 import { Op } from "sequelize";
+import notificationService from "./notificationService.js";
 
 const getMessages = async (userId, partnerId) => {
   let conversation = null;
@@ -15,16 +16,6 @@ const getMessages = async (userId, partnerId) => {
     if (shop) {
       conversation = await db.Conversation.findOne({
         where: { shop_id: shop.id, user_id: partnerId }
-      });
-    }
-  }
-
-  // 3. Nếu không tìm thấy, tìm trường hợp partnerId là Vendor (chủ shop), userId là khách hàng (user_id)
-  if (!conversation) {
-    const partnerShop = await db.Shop.findOne({ where: { vendor_id: partnerId } });
-    if (partnerShop) {
-      conversation = await db.Conversation.findOne({
-        where: { shop_id: partnerShop.id, user_id: userId }
       });
     }
   }
@@ -45,36 +36,53 @@ const getMessages = async (userId, partnerId) => {
 
   return await db.Message.findAll({
     where: { conversation_id: conversation.id },
+    include: [
+      {
+        model: db.User,
+        as: "sender",
+        attributes: ["id", "email"],
+        include: [
+          {
+            model: db.Role,
+            as: "role",
+            attributes: ["role_name"]
+          }
+        ]
+      }
+    ],
     order: [["sent_at", "ASC"]]
   });
 };
 
-const sendMessage = async (senderId, receiverId, content) => {
-  if (!content || !content.trim()) {
-    throw new Error("Nội dung tin nhắn không thể bỏ trống");
+const sendMessage = async (senderId, receiverId, content, attachmentUrl = null, attachmentName = null, attachmentType = null) => {
+  const hasContent = content && content.trim();
+  const hasAttachment = attachmentUrl && attachmentUrl.trim();
+
+  if (!hasContent && !hasAttachment) {
+    throw new Error("Tin nhắn phải có nội dung hoặc file đính kèm");
   }
 
   let shopId = null;
   let customerId = null;
 
-  // Kiểm tra xem receiverId có phải là shop_id không
-  const shopByPk = await db.Shop.findByPk(receiverId);
-  if (shopByPk) {
-    shopId = shopByPk.id;
-    customerId = senderId;
-  } else {
-    // Kiểm tra xem senderId có phải là chủ shop không
-    const senderShop = await db.Shop.findOne({ where: { vendor_id: senderId } });
-    if (senderShop) {
-      shopId = senderShop.id;
+  // Ưu tiên 1: Nếu người gửi là Vendor đang reply lại khách hàng (conversation đã tồn tại)
+  const shopOfSender = await db.Shop.findOne({ where: { vendor_id: senderId } });
+  if (shopOfSender) {
+    const existingConv = await db.Conversation.findOne({
+      where: { shop_id: shopOfSender.id, user_id: receiverId }
+    });
+    if (existingConv) {
+      shopId = shopOfSender.id;
       customerId = receiverId;
-    } else {
-      // Kiểm tra xem receiverId có phải là vendor_id không
-      const receiverShop = await db.Shop.findOne({ where: { vendor_id: receiverId } });
-      if (receiverShop) {
-        shopId = receiverShop.id;
-        customerId = senderId;
-      }
+    }
+  }
+
+  // Ưu tiên 2: Nếu không phải Vendor reply, thì đây là khách hàng nhắn cho Shop
+  if (!shopId) {
+    const shopByPk = await db.Shop.findByPk(receiverId);
+    if (shopByPk) {
+      shopId = shopByPk.id;
+      customerId = senderId;
     }
   }
 
@@ -86,12 +94,65 @@ const sendMessage = async (senderId, receiverId, content) => {
     where: { user_id: customerId, shop_id: shopId }
   });
 
-  return await db.Message.create({
+  const message = await db.Message.create({
     conversation_id: conversation.id,
     sender_id: senderId,
-    body: content,
-    is_read: false
+    body: content || null,
+    is_read: false,
+    attachment_url: attachmentUrl,
+    attachment_name: attachmentName,
+    attachment_type: attachmentType
   });
+
+  try {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const recentMessage = await db.Message.findOne({
+      where: {
+        conversation_id: conversation.id,
+        sender_id: senderId,
+        id: { [Op.ne]: message.id },
+        sent_at: { [Op.gt]: tenMinutesAgo }
+      }
+    });
+
+    if (!recentMessage) {
+      let recipientId = null;
+      let senderName = "Người dùng";
+      
+      if (senderId === customerId) {
+        const shop = await db.Shop.findByPk(shopId);
+        recipientId = shop ? shop.vendor_id : null;
+        
+        const customerProfile = await db.UserProfile.findOne({ where: { user_id: customerId } });
+        const customerUser = await db.User.findByPk(customerId, { attributes: ["email"] });
+        senderName = customerProfile?.full_name || customerUser?.email || "Khách hàng";
+      } else {
+        recipientId = customerId;
+        const shop = await db.Shop.findByPk(shopId);
+        senderName = shop ? shop.shop_name : "Cửa hàng";
+      }
+
+      if (recipientId) {
+        let previewText = "";
+        if (content) {
+          previewText = content.length > 50 ? content.substring(0, 50) + "..." : content;
+        } else if (attachmentUrl) {
+          previewText = attachmentType?.startsWith("image/") ? "[Hình ảnh]" : `[Tệp đính kèm: ${attachmentName || "File"}]`;
+        }
+
+        await notificationService.createNotification(
+          recipientId,
+          "Tin nhắn mới",
+          `Bạn có tin nhắn mới từ ${senderName}: "${previewText}"`,
+          "NEW_MESSAGE"
+        );
+      }
+    }
+  } catch (notifErr) {
+    console.error("Failed to create message notification:", notifErr);
+  }
+
+  return message;
 };
 
 const getUnreadMessagesCount = async (userId) => {
@@ -137,7 +198,10 @@ const getConversations = async (userId) => {
       {
         model: db.User,
         as: "user",
-        include: [{ model: db.UserProfile, as: "profile" }]
+        include: [
+          { model: db.UserProfile, as: "profile" },
+          { model: db.Role, as: "role", attributes: ["role_name"] }
+        ]
       },
       {
         model: db.Shop,
@@ -168,7 +232,8 @@ const getConversations = async (userId) => {
         type: "user",
         id: conv.user.id,
         name: conv.user.profile?.full_name || conv.user.email || "Khách hàng",
-        avatar: conv.user.profile?.avatar_url || null
+        avatar: conv.user.profile?.avatar_url || null,
+        role: conv.user.role?.role_name || "USER"
       };
     } else if (conv.shop) {
       partner = {
@@ -191,7 +256,7 @@ const getConversations = async (userId) => {
       partner,
       lastMessage: lastMessage ? {
         id: lastMessage.id,
-        body: lastMessage.body,
+        body: lastMessage.body || (lastMessage.attachment_type?.startsWith("image/") ? "[Hình ảnh]" : "[Tệp tin]"),
         sent_at: lastMessage.sent_at,
         sender_id: lastMessage.sender_id,
         is_read: lastMessage.is_read

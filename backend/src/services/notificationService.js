@@ -35,9 +35,33 @@ const markAllAsRead = async (userId) => {
   return true;
 };
 
+const createNotificationForRole = async (roleName, title, content, type) => {
+  try {
+    const role = await db.Role.findOne({ where: { role_name: roleName } });
+    if (!role) return [];
+
+    const users = await db.User.findAll({ where: { role_id: role.id }, attributes: ["id"] });
+    if (users.length === 0) return [];
+
+    const notifs = users.map((user) => ({
+      user_id: user.id,
+      title,
+      content,
+      type,
+      is_read: false,
+    }));
+
+    return await db.Notification.bulkCreate(notifs);
+  } catch (error) {
+    console.error(`Failed to create bulk notification for role ${roleName}:`, error);
+    return [];
+  }
+};
+
 export default {
   getNotificationsByUserId,
   createNotification,
+  createNotificationForRole,
   markAsRead,
   markAllAsRead,
 };

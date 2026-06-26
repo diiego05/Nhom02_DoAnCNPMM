@@ -1,10 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import managerService from "@/services/managerService";
+import { adminService } from "@/services/adminService";
+import { axiosClient } from "@/services/axiosClient";
 
 export const useManagerStats = () => {
   return useQuery({
     queryKey: ["manager", "stats"],
     queryFn: managerService.getStats,
+  });
+};
+
+export const useCategories = () => {
+  return useQuery({
+    queryKey: ["manager", "categories"],
+    queryFn: adminService.getCategories,
   });
 };
 
@@ -76,6 +85,7 @@ export const useCreateVoucher = () => {
       usage_limit?: number | null;
       start_date: string;
       end_date: string;
+      category_id?: number | null;
     }) => managerService.createVoucher(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["manager", "vouchers"] });
@@ -128,6 +138,39 @@ export const useUpdateVendorStatus = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["manager", "vendors"] });
       queryClient.invalidateQueries({ queryKey: ["manager", "stats"] });
+    },
+  });
+};
+
+export const useReviews = () => {
+  return useQuery({
+    queryKey: ["manager", "reviews"],
+    queryFn: managerService.getReviews,
+  });
+};
+
+export const useDeleteReview = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await axiosClient.delete(`/manager/reviews/${id}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['manager', 'reviews'] });
+    },
+  });
+};
+
+export const useRestoreReview = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await axiosClient.put(`/manager/reviews/${id}/restore`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['manager', 'reviews'] });
     },
   });
 };

@@ -85,6 +85,12 @@ connectDB()
     app.listen(port, () => {
       console.log("Backend nodejs is running on the port: " + port);
     });
+
+    // Auto-complete delivered orders every 5 minutes
+    cron.schedule("*/5 * * * *", () => {
+      console.log("Running auto-completion check for delivered orders...");
+      orderService.autoCompleteDeliveredOrders();
+    });
   })
   .catch((error) => {
     console.error("Failed to connect to DB:", error);

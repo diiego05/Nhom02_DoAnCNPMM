@@ -20,6 +20,8 @@ export interface ProductVariant {
   color_hex?: string;
   size: string;
   price: number | null;
+  sale_price?: number | null;
+  image_url?: string | null;
   stock_quantity: number;
   product?: Product;
 }

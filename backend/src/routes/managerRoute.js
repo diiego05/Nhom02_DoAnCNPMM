@@ -8,6 +8,7 @@ const router = express.Router();
 router.use(verifyToken, isManager);
 
 router.get("/stats", managerController.getStats);
+router.get("/reports/overview", managerController.getReportOverview);
 
 router.get("/products/pending", managerController.getPendingProducts);
 router.get("/products/active", managerController.getActiveProducts);

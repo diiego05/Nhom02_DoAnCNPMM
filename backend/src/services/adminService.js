@@ -300,7 +300,24 @@ const approveShop = async (adminId, shopId) => {
   if (!shop) throw new Error("Không tìm thấy gian hàng");
   if (shop.status === "APPROVED") throw new Error("Gian hàng đã được duyệt trước đó");
 
-  await shop.update({ status: "APPROVED" });
+  const transaction = await db.sequelize.transaction();
+  try {
+    await shop.update({ status: "APPROVED" }, { transaction });
+
+    // Cập nhật role cho user thành VENDOR khi shop được phê duyệt
+    const vendorRole = await db.Role.findOne({ where: { role_name: "vendor" }, transaction });
+    if (vendorRole && shop.vendor_id) {
+      await db.User.update(
+        { role_id: vendorRole.id },
+        { where: { id: shop.vendor_id }, transaction }
+      );
+    }
+
+    await transaction.commit();
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
 
   // Gửi thông báo cho Vendor
   if (shop.vendor_id) {
@@ -494,7 +511,7 @@ const getFinancialReport = async (dateFrom, dateTo) => {
     dateFilter[Op.lte] = endDate;
   }
 
-  const shopOrderWhere = { status: { [Op.ne]: "CANCELLED" } };
+  const shopOrderWhere = { status: { [Op.notIn]: ["CANCELLED", "FAILED", "RETURN_PENDING", "RETURNED"] } };
   if (Object.keys(dateFilter).length > 0) {
     shopOrderWhere.updated_at = dateFilter;
   }
@@ -663,7 +680,7 @@ const getFinancialReport = async (dateFrom, dateTo) => {
 // ============================================================
 
 const getPaymentReconciliation = async () => {
-  // Lấy tất cả shop kèm bank info, và pending payouts
+  // Lấy tất cả shop kèm bank info, ví và vendor info
   const shops = await db.Shop.findAll({
     where: { status: "APPROVED" },
     attributes: ["id", "shop_name", "shop_logo", "bank_name", "bank_account_no", "bank_account_name"],
@@ -678,6 +695,10 @@ const getPaymentReconciliation = async () => {
           attributes: ["full_name"],
         }],
       },
+      {
+        model: db.ShopWallet,
+        as: "wallet"
+      }
     ],
     order: [["shop_name", "ASC"]],
   });
@@ -689,49 +710,6 @@ const getPaymentReconciliation = async () => {
   const commissionRate = parseFloat(settingsMap.default_commission_rate || "10.00");
   const gatewayFee = parseFloat(settingsMap.payment_gateway_fee || "5.00");
   const taxRate = parseFloat(settingsMap.tax_rate || "1.50");
-  // Calculate total deduction roughly as 10% (matching vendorService)
-  const totalDeductionRate = 0.1;
-
-  // Lấy tất cả đơn hàng không bị hủy để tính tổng doanh thu
-  const orderItems = await db.OrderItem.findAll({
-    include: [{
-      model: db.ShopOrder,
-      as: "shopOrder",
-      where: { status: { [Op.ne]: "CANCELLED" } },
-      attributes: ["shop_id", "status"],
-      required: true
-    }],
-    attributes: ["unit_price", "quantity"]
-  });
-
-  const shopRevenue = {};
-  const shopPending = {};
-  orderItems.forEach(item => {
-    const shopId = item.shopOrder.shop_id;
-    if (!shopRevenue[shopId]) shopRevenue[shopId] = 0;
-    if (!shopPending[shopId]) shopPending[shopId] = 0;
-
-    const amount = parseFloat(item.unit_price) * item.quantity;
-    
-    // Doanh thu khả dụng (giống vendorService: tất cả đơn không hủy)
-    shopRevenue[shopId] += amount;
-
-    // Doanh thu tạm giữ (chỉ để hiển thị cho vui, các đơn chưa DELIVERED)
-    if (item.shopOrder.status !== "DELIVERED") {
-      shopPending[shopId] += amount;
-    }
-  });
-
-  // Lấy lịch sử rút tiền đã duyệt
-  const payouts = await db.ShopPayout.findAll({
-    where: { status: "COMPLETED" },
-    attributes: ["shop_id", "amount"]
-  });
-  const payoutStats = {};
-  payouts.forEach(p => {
-    if (!payoutStats[p.shop_id]) payoutStats[p.shop_id] = 0;
-    payoutStats[p.shop_id] += parseFloat(p.amount);
-  });
 
   const result = [];
   for (const shop of shops) {
@@ -742,20 +720,16 @@ const getPaymentReconciliation = async () => {
 
     let reconciliation_status = "WAITING";
     if (latestPayout) {
-      if (latestPayout.status === "PENDING" || latestPayout.status === "PROCESSING") {
+      if (latestPayout.status === "PENDING" || latestPayout.status === "PENDING_APPROVAL" || latestPayout.status === "PROCESSING") {
         reconciliation_status = "WITHDRAWAL_REQUESTED";
       } else if (latestPayout.status === "COMPLETED") {
         reconciliation_status = "COMPLETED";
       }
     }
 
-    const totalRevenue = shopRevenue[shop.id] || 0;
-    const netRevenue = totalRevenue * (1 - totalDeductionRate);
-    const approvedWithdrawals = payoutStats[shop.id] || 0;
-    const availableBalance = Math.max(0, netRevenue - approvedWithdrawals);
-    
-    const pendingRevenue = shopPending[shop.id] || 0;
-    const pendingBalance = pendingRevenue * (1 - totalDeductionRate);
+    const availableBalance = shop.wallet ? parseFloat(shop.wallet.balance || 0) : 0;
+    const pendingBalance = shop.wallet ? parseFloat(shop.wallet.pending_balance || 0) : 0;
+    const totalEarned = shop.wallet ? parseFloat(shop.wallet.total_earned || 0) : 0;
 
     result.push({
       shop_id: shop.id,
@@ -768,7 +742,7 @@ const getPaymentReconciliation = async () => {
       bank_account_name: shop.bank_account_name,
       pending_balance: pendingBalance,
       available_balance: availableBalance,
-      total_earned: netRevenue,
+      total_earned: totalEarned,
       reconciliation_status,
       latest_payout: latestPayout ? {
         id: latestPayout.id,
@@ -788,10 +762,19 @@ const approveShopPayout = async (adminId, payoutId) => {
   if (!payout) throw new Error("Không tìm thấy lệnh thanh toán");
   if (payout.status === "COMPLETED") throw new Error("Lệnh thanh toán đã được duyệt trước đó");
 
-  await payout.update({
-    status: "COMPLETED",
-    processed_by: adminId,
-  });
+  const transaction = await db.sequelize.transaction();
+  try {
+    // Cập nhật trạng thái payout
+    await payout.update({
+      status: "COMPLETED",
+      processed_by: adminId,
+    }, { transaction });
+
+    await transaction.commit();
+  } catch (err) {
+    await transaction.rollback();
+    throw err;
+  }
 
   // Gửi thông báo cho Vendor & Admin
   try {
@@ -821,6 +804,96 @@ const approveShopPayout = async (adminId, payoutId) => {
   return payout;
 };
 
+// const rejectShopPayout = async (adminId, payoutId, rejectReason) => {
+//   const payout = await db.ShopPayout.findByPk(payoutId);
+//   if (!payout) throw new Error("Không tìm thấy lệnh thanh toán");
+//   if (payout.status === "COMPLETED") throw new Error("Lệnh thanh toán đã hoàn thành, không thể từ chối");
+//   if (payout.status === "REJECTED") throw new Error("Lệnh thanh toán đã bị từ chối trước đó");
+
+//   await payout.update({
+//     status: "REJECTED",
+//     processed_by: adminId,
+//     reject_reason: rejectReason || "Không có lý do cụ thể",
+//   });
+
+//   // Gửi thông báo cho Vendor & Admin
+//   try {
+//     const shop = await db.Shop.findByPk(payout.shop_id);
+//     if (shop) {
+//       if (shop.vendor_id) {
+//         await notificationService.createNotification(
+//           shop.vendor_id,
+//           "Lệnh rút tiền bị từ chối",
+//           `Lệnh rút tiền trị giá ${Number(payout.amount).toLocaleString()}₫ từ ví gian hàng "${shop.shop_name}" đã bị từ chối. Lý do: ${rejectReason || "Không có lý do cụ thể"}.`,
+//           "PAYOUT_STATUS"
+//         );
+//       }
+//       if (adminId) {
+//         await notificationService.createNotification(
+//           adminId,
+//           "Từ chối rút tiền thành công",
+//           `Bạn đã từ chối lệnh rút tiền trị giá ${Number(payout.amount).toLocaleString()}₫ của gian hàng "${shop.shop_name}".`,
+//           "PAYOUT_STATUS"
+//         );
+//       }
+//     }
+//   } catch (notifErr) {
+//     console.error("Failed to create payout rejection notification:", notifErr);
+//   }
+
+//   return payout;
+// };
+const rejectShopPayout = async (processorId, payoutId, reason) => {
+  const transaction = await db.sequelize.transaction();
+  try {
+    const payout = await db.ShopPayout.findByPk(payoutId, { transaction });
+    if (!payout) throw new Error("Không tìm thấy lệnh rút tiền");
+    if (payout.status !== "PENDING" && payout.status !== "PENDING_APPROVAL" && payout.status !== "PROCESSING") {
+      throw new Error("Lệnh rút tiền này đã được xử lý");
+    }
+
+    // 1. Cập nhật trạng thái lệnh rút tiền thành REJECTED và lưu lý do
+    await payout.update({
+      status: "REJECTED",
+      processed_by: processorId,
+      reject_reason: reason || "Yêu cầu rút tiền bị từ chối"
+    }, { transaction });
+
+    // 2. Hoàn lại số dư khả dụng vào ví của Shop
+    const wallet = await db.ShopWallet.findOne({ where: { shop_id: payout.shop_id }, transaction });
+    if (wallet) {
+      const currentBalance = parseFloat(wallet.balance || 0);
+      const refundAmount = parseFloat(payout.amount || 0);
+      await wallet.update({
+        balance: currentBalance + refundAmount
+      }, { transaction });
+    }
+
+    await transaction.commit();
+
+    // 3. Gửi thông báo cho Vendor khi bị từ chối rút tiền (Lấy từ HEAD)
+    try {
+      const shop = await db.Shop.findByPk(payout.shop_id);
+      if (shop && shop.vendor_id) {
+        await notificationService.createNotification(
+          shop.vendor_id,
+          "Yêu cầu rút tiền bị từ chối",
+          `Yêu cầu rút tiền trị giá ${Number(payout.amount).toLocaleString()}₫ của bạn đã bị từ chối. Lý do: ${reason || "Không có lý do cụ thể"}. Số tiền đã được hoàn trả lại vào ví của shop.`,
+          "PAYOUT_STATUS"
+        );
+      }
+    } catch (notifErr) {
+      console.error("Failed to create payout rejection notification:", notifErr);
+    }
+
+    return payout;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+};
+
+
 
 // ============================================================
 // 6. LỊCH SỬ THANH TOÁN (PAYMENT LOGS)
@@ -832,7 +905,7 @@ const getPaymentLogs = async (page = 1, limit = 20, filters = {}) => {
 
   if (filters.gateway_name) where.gateway_name = filters.gateway_name;
   if (filters.status) where.status = filters.status;
-  
+
   if (filters.from_date || filters.to_date) {
     where.transaction_time = {};
     if (filters.from_date) {
@@ -842,7 +915,7 @@ const getPaymentLogs = async (page = 1, limit = 20, filters = {}) => {
       where.transaction_time[Op.lte] = new Date(`${filters.to_date}T23:59:59.999Z`);
     }
   }
-  
+
   if (filters.search) {
     where[Op.or] = [
       { order_code: { [Op.like]: `%${filters.search}%` } },
@@ -853,6 +926,73 @@ const getPaymentLogs = async (page = 1, limit = 20, filters = {}) => {
   const { rows, count } = await db.PaymentLog.findAndCountAll({
     where,
     order: [["transaction_time", "DESC"]],
+    limit: parseInt(limit),
+    offset,
+  });
+
+  return {
+    logs: rows,
+    total: count,
+    page: parseInt(page),
+    totalPages: Math.ceil(count / limit),
+  };
+};
+
+const getWithdrawalLogs = async (page = 1, limit = 20, filters = {}) => {
+  const offset = (page - 1) * limit;
+  const where = {};
+
+  if (filters.status) {
+    if (filters.status === "PENDING") {
+      where.status = { [Op.in]: ["PENDING", "PENDING_APPROVAL"] };
+    } else {
+      where.status = filters.status;
+    }
+  }
+
+  if (filters.from_date || filters.to_date) {
+    where.created_at = {};
+    if (filters.from_date) {
+      where.created_at[Op.gte] = new Date(`${filters.from_date}T00:00:00.000Z`);
+    }
+    if (filters.to_date) {
+      where.created_at[Op.lte] = new Date(`${filters.to_date}T23:59:59.999Z`);
+    }
+  }
+
+  const include = [
+    {
+      model: db.Shop,
+      as: "shop",
+      attributes: ["id", "shop_name", "shop_logo"],
+      include: [
+        {
+          model: db.User,
+          as: "vendor",
+          attributes: ["id", "email", "phone"],
+          include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name"] }]
+        }
+      ]
+    },
+    {
+      model: db.User,
+      as: "processor",
+      attributes: ["id", "email"],
+      include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name"] }]
+    }
+  ];
+
+  if (filters.search) {
+    where[Op.or] = [
+      { bank_account: { [Op.like]: `%${filters.search}%` } },
+      { '$shop.shop_name$': { [Op.like]: `%${filters.search}%` } }
+    ];
+  }
+
+  const { rows, count } = await db.ShopPayout.findAndCountAll({
+    where,
+    include,
+    order: [["created_at", "DESC"]],
     limit: parseInt(limit),
     offset,
   });
@@ -900,6 +1040,225 @@ const getOrderByCode = async (checkoutCode) => {
   return parentOrder;
 };
 
+const getPendingShipperReconciliations = async () => {
+  const role = await db.Role.findOne({ where: { role_name: "shipper" } });
+  if (!role) return [];
+
+  const shippers = await db.User.findAll({
+    where: { role_id: role.id },
+    include: [
+      {
+        model: db.UserProfile,
+        as: "profile",
+        attributes: ["full_name"]
+      }
+    ],
+    attributes: ["id", "email", "phone", "status"]
+  });
+
+  const overview = [];
+
+  for (const shipper of shippers) {
+    // Count total orders assigned
+    const totalOrders = await db.ShopOrder.count({
+      where: { shipper_id: shipper.id }
+    });
+
+    // Count delivered orders
+    const deliveredOrders = await db.ShopOrder.count({
+      where: { shipper_id: shipper.id, status: "DELIVERED" }
+    });
+
+    // Get orders that are HELD_BY_SHIPPER
+    const heldOrders = await db.ShopOrder.findAll({
+      where: {
+        shipper_id: shipper.id,
+        status: "DELIVERED",
+        cod_status: "HELD_BY_SHIPPER"
+      },
+      include: [
+        {
+          model: db.ParentOrder,
+          as: "parentOrder",
+          where: { payment_method: "COD" },
+          attributes: ["id", "checkout_code", "payment_method", "shipping_address"]
+        }
+      ],
+      attributes: ["id", "shop_order_code", "final_amount", "subtotal", "discount_amount", "commission_amount", "created_at"]
+    });
+
+    const totalHeldAmount = heldOrders.reduce((sum, o) => sum + Number(o.final_amount), 0);
+
+    // Only include in overview if they have assigned orders or are holding cash
+    if (totalOrders > 0 || totalHeldAmount > 0) {
+      overview.push({
+        id: shipper.id, // map id to shipper's ID for routing
+        shipper: {
+          id: shipper.id,
+          email: shipper.email,
+          phone: shipper.phone,
+          status: shipper.status,
+          full_name: shipper.profile?.full_name || "Chưa cập nhật"
+        },
+        totalOrders,
+        deliveredOrders,
+        totalHeldAmount,
+        heldOrders
+      });
+    }
+  }
+
+  return overview;
+};
+
+const approveShipperReconciliation = async (processorId, shipperId) => {
+  const transaction = await db.sequelize.transaction();
+  try {
+    // 1. Find all delivered COD orders held by this shipper
+    const orders = await db.ShopOrder.findAll({
+      where: {
+        shipper_id: shipperId,
+        status: "DELIVERED",
+        cod_status: "HELD_BY_SHIPPER"
+      },
+      include: [
+        {
+          model: db.ParentOrder,
+          as: "parentOrder",
+          where: { payment_method: "COD" }
+        }
+      ],
+      transaction
+    });
+
+    if (orders.length === 0) {
+      throw new Error("Shipper không giữ tiền mặt thu hộ nào cần đối soát");
+    }
+
+    const totalAmount = orders.reduce((sum, o) => sum + Number(o.final_amount), 0);
+
+    // 2. Create a ShipperReconciliation record with status APPROVED for audit trail
+    const recon = await db.ShipperReconciliation.create({
+      shipper_id: shipperId,
+      amount_submitted: totalAmount,
+      status: "APPROVED",
+      confirmed_by: processorId,
+      note: "Đã nộp tiền mặt đối soát thành công (hệ thống tự động)"
+    }, { transaction });
+
+    // 3. Update orders and credit shop wallets
+    for (const order of orders) {
+      await order.update({
+        cod_status: "CONFIRMED",
+        shipper_reconciliation_id: recon.id
+      }, { transaction });
+
+      // Calculate Net Shop Amount: subtotal - discount_amount - commission_amount
+      const netShopAmount = Number(order.subtotal) - Number(order.discount_amount) - Number(order.commission_amount);
+
+      const [wallet] = await db.ShopWallet.findOrCreate({
+        where: { shop_id: order.shop_id },
+        defaults: { balance: 0.00, pending_balance: 0.00, total_earned: 0.00 },
+        transaction
+      });
+
+      await wallet.increment('pending_balance', { by: netShopAmount, transaction });
+    }
+
+    await transaction.commit();
+    return recon;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+};
+
+const rejectShipperReconciliation = async (processorId, shipperId, reason) => {
+  const transaction = await db.sequelize.transaction();
+  try {
+    // 1. Find all delivered COD orders held by this shipper
+    const orders = await db.ShopOrder.findAll({
+      where: {
+        shipper_id: shipperId,
+        status: "DELIVERED",
+        cod_status: "HELD_BY_SHIPPER"
+      },
+      include: [
+        {
+          model: db.ParentOrder,
+          as: "parentOrder",
+          where: { payment_method: "COD" }
+        }
+      ],
+      transaction
+    });
+
+    if (orders.length === 0) {
+      throw new Error("Shipper không giữ tiền mặt thu hộ nào cần từ chối");
+    }
+
+    const totalAmount = orders.reduce((sum, o) => sum + Number(o.final_amount), 0);
+
+    // 2. Create a ShipperReconciliation record with status REJECTED for audit trail
+    const recon = await db.ShipperReconciliation.create({
+      shipper_id: shipperId,
+      amount_submitted: totalAmount,
+      status: "REJECTED",
+      confirmed_by: processorId,
+      note: reason || "Từ chối đối soát do thiếu tiền"
+    }, { transaction });
+
+    // 3. Update orders
+    for (const order of orders) {
+      await order.update({
+        cod_status: "MISMATCH",
+        shipper_reconciliation_id: recon.id
+      }, { transaction });
+    }
+
+    // 4. Lock shipper account
+    const shipperUser = await db.User.findByPk(shipperId, { transaction });
+    if (shipperUser) {
+      await shipperUser.update({ status: "LOCKED" }, { transaction });
+    }
+
+    await transaction.commit();
+    return recon;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+};
+
+// const rejectShopPayout = async (processorId, payoutId, reason) => {
+//   const transaction = await db.sequelize.transaction();
+//   try {
+//     const payout = await db.ShopPayout.findByPk(payoutId, { transaction });
+//     if (!payout) throw new Error("Không tìm thấy lệnh rút tiền");
+//     if (payout.status !== "PENDING" && payout.status !== "PROCESSING") {
+//       throw new Error("Lệnh rút tiền này đã được xử lý");
+//     }
+
+//     await payout.update({
+//       status: "REJECTED",
+//       processed_by: processorId,
+//       reject_reason: reason || "Yêu cầu rút tiền bị từ chối"
+//     }, { transaction });
+
+//     // Refund money back to shop wallet balance
+//     const wallet = await db.ShopWallet.findOne({ where: { shop_id: payout.shop_id }, transaction });
+//     if (wallet) {
+//       await wallet.increment('balance', { by: payout.amount, transaction });
+//     }
+
+//     await transaction.commit();
+//     return payout;
+//   } catch (error) {
+//     await transaction.rollback();
+//     throw error;
+//   }
+// };
+
 export default {
   // Manager
   // Users
@@ -926,8 +1285,15 @@ export default {
   // Reconciliation
   getPaymentReconciliation,
   approveShopPayout,
+  rejectShopPayout,
+
+  getPendingShipperReconciliations,
+  approveShipperReconciliation,
+  rejectShipperReconciliation,
+
   // Payment Logs
   getPaymentLogs,
+  getWithdrawalLogs,
   // Orders
   getOrderByCode,
 };
