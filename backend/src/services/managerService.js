@@ -6,11 +6,24 @@ const getStats = async () => {
   const platformVouchers = await db.Coupon.count({ where: { shop_id: null } });
   const bannedShops = await db.Shop.count({ where: { status: "BANNED" } });
 
+  const pendingShops = await db.Shop.count({ where: { status: "PENDING" } });
+  const totalOrders = await db.ShopOrder.count();
+
+  // Tổng doanh thu sàn (tổng hoa hồng từ các đơn đã giao)
+  const deliveredOrders = await db.ShopOrder.findAll({
+    where: { status: "DELIVERED" },
+    attributes: ["commission_amount"],
+  });
+  const totalRevenue = deliveredOrders.reduce((sum, order) => sum + Number(order.commission_amount || 0), 0);
+
   return {
     pendingProducts,
     pendingDisputes,
     platformVouchers,
     bannedShops,
+    pendingShops,
+    totalOrders,
+    totalRevenue,
   };
 };
 
@@ -36,8 +49,8 @@ const getPendingProducts = async () => {
 const getActiveProducts = async () => {
   const { Op } = db.Sequelize;
   return await db.Product.findAll({
-    where: { 
-      approval_status: { [Op.in]: ["APPROVED", "HIDDEN", "REJECTED"] } 
+    where: {
+      approval_status: { [Op.in]: ["APPROVED", "HIDDEN", "REJECTED"] }
     },
     include: [
       {
@@ -58,7 +71,7 @@ const getActiveProducts = async () => {
 const updateProductStatus = async (productId, status) => {
   const product = await db.Product.findByPk(productId);
   if (!product) throw new Error("Sản phẩm không tồn tại");
-  
+
   if (!["APPROVED", "REJECTED", "PENDING", "HIDDEN"].includes(status)) {
     throw new Error("Trạng thái không hợp lệ");
   }
@@ -118,20 +131,28 @@ const resolveDispute = async (disputeId, status, resolvedBy) => {
 const getVouchers = async () => {
   return await db.Coupon.findAll({
     where: { shop_id: null },
+    include: [
+      {
+        model: db.Category,
+        as: "category",
+        attributes: ["id", "name"],
+      }
+    ],
     order: [["id", "DESC"]],
   });
 };
 
 const createVoucher = async (voucherData) => {
-  const { 
-    code, 
-    discount_type, 
-    discount_value, 
-    max_discount, 
-    min_order_amount, 
-    usage_limit, 
-    start_date, 
-    end_date 
+  const {
+    code,
+    discount_type,
+    discount_value,
+    max_discount,
+    min_order_amount,
+    usage_limit,
+    start_date,
+    end_date,
+    category_id
   } = voucherData;
 
   if (!code || !discount_type || discount_value === undefined) {
@@ -206,6 +227,7 @@ const createVoucher = async (voucherData) => {
     usage_limit: limit,
     start_date: sDate,
     end_date: eDate,
+    category_id: category_id ? Number(category_id) : null,
   });
 };
 
@@ -213,7 +235,7 @@ const deleteVoucher = async (id) => {
   if (!id) throw new Error("Thiếu ID mã giảm giá");
   const voucher = await db.Coupon.findOne({ where: { id, shop_id: null } });
   if (!voucher) throw new Error("Không tìm thấy mã giảm giá sàn");
-  
+
   await voucher.destroy();
   return true;
 };
@@ -276,8 +298,244 @@ const updateVendorStatus = async (shopId, status, reason) => {
   return shop;
 };
 
+const getReviews = async () => {
+  return await db.ProductReview.findAll({
+    paranoid: false,
+    include: [
+      { model: db.User, as: "user", attributes: ["id", "email"], include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name"] }] },
+      { model: db.Product, as: "product", attributes: ["id", "name"], include: [{ model: db.Shop, as: "shop", attributes: ["shop_name"] }] },
+    ],
+    order: [["created_at", "DESC"]],
+  });
+};
+
+const deleteReview = async (id) => {
+  const review = await db.ProductReview.findByPk(id);
+  if (!review) throw new Error("Đánh giá không tồn tại");
+
+  await review.destroy();
+  return true;
+};
+
+const restoreReview = async (id) => {
+  const review = await db.ProductReview.findByPk(id, { paranoid: false });
+  if (!review) throw new Error("Đánh giá không tồn tại");
+  
+  await review.restore();
+  return true;
+};
+
+const getReportOverview = async () => {
+  const { Op } = db.Sequelize;
+
+  // 1. Lấy toàn bộ shop để lập báo cáo
+  const shops = await db.Shop.findAll({
+    include: [
+      {
+        model: db.User,
+        as: "vendor",
+        attributes: ["id", "email"],
+        include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name"] }],
+      },
+    ],
+  });
+
+  // 2. Tính doanh thu của từng shop từ OrderItem
+  const orderItems = await db.OrderItem.findAll({
+    include: [
+      {
+        model: db.ShopOrder,
+        as: "shopOrder",
+        where: { status: { [Op.ne]: "CANCELLED" } },
+        attributes: ["shop_id", "status"],
+        required: true,
+      },
+    ],
+    attributes: ["unit_price", "quantity"],
+  });
+
+  const shopRevenueMap = {};
+  orderItems.forEach((item) => {
+    const shopId = item.shopOrder.shop_id;
+    if (!shopRevenueMap[shopId]) shopRevenueMap[shopId] = 0;
+    shopRevenueMap[shopId] += parseFloat(item.unit_price) * item.quantity;
+  });
+
+  // 3. Tính số đơn hàng và tổng hoa hồng của từng shop (không tính CANCELLED)
+  const shopOrderCounts = await db.ShopOrder.findAll({
+    where: { status: { [Op.ne]: "CANCELLED" } },
+    attributes: [
+      "shop_id",
+      [db.sequelize.fn("COUNT", db.sequelize.col("id")), "orderCount"],
+      [db.sequelize.fn("SUM", db.sequelize.col("commission_amount")), "commissionSum"],
+    ],
+    group: ["shop_id"],
+    raw: true,
+  });
+
+  const orderCountMap = {};
+  const commissionMap = {};
+  shopOrderCounts.forEach((row) => {
+    orderCountMap[row.shop_id] = parseInt(row.orderCount || 0);
+    commissionMap[row.shop_id] = parseFloat(row.commissionSum || 0);
+  });
+
+  // 4. Lấy lịch sử rút tiền đã duyệt (COMPLETED)
+  const completedPayouts = await db.ShopPayout.findAll({
+    where: { status: "COMPLETED" },
+    attributes: ["shop_id", "amount"],
+  });
+  const paidPayoutMap = {};
+  completedPayouts.forEach((p) => {
+    if (!paidPayoutMap[p.shop_id]) paidPayoutMap[p.shop_id] = 0;
+    paidPayoutMap[p.shop_id] += parseFloat(p.amount);
+  });
+
+  // 5. Lấy lịch sử rút tiền đang chờ duyệt (PENDING, PROCESSING)
+  const pendingPayouts = await db.ShopPayout.findAll({
+    where: { status: { [Op.in]: ["PENDING", "PROCESSING"] } },
+    attributes: ["shop_id", "amount"],
+  });
+  const pendingPayoutMap = {};
+  pendingPayouts.forEach((p) => {
+    if (!pendingPayoutMap[p.shop_id]) pendingPayoutMap[p.shop_id] = 0;
+    pendingPayoutMap[p.shop_id] += parseFloat(p.amount);
+  });
+
+  // 6. Tính toán báo cáo cho từng Shop
+  const shopReports = [];
+  let totalAvailableWaitingForWithdraw = 0;
+
+  shops.forEach((shop) => {
+    const grossRevenue = shopRevenueMap[shop.id] || 0;
+    const commissionAmount = commissionMap[shop.id] || (grossRevenue * 0.1); // mặc định 10% nếu thiếu
+    const netRevenue = grossRevenue - commissionAmount;
+    const paidPayout = paidPayoutMap[shop.id] || 0;
+    const pendingPayout = pendingPayoutMap[shop.id] || 0;
+    const availableBalance = Math.max(0, netRevenue - paidPayout - pendingPayout);
+
+    totalAvailableWaitingForWithdraw += availableBalance;
+
+    shopReports.push({
+      shop_id: shop.id,
+      shop_name: shop.shop_name,
+      vendor_name: shop.vendor?.profile?.full_name || shop.vendor?.email || "N/A",
+      vendor_email: shop.vendor?.email || "N/A",
+      order_count: orderCountMap[shop.id] || 0,
+      gross_revenue: grossRevenue,
+      commission_amount: commissionAmount,
+      net_revenue: netRevenue,
+      paid_payout: paidPayout,
+      pending_payout: pendingPayout,
+      available_balance: availableBalance,
+    });
+  });
+
+  // 7. Lấy danh sách toàn bộ sản phẩm để tính bán chạy / bán ế
+  const products = await db.Product.findAll({
+    where: { approval_status: "APPROVED" },
+    include: [
+      { model: db.ProductVariant, as: "variants", attributes: ["stock_quantity", "price"] },
+      { model: db.Shop, as: "shop", attributes: ["shop_name"] },
+      { model: db.Category, as: "category", attributes: ["name"] },
+    ],
+  });
+
+  // 8. Lấy toàn bộ order items không bị hủy để tính số lượng bán và doanh thu sản phẩm
+  const allSales = await db.OrderItem.findAll({
+    include: [
+      {
+        model: db.ShopOrder,
+        as: "shopOrder",
+        where: { status: { [Op.ne]: "CANCELLED" } },
+        required: true,
+        attributes: ["id"],
+      },
+      {
+        model: db.ProductVariant,
+        as: "variant",
+        required: true,
+        attributes: ["product_id", "price"],
+      }
+    ],
+    attributes: ["quantity", "unit_price"],
+  });
+
+  const salesMap = {};
+  const revenueMap = {};
+  const priceSumMap = {};
+  const priceCountMap = {};
+
+  allSales.forEach((item) => {
+    const prodId = item.variant?.product_id;
+    if (prodId) {
+      const qty = item.quantity || 0;
+      const price = parseFloat(item.unit_price || item.variant.price || 0);
+
+      if (!salesMap[prodId]) salesMap[prodId] = 0;
+      salesMap[prodId] += qty;
+
+      if (!revenueMap[prodId]) revenueMap[prodId] = 0;
+      revenueMap[prodId] += qty * price;
+
+      if (!priceSumMap[prodId]) {
+        priceSumMap[prodId] = 0;
+        priceCountMap[prodId] = 0;
+      }
+      priceSumMap[prodId] += price;
+      priceCountMap[prodId] += 1;
+    }
+  });
+
+  // 9. Lập danh sách sản phẩm
+  const productStats = products.map((product) => {
+    const totalSold = salesMap[product.id] || 0;
+    const totalRevenue = revenueMap[product.id] || 0;
+    const avgPrice = priceCountMap[product.id]
+      ? priceSumMap[product.id] / priceCountMap[product.id]
+      : parseFloat(product.price || 0);
+    const totalStock = product.variants?.reduce((sum, v) => sum + (v.stock_quantity || 0), 0) || 0;
+
+    return {
+      product_id: product.id,
+      product_name: product.name,
+      shop_name: product.shop?.shop_name || "N/A",
+      category_name: product.category?.name || "N/A",
+      total_sold: totalSold,
+      total_revenue: totalRevenue,
+      avg_price: avgPrice,
+      stock_quantity: totalStock,
+      created_at: product.created_at,
+    };
+  });
+
+  // Bán chạy: Số lượng bán giảm dần
+  const bestSellers = [...productStats]
+    .filter((p) => p.total_sold > 0)
+    .sort((a, b) => b.total_sold - a.total_sold)
+    .slice(0, 20);
+
+  // Bán ế: Số lượng bán tăng dần, nếu bằng nhau thì ưu tiên tồn kho nhiều nhất
+  const slowSellers = [...productStats]
+    .sort((a, b) => {
+      if (a.total_sold !== b.total_sold) {
+        return a.total_sold - b.total_sold;
+      }
+      return b.stock_quantity - a.stock_quantity;
+    })
+    .slice(0, 20);
+
+  return {
+    totalAvailableWaitingForWithdraw,
+    shopReports,
+    bestSellers,
+    slowSellers,
+  };
+};
+
 export default {
   getStats,
+  getReportOverview,
   getPendingProducts,
   getActiveProducts,
   updateProductStatus,
@@ -290,4 +548,7 @@ export default {
   createCampaign,
   getVendors,
   updateVendorStatus,
+  getReviews,
+  deleteReview,
+  restoreReview,
 };

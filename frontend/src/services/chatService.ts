@@ -5,6 +5,7 @@ export interface ChatPartner {
   id: number;
   name: string;
   avatar: string | null;
+  role?: string;
 }
 
 export interface ChatMessage {
@@ -14,6 +15,11 @@ export interface ChatMessage {
   body: string;
   is_read: boolean;
   sent_at: string;
+  sender?: {
+    role?: {
+      role_name: string;
+    };
+  };
 }
 
 export interface ConversationInfo {

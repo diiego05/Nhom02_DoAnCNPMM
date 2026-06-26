@@ -38,6 +38,10 @@ router.put("/payouts/:id/approve", adminController.approveShopPayout);
 
 // ---- 6. Lịch sử thanh toán ----
 router.get("/payment-logs", adminController.getPaymentLogs);
+router.get("/withdrawal-logs", adminController.getWithdrawalLogs);
 router.get("/orders/by-code/:code", adminController.getOrderByCode);
+
+// ---- 7. Nhật ký hệ thống ----
+router.get("/activity-logs", adminController.getActivityLogs);
 
 export default router;

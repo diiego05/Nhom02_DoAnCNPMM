@@ -865,6 +865,67 @@ const getPaymentLogs = async (page = 1, limit = 20, filters = {}) => {
   };
 };
 
+const getWithdrawalLogs = async (page = 1, limit = 20, filters = {}) => {
+  const offset = (page - 1) * limit;
+  const where = {};
+
+  if (filters.status) where.status = filters.status;
+  
+  if (filters.from_date || filters.to_date) {
+    where.created_at = {};
+    if (filters.from_date) {
+      where.created_at[Op.gte] = new Date(`${filters.from_date}T00:00:00.000Z`);
+    }
+    if (filters.to_date) {
+      where.created_at[Op.lte] = new Date(`${filters.to_date}T23:59:59.999Z`);
+    }
+  }
+
+  const include = [
+    {
+      model: db.Shop,
+      as: "shop",
+      attributes: ["id", "shop_name", "shop_logo"],
+      include: [
+        {
+          model: db.User,
+          as: "vendor",
+          attributes: ["id", "email", "phone"],
+          include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name"] }]
+        }
+      ]
+    },
+    {
+      model: db.User,
+      as: "processor",
+      attributes: ["id", "email"],
+      include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name"] }]
+    }
+  ];
+
+  if (filters.search) {
+    where[Op.or] = [
+      { bank_account: { [Op.like]: `%${filters.search}%` } },
+      { '$shop.shop_name$': { [Op.like]: `%${filters.search}%` } }
+    ];
+  }
+
+  const { rows, count } = await db.ShopPayout.findAndCountAll({
+    where,
+    include,
+    order: [["created_at", "DESC"]],
+    limit: parseInt(limit),
+    offset,
+  });
+
+  return {
+    logs: rows,
+    total: count,
+    page: parseInt(page),
+    totalPages: Math.ceil(count / limit),
+  };
+};
+
 const getOrderByCode = async (checkoutCode) => {
   const parentOrder = await db.ParentOrder.findOne({
     where: { checkout_code: checkoutCode },
@@ -928,6 +989,7 @@ export default {
   approveShopPayout,
   // Payment Logs
   getPaymentLogs,
+  getWithdrawalLogs,
   // Orders
   getOrderByCode,
 };

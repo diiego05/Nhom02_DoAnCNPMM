@@ -1122,6 +1122,7 @@ const VendorDashboard = () => {
     id: c.partner.id,
     name: c.partner.name,
     avatar: c.partner.avatar,
+    role: c.partner.role,
     unreadCount: c.unreadCount,
     lastMessage: c.lastMessage,
   }));
@@ -2840,9 +2841,17 @@ const VendorDashboard = () => {
                         </div>
                         <div className="flex-grow min-w-0">
                           <div className="flex justify-between items-center mb-1">
-                            <span className="text-[10px] font-black uppercase truncate group-hover:text-primary transition-colors">
-                              {cust.name}
-                            </span>
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="text-[10px] font-black uppercase truncate group-hover:text-primary transition-colors">
+                                {cust.name}
+                              </span>
+                              {cust.role?.toUpperCase() === 'MANAGER' && (
+                                <span className="bg-blue-500 text-white text-[7px] font-black uppercase px-1 py-0.5 rounded shadow-sm shrink-0">Quản lý</span>
+                              )}
+                              {cust.role?.toUpperCase() === 'ADMIN' && (
+                                <span className="bg-red-500 text-white text-[7px] font-black uppercase px-1 py-0.5 rounded shadow-sm shrink-0">Admin</span>
+                              )}
+                            </div>
                             <div className="flex flex-col items-end gap-1 shrink-0 pl-2">
                               <span className="text-[8px] font-bold text-gray-400">
                                 {cust.lastMessage
@@ -2908,9 +2917,17 @@ const VendorDashboard = () => {
                           )}
                         </div>
                         <div>
-                          <h4 className="text-sm font-black uppercase tracking-tight">
-                            {chatCustomers[activeChatIndex]?.name}
-                          </h4>
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <h4 className="text-sm font-black uppercase tracking-tight">
+                              {chatCustomers[activeChatIndex]?.name}
+                            </h4>
+                            {chatCustomers[activeChatIndex]?.role?.toUpperCase() === 'MANAGER' && (
+                              <span className="bg-blue-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm shrink-0">Quản lý</span>
+                            )}
+                            {chatCustomers[activeChatIndex]?.role?.toUpperCase() === 'ADMIN' && (
+                              <span className="bg-red-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm shrink-0">Admin</span>
+                            )}
+                          </div>
                           <p className="text-[10px] font-bold text-green-500 flex items-center gap-1 uppercase tracking-widest">
                             <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>{" "}
                             Đang hoạt động
@@ -2987,6 +3004,14 @@ const VendorDashboard = () => {
                                   )}
                                 </div>
                                 <div className="space-y-2">
+                                  <div className="flex items-center gap-2 mb-0.5">
+                                    {msg.sender?.role?.role_name?.toUpperCase() === 'MANAGER' && (
+                                      <span className="bg-blue-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm">Quản lý</span>
+                                    )}
+                                    {msg.sender?.role?.role_name?.toUpperCase() === 'ADMIN' && (
+                                      <span className="bg-red-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm">Admin</span>
+                                    )}
+                                  </div>
                                   <div className="bg-white border-2 border-black p-4 rounded-2xl rounded-tl-none shadow-subtle">
                                     <p className="text-xs font-medium leading-relaxed break-words">
                                       {msg.body}

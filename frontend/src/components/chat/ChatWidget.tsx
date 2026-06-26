@@ -20,6 +20,7 @@ interface ActiveShop {
   id: number;
   name: string;
   logo: string | null;
+  role?: string;
 }
 
 const ChatWidget = () => {
@@ -168,7 +169,8 @@ const ChatWidget = () => {
     setActiveShop({
       id: conv.partner.id,
       name: conv.partner.name,
-      logo: conv.partner.avatar
+      logo: conv.partner.avatar,
+      role: conv.partner.role
     });
     setView("detail");
   };
@@ -255,9 +257,17 @@ const ChatWidget = () => {
           </div>
           
           <div>
-            <h4 className="text-xs font-bold uppercase tracking-tight truncate max-w-[200px]">
-              {view === "detail" ? (activeShop?.name || "Cửa hàng") : "Hộp thư hỗ trợ"}
-            </h4>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <h4 className="text-xs font-bold uppercase tracking-tight truncate max-w-[150px]">
+                {view === "detail" ? (activeShop?.name || "Cửa hàng") : "Hộp thư hỗ trợ"}
+              </h4>
+              {view === "detail" && activeShop?.role?.toUpperCase() === 'MANAGER' && (
+                <span className="bg-blue-500 text-white text-[7px] font-black uppercase px-1 py-0.5 rounded shadow-sm shrink-0">Quản lý</span>
+              )}
+              {view === "detail" && activeShop?.role?.toUpperCase() === 'ADMIN' && (
+                <span className="bg-red-500 text-white text-[7px] font-black uppercase px-1 py-0.5 rounded shadow-sm shrink-0">Admin</span>
+              )}
+            </div>
             <p className="text-[8px] font-bold text-green-500 uppercase tracking-widest flex items-center gap-1">
               {view === "detail" ? "Đang hoạt động" : "Dữ liệu thực tế"}
             </p>
@@ -335,9 +345,17 @@ const ChatWidget = () => {
                       
                       <div className="flex-grow min-w-0">
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-[10px] font-bold uppercase tracking-tight group-hover:text-primary transition-colors truncate">
-                            {conv.partner.name}
-                          </span>
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="text-[10px] font-bold uppercase tracking-tight group-hover:text-primary transition-colors truncate">
+                              {conv.partner.name}
+                            </span>
+                            {conv.partner.role?.toUpperCase() === 'MANAGER' && (
+                              <span className="bg-blue-500 text-white text-[7px] font-black uppercase px-1 py-0.5 rounded shadow-sm shrink-0">Quản lý</span>
+                            )}
+                            {conv.partner.role?.toUpperCase() === 'ADMIN' && (
+                              <span className="bg-red-500 text-white text-[7px] font-black uppercase px-1 py-0.5 rounded shadow-sm shrink-0">Admin</span>
+                            )}
+                          </div>
                           <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest shrink-0 pl-2">
                             {conv.lastMessage ? new Date(conv.lastMessage.sent_at).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }) : ""}
                           </span>
@@ -414,6 +432,14 @@ const ChatWidget = () => {
                               </div>
                             )}
                             <div className="space-y-1 max-w-[calc(100%-2.5rem)]">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                {!isMe && msg.sender?.role?.role_name?.toUpperCase() === 'MANAGER' && (
+                                  <span className="bg-blue-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm">Quản lý</span>
+                                )}
+                                {!isMe && msg.sender?.role?.role_name?.toUpperCase() === 'ADMIN' && (
+                                  <span className="bg-red-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm">Admin</span>
+                                )}
+                              </div>
                               <div className={`p-3.5 rounded-2xl shadow-sm text-left ${isMe ? "bg-primary text-white rounded-tr-none" : "bg-white text-black rounded-tl-none border border-gray-100"}`}>
                                 <p className="text-[11px] font-medium leading-relaxed break-words">{msg.body}</p>
                               </div>

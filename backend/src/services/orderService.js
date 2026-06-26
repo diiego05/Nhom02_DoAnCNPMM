@@ -72,7 +72,8 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
       color: variant.color,
       quantity: item.quantity,
       unit_price: Number(price),
-      total_price: itemTotal
+      total_price: itemTotal,
+      category_id: product.category_id
     });
   }
 
@@ -109,11 +110,31 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
   let platformCouponObj = null;
   if (platformCouponCode) {
     platformCouponObj = await db.Coupon.findOne({ where: { code: platformCouponCode, shop_id: null } });
-    if (platformCouponObj && parentSubtotal >= platformCouponObj.min_order_amount) {
-      const discount = platformCouponObj.discount_type === 'PERCENT'
-          ? (parentSubtotal * Number(platformCouponObj.discount_value) / 100)
-          : Number(platformCouponObj.discount_value);
-      platformDiscount = platformCouponObj.max_discount ? Math.min(discount, Number(platformCouponObj.max_discount)) : discount;
+    if (platformCouponObj) {
+      let validSubtotal = parentSubtotal;
+      
+      // Nếu có giới hạn danh mục
+      if (platformCouponObj.category_id) {
+        validSubtotal = 0;
+        for (const shop of Object.values(shopsData)) {
+          for (const item of shop.items) {
+            if (item.category_id === platformCouponObj.category_id) {
+              validSubtotal += item.total_price;
+            }
+          }
+        }
+      }
+
+      if (validSubtotal >= platformCouponObj.min_order_amount) {
+        const discount = platformCouponObj.discount_type === 'PERCENT'
+            ? (validSubtotal * Number(platformCouponObj.discount_value) / 100)
+            : Number(platformCouponObj.discount_value);
+        platformDiscount = platformCouponObj.max_discount ? Math.min(discount, Number(platformCouponObj.max_discount)) : discount;
+      } else if (platformCouponObj.category_id && validSubtotal === 0) {
+        throw new Error("Mã giảm giá sàn không áp dụng cho danh mục sản phẩm bạn đang mua");
+      } else {
+        throw new Error(`Đơn hàng chưa đạt mức tối thiểu ${platformCouponObj.min_order_amount}₫ để áp dụng mã giảm giá này`);
+      }
     }
   }
 

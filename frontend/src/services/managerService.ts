@@ -62,6 +62,18 @@ export const managerService = {
     const response = await axiosClient.put(`/manager/vendors/${id}/status`, { status, reason });
     return response.data.data;
   },
+  getReviews: async () => {
+    const response = await axiosClient.get("/manager/reviews");
+    return response.data.data;
+  },
+  deleteReview: async (id: number) => {
+    const response = await axiosClient.delete(`/manager/reviews/${id}`);
+    return response.data.data;
+  },
+  getReportOverview: async () => {
+    const response = await axiosClient.get("/manager/reports/overview");
+    return response.data.data;
+  },
 };
 
 export default managerService;
