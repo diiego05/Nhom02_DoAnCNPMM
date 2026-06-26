@@ -388,6 +388,122 @@ const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
   };
 };
 
+const autoAssignShipperByArea = async (shopOrderId) => {
+  try {
+    const shopOrder = await db.ShopOrder.findByPk(shopOrderId, {
+      include: [{ model: db.ParentOrder, as: "parentOrder" }]
+    });
+    if (!shopOrder) return null;
+
+    const address = shopOrder.parentOrder?.shipping_address || "";
+    const shopId = shopOrder.shop_id;
+
+    // Fetch active shippers
+    const activeShippers = await db.User.findAll({
+      where: { status: "ACTIVE" },
+      include: [
+        {
+          model: db.Role,
+          as: "role",
+          where: { role_name: "shipper" }
+        },
+        {
+          model: db.UserProfile,
+          as: "profile"
+        }
+      ]
+    });
+
+    // All active shippers are eligible since they are platform-wide
+    const eligibleShippers = activeShippers;
+
+    if (eligibleShippers.length === 0) {
+      console.log(`[AutoAssign] No eligible active shippers found for ShopOrder ${shopOrderId}`);
+      return null;
+    }
+
+    // Get active workloads for eligible shippers
+    const shipperIds = eligibleShippers.map(s => s.id);
+    const activeOrders = await db.ShopOrder.findAll({
+      where: {
+        shipper_id: { [db.Sequelize.Op.in]: shipperIds },
+        status: ["READY_FOR_PICKUP", "PICKED_UP", "IN_TRANSIT", "DELIVERING", "RETURN_PENDING"]
+      },
+      include: [{ model: db.ParentOrder, as: "parentOrder" }]
+    });
+
+    const cleanAddress = address.toLowerCase();
+    const candidates = eligibleShippers.map(shipper => {
+      let matchedAreas = [];
+      try {
+        const rawAreas = shipper.profile?.operating_areas;
+        if (Array.isArray(rawAreas)) {
+          matchedAreas = rawAreas;
+        } else if (typeof rawAreas === "string") {
+          matchedAreas = JSON.parse(rawAreas);
+        }
+      } catch (e) {
+        console.error(`Error parsing operating_areas for user ${shipper.id}:`, e);
+      }
+
+      if (!Array.isArray(matchedAreas)) {
+        matchedAreas = [];
+      }
+
+      // Find which registered areas are present in the shipping address
+      const matched = matchedAreas.filter(area => area && cleanAddress.includes(area.toLowerCase().trim()));
+      const hasAreaMatch = matched.length > 0;
+
+      // Compute total workload (active orders assigned to this shipper)
+      const shipperActiveOrders = activeOrders.filter(o => Number(o.shipper_id) === Number(shipper.id));
+      const totalWorkload = shipperActiveOrders.length;
+
+      // Compute same area workload (active orders in the same matched operating areas)
+      let sameAreaActiveCount = 0;
+      if (hasAreaMatch) {
+        sameAreaActiveCount = shipperActiveOrders.filter(o => {
+          const oAddr = (o.parentOrder?.shipping_address || "").toLowerCase();
+          return matched.some(area => oAddr.includes(area.toLowerCase().trim()));
+        }).length;
+      }
+
+      return {
+        shipperId: shipper.id,
+        hasAreaMatch,
+        totalWorkload,
+        sameAreaActiveCount
+      };
+    });
+
+    const matchedCandidates = candidates.filter(c => c.hasAreaMatch);
+    let selectedCandidate = null;
+
+    if (matchedCandidates.length > 0) {
+      // Sort matched candidates:
+      // 1. Prioritize shippers who already have active deliveries in the same matched area (sameAreaActiveCount descending).
+      // 2. Break ties by picking the shipper with the minimum total workload (totalWorkload ascending).
+      matchedCandidates.sort((a, b) => {
+        if (b.sameAreaActiveCount !== a.sameAreaActiveCount) {
+          return b.sameAreaActiveCount - a.sameAreaActiveCount;
+        }
+        return a.totalWorkload - b.totalWorkload;
+      });
+      selectedCandidate = matchedCandidates[0];
+      console.log(`[AutoAssign] Found area-matched shipper ${selectedCandidate.shipperId} for ShopOrder ${shopOrderId} (sameAreaActive: ${selectedCandidate.sameAreaActiveCount}, totalWorkload: ${selectedCandidate.totalWorkload})`);
+    } else {
+      // Fallback: assign to the eligible shipper with the overall minimum workload.
+      candidates.sort((a, b) => a.totalWorkload - b.totalWorkload);
+      selectedCandidate = candidates[0];
+      console.log(`[AutoAssign] No area match for ShopOrder ${shopOrderId}. Falling back to least busy shipper ${selectedCandidate.shipperId} (totalWorkload: ${selectedCandidate.totalWorkload})`);
+    }
+
+    return selectedCandidate ? selectedCandidate.shipperId : null;
+  } catch (error) {
+    console.error(`[AutoAssign] Error in autoAssignShipperByArea for ShopOrder ${shopOrderId}:`, error);
+    return null;
+  }
+};
+
 const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = null) => {
   const shopOrder = await db.ShopOrder.findByPk(shopOrderId, {
     include: [{ model: db.ParentOrder, as: "parentOrder" }, { model: db.OrderItem, as: "items" }]
@@ -414,10 +530,53 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
 
   const oldStatus = shopOrder.status;
   const updateData = { status: newStatus };
+
+  // Trigger auto-assignment of shipper when transitioning to READY_FOR_PICKUP status
+  if (newStatus === "READY_FOR_PICKUP" && oldStatus !== "READY_FOR_PICKUP") {
+    const assignedShipperId = await autoAssignShipperByArea(shopOrderId);
+    if (assignedShipperId) {
+      updateData.shipper_id = assignedShipperId;
+    }
+  }
   
-  // Always set shipper_id if status changes to DELIVERING and user has shipper permissions (or is currently updating as shipper)
-  if ((role === "shipper" || newStatus === "DELIVERING") && oldStatus === "READY_FOR_PICKUP" && !shopOrder.shipper_id) {
+  // Set shipper_id if the user is shipper, current status is READY_FOR_PICKUP and shipper_id is not assigned yet
+  if (role === "shipper" && oldStatus === "READY_FOR_PICKUP" && !shopOrder.shipper_id) {
     updateData.shipper_id = userId;
+  }
+  
+  // Handle DELIVERED logic (COD vs Online)
+  if (newStatus === "DELIVERED" && oldStatus !== "DELIVERED") {
+    updateData.delivered_at = new Date();
+    if (shopOrder.parentOrder.payment_method === "COD") {
+      updateData.cod_amount_collected = shopOrder.final_amount;
+      updateData.cod_status = "HELD_BY_SHIPPER";
+      // Update parentOrder's payment_status to PAID since cash has been collected
+      await shopOrder.parentOrder.update({ payment_status: "PAID" });
+    } else {
+      // Online payment (already paid, immediately add to pending shop wallet balance)
+      const netShopAmount = Number(shopOrder.subtotal) - Number(shopOrder.discount_amount) - Number(shopOrder.commission_amount);
+      const [wallet] = await db.ShopWallet.findOrCreate({
+        where: { shop_id: shopOrder.shop_id },
+        defaults: { balance: 0.00, pending_balance: 0.00, total_earned: 0.00 }
+      });
+      await wallet.increment('pending_balance', { by: netShopAmount });
+    }
+  }
+
+  // Handle COMPLETED logic (move from pending_balance to available balance)
+  if (newStatus === "COMPLETED" && oldStatus !== "COMPLETED") {
+    const netShopAmount = Number(shopOrder.subtotal) - Number(shopOrder.discount_amount) - Number(shopOrder.commission_amount);
+    const [wallet] = await db.ShopWallet.findOrCreate({
+      where: { shop_id: shopOrder.shop_id },
+      defaults: { balance: 0.00, pending_balance: 0.00, total_earned: 0.00 }
+    });
+    
+    // Safety check to prevent negative pending balance
+    const deductAmount = Math.min(Number(wallet.pending_balance), netShopAmount);
+    wallet.pending_balance = Number(wallet.pending_balance) - deductAmount;
+    wallet.balance = Number(wallet.balance) + netShopAmount;
+    wallet.total_earned = Number(wallet.total_earned) + netShopAmount;
+    await wallet.save();
   }
   
   await shopOrder.update(updateData);
@@ -445,12 +604,19 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
     }
   }
 
-  // Refund points when cancelled
-  if (newStatus === "CANCELLED" && oldStatus !== "CANCELLED") {
+  // Refund points when cancelled or failed
+  const isCancelledOrFailed = (newStatus === "CANCELLED" || newStatus === "FAILED");
+  const wasCancelledOrFailed = ["CANCELLED", "FAILED", "RETURN_PENDING", "RETURNED"].includes(oldStatus);
+  if (isCancelledOrFailed && !wasCancelledOrFailed) {
     if (shopOrder.points_used && shopOrder.points_used > 0) {
       await db.User.increment('loyalty_points', { by: shopOrder.points_used, where: { id: shopOrder.parentOrder.user_id } });
     }
-    // Restore stock
+  }
+
+  // Restore stock when cancelled or returned to vendor
+  const isRestored = (newStatus === "CANCELLED" || newStatus === "RETURNED");
+  const wasRestored = ["CANCELLED", "RETURNED"].includes(oldStatus);
+  if (isRestored && !wasRestored) {
     const orderItems = await db.OrderItem.findAll({ where: { shop_order_id: shopOrderId } });
     for (const item of orderItems) {
       if (item.variant_id) {
@@ -467,7 +633,7 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
     shop_order_id: shopOrderId,
     old_status: oldStatus,
     new_status: newStatus,
-    changed_by: userId,
+    changed_by: userId || null,
     note: note,
   });
 
@@ -485,8 +651,14 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
         actorTitle = "Xác nhận đơn hàng";
         actorContent = `Bạn đã xác nhận đơn hàng ${shopOrder.shop_order_code}.`;
       } else if (newStatus === "PREPARING") {
+        actorTitle = "Chuẩn bị hàng";
+        actorContent = `Bạn đã chuyển trạng thái chuẩn bị hàng cho đơn ${shopOrder.shop_order_code}.`;
+      } else if (newStatus === "READY_FOR_PICKUP") {
         actorTitle = "Chuẩn bị hàng xong";
         actorContent = `Bạn đã chuẩn bị xong hàng cho đơn ${shopOrder.shop_order_code} và sẵn sàng giao cho shipper.`;
+      } else if (newStatus === "RETURNED") {
+        actorTitle = "Nhận hàng hoàn thành công";
+        actorContent = `Bạn đã xác nhận nhận lại hàng hoàn cho đơn hàng ${shopOrder.shop_order_code}.`;
       }
     } else if (userId === customerId) {
       if (newStatus === "DELIVERED") {
@@ -496,16 +668,28 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
         actorTitle = "Hủy đơn hàng";
         actorContent = `Bạn đã hủy đơn hàng ${shopOrder.shop_order_code}.`;
       }
-    } else if (shopOrder.shipper_id === userId || (role === "shipper" && newStatus === "SHIPPED")) {
-      if (newStatus === "SHIPPED") {
+    } else if (shopOrder.shipper_id === userId || (role === "shipper" && newStatus === "READY_FOR_PICKUP")) {
+      if (newStatus === "READY_FOR_PICKUP") {
         actorTitle = "Nhận đơn giao hàng";
-        actorContent = `Bạn đã nhận giao đơn hàng ${shopOrder.shop_order_code} từ cửa hàng.`;
+        actorContent = `Bạn đã nhận giao đơn hàng ${shopOrder.shop_order_code} và đang đến lấy hàng.`;
+      } else if (newStatus === "PICKED_UP") {
+        actorTitle = "Đã lấy hàng";
+        actorContent = `Bạn đã xác nhận lấy hàng thành công cho đơn ${shopOrder.shop_order_code}.`;
+      } else if (newStatus === "IN_TRANSIT") {
+        actorTitle = "Bắt đầu luân chuyển";
+        actorContent = `Bạn đã bắt đầu luân chuyển đơn hàng ${shopOrder.shop_order_code}.`;
+      } else if (newStatus === "DELIVERING") {
+        actorTitle = "Bắt đầu đi giao";
+        actorContent = `Bạn đã bắt đầu đi giao đơn hàng ${shopOrder.shop_order_code} cho khách hàng.`;
       } else if (newStatus === "DELIVERED") {
         actorTitle = "Giao hàng thành công";
         actorContent = `Bạn đã giao thành công đơn hàng ${shopOrder.shop_order_code}.`;
       } else if (newStatus === "FAILED") {
         actorTitle = "Giao hàng thất bại";
         actorContent = `Bạn đã cập nhật giao đơn hàng ${shopOrder.shop_order_code} thất bại. Lý do: ${note || "Không có lý do"}.`;
+      } else if (newStatus === "RETURN_PENDING") {
+        actorTitle = "Bắt đầu chuyển hoàn";
+        actorContent = `Bạn đã bắt đầu chuyển hoàn đơn hàng ${shopOrder.shop_order_code} về cho cửa hàng.`;
       }
     }
     await notificationService.createNotification(userId, actorTitle, actorContent, "ORDER_UPDATE");
@@ -514,15 +698,27 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
     if (vendorId && userId !== vendorId) {
       let vendorTitle = "Cập nhật đơn hàng";
       let vendorContent = `Đơn hàng ${shopOrder.shop_order_code} của shop đã được cập nhật sang trạng thái ${newStatus}.`;
-      if (newStatus === "SHIPPED") {
-        vendorTitle = "Shipper lấy hàng";
-        vendorContent = `Shipper đã lấy hàng và đang đi giao đơn ${shopOrder.shop_order_code}.`;
+      if (newStatus === "READY_FOR_PICKUP" && shopOrder.shipper_id) {
+        vendorTitle = "Shipper nhận đơn";
+        vendorContent = `Shipper đã nhận đơn giao hàng ${shopOrder.shop_order_code} và đang đến lấy hàng.`;
+      } else if (newStatus === "PICKED_UP") {
+        vendorTitle = "Shipper đã lấy hàng";
+        vendorContent = `Shipper đã lấy hàng thành công cho đơn hàng ${shopOrder.shop_order_code}.`;
+      } else if (newStatus === "IN_TRANSIT") {
+        vendorTitle = "Đơn hàng đang luân chuyển";
+        vendorContent = `Đơn hàng ${shopOrder.shop_order_code} đang được luân chuyển.`;
+      } else if (newStatus === "DELIVERING") {
+        vendorTitle = "Đơn hàng đang được giao";
+        vendorContent = `Shipper đang đi giao đơn hàng ${shopOrder.shop_order_code} cho khách hàng.`;
       } else if (newStatus === "DELIVERED") {
         vendorTitle = "Đơn hàng đã giao thành công";
         vendorContent = `Khách hàng/Shipper đã xác nhận giao thành công đơn hàng ${shopOrder.shop_order_code}.`;
       } else if (newStatus === "FAILED") {
         vendorTitle = "Giao hàng thất bại";
         vendorContent = `Shipper xác nhận giao đơn hàng ${shopOrder.shop_order_code} thất bại. Lý do: ${note || "Không có lý do"}.`;
+      } else if (newStatus === "RETURN_PENDING") {
+        vendorTitle = "Đơn hàng chuyển hoàn";
+        vendorContent = `Đơn hàng ${shopOrder.shop_order_code} đang được chuyển hoàn về shop của bạn.`;
       } else if (newStatus === "CANCELLED") {
         vendorTitle = "Đơn hàng bị hủy";
         vendorContent = `Khách hàng đã hủy đơn hàng ${shopOrder.shop_order_code}.`;
@@ -539,7 +735,16 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
       } else if (newStatus === "PREPARING") {
         customerTitle = "Đang chuẩn bị hàng";
         customerContent = `Người bán đang chuẩn bị hàng cho đơn ${shopOrder.shop_order_code} của bạn.`;
-      } else if (newStatus === "SHIPPED") {
+      } else if (newStatus === "READY_FOR_PICKUP") {
+        customerTitle = "Shipper đang đến lấy";
+        customerContent = `Đơn hàng ${shopOrder.shop_order_code} đã được chuẩn bị xong, shipper đang đến lấy hàng.`;
+      } else if (newStatus === "PICKED_UP") {
+        customerTitle = "Shipper đã lấy hàng";
+        customerContent = `Shipper đã lấy đơn hàng ${shopOrder.shop_order_code} của bạn thành công.`;
+      } else if (newStatus === "IN_TRANSIT") {
+        customerTitle = "Đang luân chuyển";
+        customerContent = `Đơn hàng ${shopOrder.shop_order_code} của bạn đang được luân chuyển giữa các kho.`;
+      } else if (newStatus === "DELIVERING") {
         customerTitle = "Đang giao hàng";
         customerContent = `Đơn hàng ${shopOrder.shop_order_code} đang trên đường giao tới bạn.`;
       } else if (newStatus === "DELIVERED") {
@@ -548,6 +753,12 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
       } else if (newStatus === "FAILED") {
         customerTitle = "Giao hàng thất bại";
         customerContent = `Giao đơn hàng ${shopOrder.shop_order_code} thất bại. Lý do: ${note || "Không có lý do"}.`;
+      } else if (newStatus === "RETURN_PENDING") {
+        customerTitle = "Đang chuyển hoàn";
+        customerContent = `Đơn hàng ${shopOrder.shop_order_code} giao thất bại và đang trên đường chuyển hoàn về người bán.`;
+      } else if (newStatus === "RETURNED") {
+        customerTitle = "Đã chuyển hoàn xong";
+        customerContent = `Đơn hàng ${shopOrder.shop_order_code} đã hoàn trả thành công về người bán.`;
       }
       await notificationService.createNotification(customerId, customerTitle, customerContent, "ORDER_UPDATE");
     }
@@ -556,6 +767,10 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
     if (actualShipperId && userId !== actualShipperId) {
       let shipperTitle = "Cập nhật trạng thái đơn";
       let shipperContent = `Đơn hàng ${shopOrder.shop_order_code} bạn đang nhận giao đã có cập nhật trạng thái mới sang ${newStatus}.`;
+      if (newStatus === "RETURNED") {
+        shipperTitle = "Chuyển hoàn hoàn tất";
+        shipperContent = `Cửa hàng đã xác nhận nhận lại hàng hoàn cho đơn hàng ${shopOrder.shop_order_code}.`;
+      }
       await notificationService.createNotification(actualShipperId, shipperTitle, shipperContent, "ORDER_UPDATE");
     }
 
@@ -587,35 +802,29 @@ const bulkUpdateOrderStatus = async (shopOrderIds, userId, newStatus, role) => {
 };
 
 const getShipperOrders = async (userId, { page = 1, limit = 10, status }) => {
-  const profile = await db.UserProfile.findOne({ where: { user_id: userId } });
-  const shipperShopId = profile?.shipper_shop_id;
-
   const where = {};
-  if (status) {
-    where.status = status;
-  }
 
-  if (shipperShopId) {
-    if (status) {
-      if (status === 'READY_FOR_PICKUP') {
-        where.shop_id = shipperShopId;
-        where.shipper_id = null;
-      } else {
-        where.shipper_id = userId;
-      }
-    } else {
+  if (status) {
+    if (status === 'READY_FOR_PICKUP') {
+      where.status = 'READY_FOR_PICKUP';
       where[db.Sequelize.Op.or] = [
-        {
-          shop_id: shipperShopId,
-          status: 'READY_FOR_PICKUP'
-        },
-        {
-          shipper_id: userId
-        }
+        { shipper_id: null },
+        { shipper_id: userId }
       ];
+    } else {
+      where.status = status;
+      where.shipper_id = userId;
     }
   } else {
-    where.shipper_id = userId;
+    where[db.Sequelize.Op.or] = [
+      {
+        status: 'READY_FOR_PICKUP',
+        shipper_id: null
+      },
+      {
+        shipper_id: userId
+      }
+    ];
   }
 
   const offset = (page - 1) * limit;
@@ -788,4 +997,35 @@ const cancelOrder = async (shopOrderId, userId, reason) => {
   return shopOrder;
 };
 
-export default { calculateCheckout, createOrder, getUserOrders, updateOrderStatus, getOrderDetail, cancelOrder, getShipperOrders, bulkUpdateOrderStatus };
+const autoCompleteDeliveredOrders = async () => {
+  try {
+    const setting = await db.SystemSetting.findOne({ where: { setting_key: 'order_confirm_period_days' } });
+    const periodDays = setting ? parseFloat(setting.setting_value) : 3; // default 3 days if customer doesn't respond
+
+    const deliveredOrders = await db.ShopOrder.findAll({
+      where: { status: 'DELIVERED' },
+      include: [{ model: db.ParentOrder, as: 'parentOrder' }]
+    });
+
+    const now = new Date();
+    for (const order of deliveredOrders) {
+      const deliveryTime = order.delivered_at || order.updated_at;
+      const diffMs = now - new Date(deliveryTime);
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+      if (diffDays >= periodDays) {
+        await updateOrderStatus(
+          order.id,
+          null,
+          'COMPLETED',
+          'system',
+          `Tự động xác nhận đã nhận hàng sau ${periodDays} ngày không phản hồi`
+        );
+      }
+    }
+  } catch (error) {
+    console.error("Lỗi tự động hoàn tất đơn hàng:", error);
+  }
+};
+
+export default { calculateCheckout, createOrder, getUserOrders, updateOrderStatus, getOrderDetail, cancelOrder, getShipperOrders, bulkUpdateOrderStatus, autoCompleteDeliveredOrders, autoAssignShipperByArea };

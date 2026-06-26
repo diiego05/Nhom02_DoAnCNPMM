@@ -19,9 +19,11 @@ import {
   ShieldAlert,
   Loader2,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Landmark
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { ReconciliationTab } from '@/pages/admin/components/ReconciliationTab';
 import { Link } from 'react-router-dom';
 import useAuth from '@/hooks/useAuth';
 import { NotificationDropdown } from '@/components/layout/NotificationDropdown';
@@ -53,6 +55,37 @@ const ManagerDashboard = () => {
   const addNotification = (msg: string) => {
     setNotifications(prev => [msg, ...prev].slice(0, 8));
   };
+
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+     isOpen: boolean;
+     message: string;
+     onConfirm: () => void;
+  } | null>(null);
+
+  const showConfirm = (message: string, onConfirm: () => void) => {
+     setConfirmDialog({
+        isOpen: true,
+        message,
+        onConfirm: () => {
+           onConfirm();
+           setConfirmDialog(null);
+        }
+     });
+  };
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+     setToast({ message, type });
+  };
+
+  useEffect(() => {
+     if (toast) {
+        const timer = setTimeout(() => {
+           setToast(null);
+        }, 4000);
+        return () => clearTimeout(timer);
+     }
+  }, [toast]);
 
   // Lock Vendor Modal state
   const [lockModal, setLockModal] = useState<{
@@ -325,6 +358,7 @@ const ManagerDashboard = () => {
     { id: "disputes", label: "Giải quyết khiếu nại", icon: <AlertCircle size={20} /> },
     { id: "marketing", label: "Chiến dịch Marketing", icon: <Ticket size={20} /> },
     { id: "vendors", label: "Hỗ trợ & Khóa Shop", icon: <Users size={20} /> },
+    { id: "reconciliation", label: "Đối soát thanh toán", icon: <Landmark size={20} /> },
   ];
 
   const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8088";
@@ -1139,8 +1173,11 @@ const ManagerDashboard = () => {
                 </div>
               )}
             </div>
-          )}
+           )}
 
+          {activeTab === "reconciliation" && (
+            <ReconciliationTab showToast={showToast} showConfirm={showConfirm} />
+          )}
         </div>
       </main>
 
@@ -1184,6 +1221,43 @@ const ManagerDashboard = () => {
              </div>
           </div>
         </div>
+      )}
+
+      {toast && (
+         <div className="fixed top-6 right-6 z-[9999] animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className={`border-4 border-black p-4 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-3 font-black text-sm ${toast.type === 'success' ? 'bg-[#A3E635]' : toast.type === 'error' ? 'bg-[#F87171]' : 'bg-[#60A5FA]'
+               }`}>
+               {toast.type === 'success' && <Check className="w-5 h-5 stroke-[3]" />}
+               {toast.type === 'error' && <X className="w-5 h-5 stroke-[3]" />}
+               {toast.type === 'info' && <Bell className="w-5 h-5 stroke-[3]" />}
+               <span className="text-black uppercase tracking-wider">{toast.message}</span>
+               <button onClick={() => setToast(null)} className="ml-2 hover:bg-black/10 p-1 rounded transition-colors cursor-pointer">
+                  <X className="w-4 h-4" />
+               </button>
+            </div>
+         </div>
+      )}
+      {confirmDialog && (
+         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setConfirmDialog(null)}>
+            <div className="bg-white border-[3px] border-black rounded-[2rem] p-8 max-w-sm w-full shadow-brutal text-center" onClick={e => e.stopPropagation()}>
+               <h3 className="text-lg font-black uppercase tracking-tighter mb-4 text-black">Xác nhận</h3>
+               <p className="text-sm font-bold text-gray-700 mb-6">{confirmDialog.message}</p>
+               <div className="flex gap-4 justify-center">
+                  <button
+                     onClick={confirmDialog.onConfirm}
+                     className="px-6 py-3 border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest bg-red-600 text-white hover:bg-red-700 transition-all shadow-subtle active:translate-y-[2px]"
+                  >
+                     Đồng ý
+                  </button>
+                  <button
+                     onClick={() => setConfirmDialog(null)}
+                     className="px-6 py-3 border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest bg-white hover:bg-gray-50 transition-all text-black"
+                  >
+                     Hủy
+                  </button>
+               </div>
+            </div>
+         </div>
       )}
 
     </div>

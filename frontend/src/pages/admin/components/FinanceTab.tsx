@@ -344,13 +344,15 @@ export const FinanceTab = () => {
                   const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
                      PENDING: { bg: 'bg-yellow-50 border-yellow-200', text: 'text-yellow-700', label: 'Chờ xác nhận' },
                      PREPARING: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', label: 'Đang chuẩn bị' },
-                     READY_FOR_PICKUP: { bg: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-700', label: 'Sẵn sàng lấy' },
-                     PICKED_UP: { bg: 'bg-cyan-50 border-cyan-200', text: 'text-cyan-700', label: 'Đã lấy hàng' },
-                     DELIVERING: { bg: 'bg-orange-50 border-orange-200', text: 'text-orange-700', label: 'Đang giao' },
-                     DELIVERED: { bg: 'bg-green-50 border-green-200', text: 'text-green-700', label: 'Hoàn thành' },
+                     READY_FOR_PICKUP: { bg: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-700', label: 'Shipper đang đến lấy hàng' },
+                     PICKED_UP: { bg: 'bg-cyan-50 border-cyan-200', text: 'text-cyan-700', label: 'Shipper đã lấy hàng thành công' },
+                     IN_TRANSIT: { bg: 'bg-purple-50 border-purple-200', text: 'text-purple-700', label: 'Đang luân chuyển' },
+                     DELIVERING: { bg: 'bg-orange-50 border-orange-200', text: 'text-orange-700', label: 'Shipper đang đi giao' },
+                     DELIVERED: { bg: 'bg-green-50 border-green-200', text: 'text-green-700', label: 'Giao thành công' },
                      CANCELLED: { bg: 'bg-red-50 border-red-200', text: 'text-red-600', label: 'Đã hủy' },
-                     RETURN_PENDING: { bg: 'bg-pink-50 border-pink-200', text: 'text-pink-600', label: 'Chờ hoàn' },
-                     RETURNED: { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-600', label: 'Đã hoàn' },
+                     FAILED: { bg: 'bg-red-100 border-red-300', text: 'text-red-800', label: 'Giao thất bại' },
+                     RETURN_PENDING: { bg: 'bg-pink-50 border-pink-200', text: 'text-pink-600', label: 'Đang chuyển hoàn' },
+                     RETURNED: { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-600', label: 'Đã hoàn hàng' },
                   };
                   const cfg = statusConfig[os.status] || { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-600', label: os.status };
 

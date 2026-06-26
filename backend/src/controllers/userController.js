@@ -21,6 +21,16 @@ const updateUserProfile = async (req, res) => {
   try {
     const data = { ...req.body, user_id: req.user.id };
 
+    if (req.body.operating_areas) {
+      try {
+        if (typeof req.body.operating_areas === "string") {
+          data.operating_areas = JSON.parse(req.body.operating_areas);
+        }
+      } catch (e) {
+        console.error("Failed to parse operating_areas in controller:", e);
+      }
+    }
+
     // Nếu có file tải lên (Cloudinary), gán URL trực tiếp cho avatar_url
     if (req.body.date_of_birth) {
       const fiveYearsAgo = new Date();
@@ -45,6 +55,7 @@ const updateUserProfile = async (req, res) => {
         gender: user.gender,
         avatarUrl: user.avatar_url,
         shipper_shop_id: user.shipper_shop_id,
+        operating_areas: user.operating_areas,
       },
     });
   } catch (error) {

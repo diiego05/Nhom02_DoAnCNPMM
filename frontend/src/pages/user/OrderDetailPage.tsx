@@ -1,25 +1,18 @@
-import { useParams, Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
-  ChevronLeft,
-  Package,
-  MapPin,
-  CreditCard,
-  CheckCircle,
-  Calendar,
-  Hash,
-  Loader2,
-  DollarSign,
-  Star,
-  X,
-  Store,
-} from "lucide-react";
-import PaymentCountdownButton from "@/components/ui/PaymentCountdownButton";
-import { useOrderDetail, useRetryPayment } from "@/hooks/useOrders";
-import { useCreateReview, useUpdateReview } from "@/hooks/useReviews";
-import { OrderStatus } from "@/types/order.types";
-import { useSystemSettings } from "@/hooks/useSystemSettings";
-import { useAddToCart } from "@/hooks/useCart";
+  ChevronLeft, Package, MapPin, CreditCard,
+  CheckCircle, Calendar, Hash, Loader2, DollarSign,
+  Star, X, Store
+} from 'lucide-react';
+import PaymentCountdownButton from '@/components/ui/PaymentCountdownButton';
+import { useOrderDetail, useRetryPayment } from '@/hooks/useOrders';
+import { useCreateReview, useUpdateReview } from '@/hooks/useReviews';
+import { OrderStatus } from '@/types/order.types';
+import { useSystemSettings } from '@/hooks/useSystemSettings';
+import { useAddToCart } from '@/hooks/useCart';
+import orderService from '@/services/orderService';
 
 const OrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -31,8 +24,12 @@ const OrderDetailPage = () => {
   const [selectedProductToReview, setSelectedProductToReview] =
     useState<any>(null);
   const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState("");
+  
+  const [comment, setComment] = useState('');
+  const [isConfirming, setIsConfirming] = useState(false);
+  const queryClient = useQueryClient();
   const [isUpdatingReview, setIsUpdatingReview] = useState(false);
+
 
   const createReviewMutation = useCreateReview();
   const updateReviewMutation = useUpdateReview();
@@ -49,6 +46,20 @@ const OrderDetailPage = () => {
 
   const handleSuggestionClick = (suggestion: string) => {
     setComment((prev) => (prev ? `${prev}. ${suggestion}` : suggestion));
+  };
+
+  const handleConfirmReceipt = async () => {
+    if (!window.confirm("Bạn xác nhận đã nhận đầy đủ hàng và muốn hoàn tất đơn hàng?")) return;
+    setIsConfirming(true);
+    try {
+      await orderService.updateOrderStatus(Number(id), 'COMPLETED');
+      alert("Xác nhận nhận hàng và hoàn tất đơn hàng thành công!");
+      queryClient.invalidateQueries({ queryKey: ["order", Number(id)] });
+    } catch (error: any) {
+      alert("Lỗi: " + (error.response?.data?.message || error.message));
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   const handleRetryPayment = (parentOrderId: number) => {
@@ -165,51 +176,73 @@ const OrderDetailPage = () => {
 
   const getStatusLabel = (status: OrderStatus) => {
     const labels: Record<string, string> = {
-      PENDING: "Chờ xác nhận",
-      CONFIRMED: "Đã xác nhận",
-      PREPARING: "Đang chuẩn bị",
-      READY_FOR_PICKUP: "Sẵn sàng giao",
-      DELIVERING: "Đang giao hàng",
-      SHIPPING: "Đang giao hàng",
-      DELIVERED: "Giao thành công",
-      CANCEL_REQUESTED: "Yêu cầu hủy",
-      CANCELLED: "Đã hủy",
+      'PENDING': 'Chờ xác nhận',
+      'CONFIRMED': 'Đã xác nhận',
+      'PREPARING': 'Đang chuẩn bị',
+      'READY_FOR_PICKUP': 'Chờ lấy hàng',
+      'PICKED_UP': 'Shipper đã lấy hàng thành công',
+      'IN_TRANSIT': 'Đang luân chuyển',
+      'DELIVERING': 'Shipper đang đi giao',
+      'SHIPPING': 'Shipper đang đi giao',
+      'DELIVERED': 'Giao thành công',
+      'CANCEL_REQUESTED': 'Yêu cầu hủy',
+      'CANCELLED': 'Đã hủy',
+      'FAILED': 'Giao thất bại',
+      'RETURN_PENDING': 'Đang chuyển hoàn',
+      'RETURNED': 'Đã hoàn hàng'
     };
     return labels[status] || status;
   };
 
   const getStatusColor = (status: OrderStatus) => {
-    if (["DELIVERED"].includes(status))
-      return "bg-green-50 text-green-600 border-green-200";
-    if (["DELIVERING", "SHIPPING"].includes(status))
-      return "bg-blue-50 text-blue-600 border-blue-200";
-    if (["CANCELLED", "CANCEL_REQUESTED"].includes(status))
-      return "bg-red-50 text-red-600 border-red-200";
-    return "bg-orange-50 text-orange-600 border-orange-200";
+    if (['DELIVERED'].includes(status)) return 'bg-green-50 text-green-600 border-green-200';
+    if (['DELIVERING', 'SHIPPING', 'IN_TRANSIT', 'PICKED_UP', 'READY_FOR_PICKUP'].includes(status)) return 'bg-blue-50 text-blue-600 border-blue-200';
+    if (['CANCELLED', 'CANCEL_REQUESTED', 'FAILED'].includes(status)) return 'bg-red-50 text-red-600 border-red-200';
+    if (['RETURN_PENDING', 'RETURNED'].includes(status)) return 'bg-pink-50 text-pink-600 border-pink-200';
+    return 'bg-orange-50 text-orange-600 border-orange-200';
   };
 
   const renderTimeline = (currentStatus: string) => {
-    if (currentStatus === "CANCELLED" || currentStatus === "CANCEL_REQUESTED") {
+    if (['CANCELLED', 'CANCEL_REQUESTED', 'FAILED', 'RETURN_PENDING', 'RETURNED'].includes(currentStatus)) {
+      let title = "Đơn hàng đã hủy";
+      let desc = "Đơn hàng này đã bị hủy và không thể tiếp tục giao.";
+      let colorClass = "text-red-600";
+      let bgClass = "bg-red-50 border-red-200";
+      let borderClass = "border-red-500";
+      let symbol = "!";
+
+      if (currentStatus === 'FAILED') {
+        title = "Giao hàng thất bại";
+        desc = "Đơn hàng giao không thành công.";
+      } else if (currentStatus === 'RETURN_PENDING') {
+        title = "Đang chuyển hoàn";
+        desc = "Đơn hàng giao thất bại và đang trên đường chuyển hoàn về shop.";
+        colorClass = "text-pink-600";
+        bgClass = "bg-pink-50 border-pink-200";
+        borderClass = "border-pink-500";
+      } else if (currentStatus === 'RETURNED') {
+        title = "Đã hoàn hàng";
+        desc = "Đơn hàng đã hoàn trả về shop thành công.";
+        colorClass = "text-gray-600";
+        bgClass = "bg-gray-50 border-gray-200";
+        borderClass = "border-gray-500";
+      }
+
       return (
-        <div className="flex flex-col items-center justify-center p-8 bg-red-50 rounded-2xl border-2 border-red-200">
-          <div className="w-16 h-16 bg-white rounded-full border-4 border-red-500 flex items-center justify-center mb-4">
-            <span className="text-red-500 font-black text-2xl">!</span>
+        <div className={`flex flex-col items-center justify-center p-8 rounded-2xl border-2 ${bgClass}`}>
+          <div className={`w-16 h-16 bg-white rounded-full border-4 ${borderClass} flex items-center justify-center mb-4`}>
+            <span className={`${colorClass} font-black text-2xl`}>{symbol}</span>
           </div>
-          <h3 className="text-xl font-black text-red-600 uppercase mb-2">
-            Đơn hàng đã hủy
-          </h3>
-          <p className="text-sm font-bold text-red-400">
-            Đơn hàng này đã bị hủy và không thể tiếp tục giao.
-          </p>
+          <h3 className={`text-xl font-black ${colorClass} uppercase mb-2`}>{title}</h3>
+          <p className="text-sm font-bold text-gray-500">{desc}</p>
         </div>
       );
     }
 
-    const normalizedStatus =
-      currentStatus === "READY_FOR_PICKUP" ? "PREPARING" : currentStatus;
-    const currentIndex = orderStatuses.findIndex(
-      (s) => s.key === normalizedStatus,
-    );
+    const normalizedStatus = ['READY_FOR_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERING'].includes(currentStatus)
+      ? 'DELIVERING'
+      : currentStatus;
+    const currentIndex = orderStatuses.findIndex(s => s.key === normalizedStatus);
 
     return (
       <div className="flex flex-row w-full mt-8 px-4 relative">
@@ -218,23 +251,14 @@ const OrderDetailPage = () => {
           const isActive = idx <= currentIndex;
 
           return (
-            <div
-              key={s.key}
-              className="flex-1 flex flex-col items-center relative group"
-            >
+            <div key={s.key} className="flex-1 flex flex-col items-center relative group">
               {idx < orderStatuses.length - 1 && (
-                <div
-                  className={`absolute top-5 left-1/2 w-full h-[3px] ${isActive ? "bg-primary" : "bg-gray-200"} -z-10 transition-all`}
-                ></div>
+                <div className={`absolute top-5 left-1/2 w-full h-[3px] ${isActive ? 'bg-primary' : 'bg-gray-200'} -z-10 transition-all`}></div>
               )}
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-[3px] text-sm transition-all duration-300 ${isActive ? "bg-primary border-primary text-white shadow-[0_0_15px_rgba(var(--color-primary),0.3)] scale-110" : "bg-white border-gray-300 text-gray-400 font-bold"}`}
-              >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center border-[3px] text-sm transition-all duration-300 ${isActive ? 'bg-primary border-primary text-white shadow-[0_0_15px_rgba(var(--color-primary),0.3)] scale-110' : 'bg-white border-gray-300 text-gray-400 font-bold'}`}>
                 {isCompleted ? <CheckCircle size={20} /> : idx + 1}
               </div>
-              <p
-                className={`text-[11px] mt-4 font-black uppercase tracking-wider text-center transition-all ${isActive ? "text-black translate-y-1" : "text-gray-400"}`}
-              >
+              <p className={`text-[11px] mt-4 font-black uppercase tracking-wider text-center transition-all ${isActive ? 'text-black translate-y-1' : 'text-gray-400'}`}>
                 {s.label}
               </p>
             </div>
@@ -323,10 +347,19 @@ const OrderDetailPage = () => {
               </div>
             </div>
 
-            <div
-              className={`px-6 py-3 rounded-full border-2 font-black text-xs uppercase tracking-widest shadow-subtle ${getStatusColor(order.status)}`}
-            >
-              {getStatusLabel(order.status)}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className={`px-6 py-3 rounded-full border-2 font-black text-xs uppercase tracking-widest shadow-subtle ${getStatusColor(order.status)}`}>
+                {getStatusLabel(order.status)}
+              </div>
+              {order.status === 'DELIVERED' && (
+                <button
+                  onClick={handleConfirmReceipt}
+                  disabled={isConfirming}
+                  className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-black text-xs uppercase tracking-widest rounded-full border-2 border-black shadow-subtle hover:shadow-none transition-all active:translate-y-[2px]"
+                >
+                  {isConfirming ? 'Đang xử lý...' : 'Đã nhận hàng & Hoàn tất'}
+                </button>
+              )}
             </div>
           </div>
 

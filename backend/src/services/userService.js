@@ -37,6 +37,7 @@ const updateUserProfile = (data) => {
           gender: data.gender,
           avatar_url: data.avatar_url || userProfile.avatar_url,
           shipper_shop_id: data.shipper_shop_id !== undefined ? (data.shipper_shop_id || null) : userProfile.shipper_shop_id,
+          operating_areas: data.operating_areas !== undefined ? data.operating_areas : userProfile.operating_areas,
         });
         resolve(userProfile);
       } else {
@@ -48,6 +49,7 @@ const updateUserProfile = (data) => {
           gender: data.gender,
           avatar_url: data.avatar_url || null,
           shipper_shop_id: data.shipper_shop_id || null,
+          operating_areas: data.operating_areas || null,
         });
         resolve(userProfile);
       }

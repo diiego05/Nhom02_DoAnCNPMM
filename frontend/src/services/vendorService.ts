@@ -174,6 +174,12 @@ export const vendorService = {
     return response.data;
   },
 
+  // Xác nhận nhận hàng hoàn (RETURN_PENDING -> RETURNED)
+  confirmReturn: async (orderId: number | string) => {
+    const response = await axiosClient.patch(`/orders/${orderId}/status`, { status: "RETURNED" });
+    return response.data;
+  },
+
   // Cập nhật trạng thái hàng loạt
   bulkUpdateOrdersStatus: async (orderIds: (number | string)[], status: string) => {
     const response = await axiosClient.patch("/orders/bulk-status", { orderIds, status });

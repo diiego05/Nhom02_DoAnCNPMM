@@ -14,9 +14,11 @@ import {
   Map,
   Store,
   ShieldCheck,
+  DollarSign,
 } from "lucide-react";
-import useAuth from "@/hooks/useAuth";
 import { userService } from "@/services/userService";
+import useAuth from "@/hooks/useAuth";
+import { ShipperReconciliationTab } from "./ShipperReconciliationTab";
 import { useAppDispatch } from "@/stores/hooks";
 import { setUser } from "@/stores/slices/authSlice";
 import { useState, useRef, useEffect } from "react";
@@ -43,7 +45,6 @@ interface IUpdateProfileData {
   phone: string;
   date_of_birth: string;
   gender: string;
-  shipper_shop_id?: number | null;
 }
 
 const addressSchema = yup.object().shape({
@@ -113,10 +114,6 @@ const Profile = () => {
           ? (user as any).dateOfBirth.split("T")[0]
           : "",
       gender: (user as any)?.gender?.toLowerCase() || "male",
-      shipper_shop_id:
-        (user as any)?.profile?.shipper_shop_id ||
-        (user as any)?.shipper_shop_id ||
-        null,
     },
     resolver: yupResolver(schema),
   });
@@ -144,7 +141,7 @@ const Profile = () => {
     data: any[];
   };
   const { data: shopsData } = useTopShops(100);
-  const { data: systemSettings } = useSystemSettings();
+  const { data: systemSettings } = useSystemSettings() as any;
 
   // Đồng bộ lại dữ liệu form khi user đã được tải xong từ Redux store
   useEffect(() => {
@@ -154,87 +151,21 @@ const Profile = () => {
       reset({
         full_name: p?.profile?.full_name || p?.full_name || u?.profile?.full_name || u?.fullName || "",
         phone: p?.phone || u?.phone || "",
-        date_of_birth: p?.profile?.birthday
-          ? p.profile.birthday.split("T")[0]
-          : p?.birthday
-            ? p.birthday.split("T")[0]
-            : u?.profile?.birthday
-              ? u.profile.birthday.split("T")[0]
-              : u?.dateOfBirth
-                ? u.dateOfBirth.split("T")[0]
-                : "",
-        gender: p?.profile?.gender?.toLowerCase() || p?.gender?.toLowerCase() || u?.profile?.gender?.toLowerCase() || u?.gender?.toLowerCase() || "male",
-        shipper_shop_id:
-          p?.profile?.shipper_shop_id ||
-          p?.shipper_shop_id ||
-          u?.profile?.shipper_shop_id ||
-          u?.shipper_shop_id ||
-          null,
+        date_of_birth: p?.birthday
+          ? p.birthday.split("T")[0]
+          : u?.birthday
+            ? u.birthday.split("T")[0]
+            : u?.dateOfBirth
+              ? u.dateOfBirth.split("T")[0]
+              : "",
+        gender: p?.gender?.toLowerCase() || u?.gender?.toLowerCase() || "male",
       });
     }
   }, [user, profile, reset]);
 
   const [activeTab, setActiveTab] = useState<
-    "profile" | "favorites" | "viewed" | "points" | "shipper_orders"
-  >(isShipper ? "shipper_orders" : "profile");
-
-  // Shipper Orders state
-  const [shipperOrders, setShipperOrders] = useState<any[]>([]);
-  const [shipperOrdersLoading, setShipperOrdersLoading] = useState(false);
-
-  // Failed modal state
-  const [showFailedModal, setShowFailedModal] = useState(false);
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
-  const [failedReason, setFailedReason] = useState(
-    "Không liên lạc được người mua",
-  );
-  const [otherReason, setOtherReason] = useState("");
-
-  const fetchShipperOrders = async () => {
-    try {
-      setShipperOrdersLoading(true);
-      const response = await axiosClient.get("/orders/shipper");
-      setShipperOrders(response.data.data.orders || []);
-    } catch (error) {
-      console.error("Error fetching shipper orders:", error);
-    } finally {
-      setShipperOrdersLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isShipper && activeTab === "shipper_orders") {
-      fetchShipperOrders();
-    }
-  }, [isShipper, activeTab]);
-
-  const handleUpdateStatus = async (
-    orderId: number,
-    status: string,
-    note?: string,
-  ) => {
-    try {
-      await axiosClient.patch(`/orders/${orderId}/status`, { status, note });
-      alert("Cập nhật trạng thái thành công!");
-      fetchShipperOrders();
-    } catch (error: any) {
-      alert("Lỗi: " + (error.response?.data?.message || error.message));
-    }
-  };
-
-  const handleFailDeliverySubmit = () => {
-    if (!selectedOrderId) return;
-    const finalReason =
-      failedReason === "Lý do khác" ? otherReason : failedReason;
-    if (failedReason === "Lý do khác" && !otherReason.trim()) {
-      alert("Vui lòng nhập lý do khác");
-      return;
-    }
-    handleUpdateStatus(selectedOrderId, "CANCELLED", finalReason);
-    setShowFailedModal(false);
-    setSelectedOrderId(null);
-    setOtherReason("");
-  };
+    "profile" | "favorites" | "viewed" | "points"
+  >("profile");
 
   const {
     register: registerAddress,
@@ -333,11 +264,6 @@ const Profile = () => {
     formData.append("phone", data.phone);
     formData.append("date_of_birth", data.date_of_birth);
     formData.append("gender", data.gender);
-    if (data.shipper_shop_id !== undefined && data.shipper_shop_id !== null) {
-      formData.append("shipper_shop_id", String(data.shipper_shop_id));
-    } else {
-      formData.append("shipper_shop_id", "");
-    }
 
     if (selectedFile) {
       formData.append("avatar", selectedFile);
@@ -353,7 +279,6 @@ const Profile = () => {
             dateOfBirth: updatedProfile.dateOfBirth,
             gender: updatedProfile.gender,
             avatarUrl: updatedProfile.avatarUrl,
-            shipper_shop_id: updatedProfile.shipper_shop_id,
             profile: {
               ...user?.profile,
               ...updatedProfile,
@@ -365,7 +290,6 @@ const Profile = () => {
           phone: updatedProfile.phone,
           date_of_birth: updatedProfile.dateOfBirth?.split("T")[0] || "",
           gender: updatedProfile.gender,
-          shipper_shop_id: updatedProfile.shipper_shop_id || null,
         });
         // Xóa preview để hiển thị ảnh thật từ Cloudinary
         setAvatarPreview(null);
@@ -443,16 +367,16 @@ const Profile = () => {
                     >
                       <User size={18} /> Thông tin tài khoản
                     </a>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setActiveTab("shipper_orders");
-                      }}
-                      className={`flex items-center gap-3 px-6 py-4 font-bold border-b border-black transition-colors ${activeTab === "shipper_orders" ? "bg-primary text-white" : "hover:bg-gray-50 text-gray-700"}`}
+                    <Link
+                      to="/shipper"
+                      className="flex items-center gap-3 px-6 py-4 hover:bg-primary hover:text-white border-b border-black text-primary font-black transition-all group"
                     >
-                      <PackageSearch size={18} /> Đơn hàng cần giao
-                    </a>
+                      <ShieldCheck
+                        size={18}
+                        className="group-hover:scale-110 transition-transform"
+                      />
+                      Dashboard Shipper
+                    </Link>
                   </>
                 ) : isAdmin ? (
                   <>
@@ -687,36 +611,7 @@ const Profile = () => {
                           />
                         </div>
 
-                        {isShipper && (
-                          <div>
-                            <label className="text-xs font-bold uppercase tracking-wider mb-3 block">
-                              Cửa hàng nhận hàng đi giao
-                            </label>
-                            <Controller
-                              control={control}
-                              name="shipper_shop_id"
-                              render={({ field }) => (
-                                <select
-                                  id="shipper_shop_id"
-                                  value={field.value || ""}
-                                  onChange={(e) =>
-                                    field.onChange(
-                                      Number(e.target.value) || null,
-                                    )
-                                  }
-                                  className="w-full border-2 border-black p-3 rounded-lg focus:border-primary outline-none text-xs font-bold uppercase bg-white"
-                                >
-                                  <option value="">Chọn cửa hàng...</option>
-                                  {shopsData?.data?.map((shop: any) => (
-                                    <option key={shop.id} value={shop.id}>
-                                      {shop.shop_name} ({shop.industry})
-                                    </option>
-                                  ))}
-                                </select>
-                              )}
-                            />
-                          </div>
-                        )}
+
 
                         <div>
                           <label className="text-xs font-bold uppercase tracking-wider mb-3 block">
@@ -1153,258 +1048,9 @@ const Profile = () => {
               </div>
             )}
 
-            {activeTab === "shipper_orders" && isShipper && (
-              <>
-                <div className="mb-6">
-                  <h1 className="font-serif text-4xl font-bold mb-2">
-                    ĐƠN HÀNG CẦN GIAO
-                  </h1>
-                  <p className="text-gray-600 font-bold uppercase tracking-wider">
-                    Danh sách đơn hàng sẵn sàng giao của cửa hàng bạn trực thuộc
-                    hoặc đơn đã nhận giao.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-6">
-                  {shipperOrdersLoading ? (
-                    <p className="text-gray-500 italic">
-                      Đang tải danh sách đơn hàng...
-                    </p>
-                  ) : shipperOrders && shipperOrders.length > 0 ? (
-                    shipperOrders.map((order: any) => {
-                      const shippingAddress =
-                        order.parentOrder?.shipping_address ||
-                        "Chưa có địa chỉ";
-                      const paymentMethod =
-                        order.parentOrder?.payment_method || "COD";
-                      const note =
-                        order.parentOrder?.note || "Không có ghi chú";
-                      const statusLabels: Record<string, string> = {
-                        READY_FOR_PICKUP: "Chờ lấy hàng",
-                        DELIVERING: "Đang giao",
-                        DELIVERED: "Chờ người mua xác nhận (Shipper đã giao)",
-                        CANCELLED: "Giao không thành công (Hủy đơn)",
-                      };
-                      const statusColors: Record<string, string> = {
-                        READY_FOR_PICKUP:
-                          "bg-blue-100 text-blue-700 border-blue-200",
-                        DELIVERING:
-                          "bg-yellow-100 text-yellow-700 border-yellow-200",
-                        DELIVERED:
-                          "bg-green-100 text-green-700 border-green-200",
-                        CANCELLED: "bg-red-100 text-red-700 border-red-200",
-                      };
-
-                      return (
-                        <Card
-                          key={order.id}
-                          className="p-6 border-2 border-black flex flex-col gap-4 shadow-subtle text-left"
-                        >
-                          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-4 border-b-2 border-black/10">
-                            <div>
-                              <span className="text-xs font-black uppercase text-gray-500">
-                                Mã đơn hàng:
-                              </span>
-                              <span className="ml-2 font-serif font-black text-black">
-                                {order.shop_order_code}
-                              </span>
-                            </div>
-                            <span
-                              className={`px-3 py-1 border text-[10px] font-black uppercase tracking-widest rounded-lg ${statusColors[order.status] || "bg-gray-100 text-gray-700 border-gray-200"}`}
-                            >
-                              {statusLabels[order.status] || order.status}
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium text-gray-700">
-                            <div>
-                              <p className="mb-1">
-                                <span className="text-black uppercase text-[10px] font-black">
-                                  Cửa hàng:
-                                </span>{" "}
-                                {order.shop?.shop_name}
-                              </p>
-                              <p className="mb-1">
-                                <span className="text-black uppercase text-[10px] font-black">
-                                  Địa chỉ giao hàng:
-                                </span>{" "}
-                                {shippingAddress}
-                              </p>
-                              <p className="mb-1">
-                                <span className="text-black uppercase text-[10px] font-black">
-                                  Ghi chú khách hàng:
-                                </span>{" "}
-                                {note}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="mb-1">
-                                <span className="text-black uppercase text-[10px] font-black">
-                                  Thanh toán:
-                                </span>{" "}
-                                {paymentMethod}
-                              </p>
-                              <p className="mb-1">
-                                <span className="text-black uppercase text-[10px] font-black">
-                                  Tiền thu hộ (COD):
-                                </span>{" "}
-                                <span className="text-primary font-black text-sm">
-                                  {Number(order.final_amount).toLocaleString()}₫
-                                </span>
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Items List */}
-                          <div className="border-t border-black/5 pt-3">
-                            <p className="text-[10px] font-black uppercase text-gray-400 mb-2">
-                              Chi tiết sản phẩm
-                            </p>
-                            <div className="space-y-2">
-                              {order.items?.map((item: any) => (
-                                <div
-                                  key={item.id}
-                                  className="flex justify-between items-center text-xs"
-                                >
-                                  <span className="font-bold">
-                                    {item.product_name}{" "}
-                                    <span className="text-gray-400">
-                                      x{item.quantity}
-                                    </span>
-                                  </span>
-                                  <span className="font-mono text-gray-500 font-bold">
-                                    {Number(item.unit_price).toLocaleString()}₫
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="flex justify-end gap-3 pt-4 border-t-2 border-dashed border-black/10">
-                            {order.status === "READY_FOR_PICKUP" && (
-                              <button
-                                onClick={() =>
-                                  handleUpdateStatus(order.id, "DELIVERING")
-                                }
-                                className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-primary text-white hover:bg-black transition-all active:translate-y-[2px]"
-                              >
-                                Nhận giao hàng
-                              </button>
-                            )}
-
-                            {order.status === "DELIVERING" && (
-                              <>
-                                <button
-                                  onClick={() =>
-                                    handleUpdateStatus(order.id, "DELIVERED")
-                                  }
-                                  className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-green-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
-                                >
-                                  Xác nhận đã giao
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setSelectedOrderId(order.id);
-                                    setShowFailedModal(true);
-                                  }}
-                                  className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-red-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
-                                >
-                                  Giao không thành công
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </Card>
-                      );
-                    })
-                  ) : (
-                    <p className="text-gray-500 italic py-10 text-center bg-white border-2 border-black border-dashed rounded-2xl">
-                      Không có đơn hàng nào cần xử lý.
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
           </div>
         </div>
       </main>
-
-      {/* Giao hàng không thành công Modal */}
-      {showFailedModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white border-4 border-black rounded-3xl shadow-brutal max-w-md w-full p-6 animate-in zoom-in-95 text-left">
-            <h3 className="font-serif text-2xl font-black uppercase mb-4 border-b-2 border-black pb-2 text-red-600">
-              Lý do giao thất bại
-            </h3>
-            <div className="space-y-4">
-              <label className="text-xs font-black uppercase tracking-wider block mb-1">
-                Chọn lý do
-              </label>
-              <div className="flex flex-col gap-2">
-                {[
-                  "Không liên lạc được người mua",
-                  "Người mua từ chối nhận hàng",
-                  "Sai địa chỉ giao hàng",
-                  "Lý do khác",
-                ].map((reason) => (
-                  <label
-                    key={reason}
-                    className="flex items-center gap-3 p-3 border-2 border-black/10 rounded-xl cursor-pointer hover:border-black transition-all"
-                  >
-                    <input
-                      type="radio"
-                      name="failedReason"
-                      value={reason}
-                      checked={failedReason === reason}
-                      onChange={(e) => setFailedReason(e.target.value)}
-                      className="w-4 h-4 accent-primary"
-                    />
-                    <span className="text-xs font-bold text-gray-800">
-                      {reason}
-                    </span>
-                  </label>
-                ))}
-              </div>
-
-              {failedReason === "Lý do khác" && (
-                <div>
-                  <label className="text-xs font-black uppercase tracking-wider block mb-1">
-                    Mô tả lý do
-                  </label>
-                  <textarea
-                    value={otherReason}
-                    onChange={(e) => setOtherReason(e.target.value)}
-                    placeholder="Nhập lý do cụ thể..."
-                    className="w-full border-2 border-black p-3 rounded-xl focus:border-primary outline-none text-xs font-bold min-h-[80px]"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-black/10">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowFailedModal(false);
-                  setSelectedOrderId(null);
-                  setOtherReason("");
-                }}
-                className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-white text-black hover:bg-gray-100 transition-all active:translate-y-[2px]"
-              >
-                Hủy
-              </button>
-              <button
-                type="button"
-                onClick={handleFailDeliverySubmit}
-                className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-red-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
-              >
-                Xác nhận
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
