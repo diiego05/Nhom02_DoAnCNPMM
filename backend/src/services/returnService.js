@@ -34,7 +34,7 @@ const returnService = {
       }
 
       const existingRequest = await db.ReturnRequest.findOne({
-        where: { shop_order_id: shopOrderId, status: ["PENDING", "APPROVED_BY_SHOP", "RESOLVED_BY_ADMIN"] },
+        where: { shop_order_id: shopOrderId, status: ["PENDING", "APPROVED_BY_SHOP", "RESOLVED_BY_ADMIN", "REJECTED"] },
         transaction
       });
 
@@ -98,7 +98,7 @@ const returnService = {
         const shop = await db.Shop.findByPk(order.shop_id);
         if (shop) {
           await notificationService.createNotification(
-            shop.owner_id,
+            shop.vendor_id,
             "Yêu cầu trả hàng mới",
             `Đơn hàng ${order.shop_order_code} có yêu cầu trả hàng mới.`,
             "ORDER_UPDATE"

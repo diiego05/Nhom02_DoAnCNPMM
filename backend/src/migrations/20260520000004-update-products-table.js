@@ -22,11 +22,6 @@ export default {
       await queryInterface.addColumn("products", "brand_id", {
         type: Sequelize.BIGINT,
         allowNull: true,
-        references: {
-          model: "brands",
-          key: "id",
-        },
-        onDelete: "SET NULL",
       });
     } catch (error) {
       console.log("brand_id column already exists or error occurred");
