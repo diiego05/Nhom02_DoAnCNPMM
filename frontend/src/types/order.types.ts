@@ -5,11 +5,16 @@ export type OrderStatus =
   | "CONFIRMED"
   | "PREPARING"
   | "READY_FOR_PICKUP"
+  | "PICKED_UP"
+  | "IN_TRANSIT"
   | "DELIVERING"
   | "SHIPPING"
   | "DELIVERED"
   | "CANCEL_REQUESTED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "FAILED"
+  | "RETURN_PENDING"
+  | "RETURNED";
 
 export type PaymentMethod = "COD" | "VNPAY" | "MOMO";
 export type PaymentStatus = "UNPAID" | "PAID" | "REFUNDED";
@@ -58,6 +63,7 @@ export interface Order {
   updated_at: string;
   items?: OrderItem[];
   statusLogs?: OrderStatusLog[];
+  reviews?: any[];
   shop?: { id: number; name: string; avatar_url?: string; shop_name?: string };
   shop_order_code?: string;
   order_code?: string;

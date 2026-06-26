@@ -35,6 +35,10 @@ router.get("/financial-report", adminController.getFinancialReport);
 // ---- 5. Đối soát thanh toán ----
 router.get("/reconciliation", adminController.getPaymentReconciliation);
 router.put("/payouts/:id/approve", adminController.approveShopPayout);
+router.put("/payouts/:id/reject", adminController.rejectShopPayout);
+router.get("/shipper-reconciliations", adminController.getPendingShipperReconciliations);
+router.put("/shipper-reconciliations/:id/approve", adminController.approveShipperReconciliation);
+router.put("/shipper-reconciliations/:id/reject", adminController.rejectShipperReconciliation);
 
 // ---- 6. Lịch sử thanh toán ----
 router.get("/payment-logs", adminController.getPaymentLogs);

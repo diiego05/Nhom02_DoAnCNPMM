@@ -7,6 +7,7 @@ export default (sequelize, DataTypes) => {
       ShopOrder.belongsTo(models.Shop, { foreignKey: "shop_id", as: "shop" });
       ShopOrder.belongsTo(models.User, { foreignKey: "shipper_id", as: "shipper" });
       ShopOrder.belongsTo(models.Coupon, { foreignKey: "shop_coupon_id", as: "shopCoupon" });
+      ShopOrder.belongsTo(models.ShipperReconciliation, { foreignKey: "shipper_reconciliation_id", as: "reconciliation" });
       ShopOrder.hasMany(models.OrderItem, { foreignKey: "shop_order_id", as: "items" });
       ShopOrder.hasMany(models.ShopOrderStatusHistory, { foreignKey: "shop_order_id", as: "statusHistory" });
       ShopOrder.hasMany(models.ProductReview, { foreignKey: "shop_order_id", as: "reviews" });
@@ -28,17 +29,24 @@ export default (sequelize, DataTypes) => {
       commission_rate: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 10.0 },
       commission_amount: { type: DataTypes.DECIMAL(15, 2), allowNull: false, defaultValue: 0 },
       cod_amount_collected: { type: DataTypes.DECIMAL(15, 2), allowNull: true },
+      cod_status: {
+        type: DataTypes.ENUM("NOT_COD", "HELD_BY_SHIPPER", "SUBMITTED", "CONFIRMED", "MISMATCH"),
+        allowNull: false,
+        defaultValue: "NOT_COD",
+      },
+      shipper_reconciliation_id: { type: DataTypes.BIGINT, allowNull: true },
       shop_coupon_id: { type: DataTypes.BIGINT, allowNull: true },
       points_used: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
       points_earned: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
       status: {
         type: DataTypes.ENUM(
           "PENDING", "CONFIRMED", "PREPARING", "READY_FOR_PICKUP", "PICKED_UP",
-          "DELIVERING", "DELIVERED", "CANCELLED", "RETURN_PENDING", "RETURNED"
+          "IN_TRANSIT", "DELIVERING", "DELIVERED", "COMPLETED", "CANCELLED", "FAILED", "RETURN_PENDING", "RETURNED"
         ),
         allowNull: false,
         defaultValue: "PENDING",
       },
+      delivered_at: { type: DataTypes.DATE, allowNull: true },
     },
     {
       sequelize,

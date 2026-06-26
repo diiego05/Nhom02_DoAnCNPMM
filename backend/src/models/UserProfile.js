@@ -16,6 +16,7 @@ export default (sequelize, DataTypes) => {
       gender: { type: DataTypes.ENUM("MALE", "FEMALE", "OTHER"), allowNull: true },
       birthday: { type: DataTypes.DATEONLY, allowNull: true },
       shipper_shop_id: { type: DataTypes.BIGINT, allowNull: true },
+      operating_areas: { type: DataTypes.JSON, allowNull: true },
     },
     {
       sequelize,

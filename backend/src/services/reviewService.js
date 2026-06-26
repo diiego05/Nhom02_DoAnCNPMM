@@ -39,6 +39,9 @@ const createReview = async (userId, productId, { order_id, rating, comment }) =>
       { transaction }
     );
 
+    // 4. Cộng 100 điểm tích lũy
+    await User.increment('loyalty_points', { by: 100, where: { id: userId }, transaction });
+
     await transaction.commit();
     return newReview;
   } catch (error) {
@@ -67,7 +70,18 @@ const getProductReviews = async (productId, page = 1, limit = 10) => {
   };
 };
 
+const updateReview = async (userId, productId, { order_id, rating, comment }) => {
+  const review = await ProductReview.findOne({
+    where: { user_id: userId, product_id: productId, shop_order_id: order_id }
+  });
+  if (!review) throw new Error("Không tìm thấy đánh giá");
+  
+  await review.update({ rating, comment });
+  return review;
+};
+
 export default {
   createReview,
   getProductReviews,
+  updateReview,
 };

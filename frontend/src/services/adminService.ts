@@ -141,6 +141,26 @@ export const adminService = {
     return response.data;
   },
 
+  rejectPayout: async (id: number | string, reason?: string) => {
+    const response = await axiosClient.put(`/admin/payouts/${id}/reject`, { reason });
+    return response.data;
+  },
+
+  getPendingShipperReconciliations: async () => {
+    const response = await axiosClient.get("/admin/shipper-reconciliations");
+    return response.data;
+  },
+
+  approveShipperReconciliation: async (id: number | string) => {
+    const response = await axiosClient.put(`/admin/shipper-reconciliations/${id}/approve`);
+    return response.data;
+  },
+
+  rejectShipperReconciliation: async (id: number | string, reason?: string) => {
+    const response = await axiosClient.put(`/admin/shipper-reconciliations/${id}/reject`, { reason });
+    return response.data;
+  },
+
   // ============================================================
   // 6. LỊCH SỬ THANH TOÁN
   // ============================================================

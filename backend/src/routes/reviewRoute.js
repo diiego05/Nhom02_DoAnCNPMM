@@ -8,5 +8,6 @@ const router = express.Router({ mergeParams: true });
 router.get("/", reviewController.getProductReviews);
 
 router.post("/", verifyToken, reviewController.createReview); 
+router.put("/", verifyToken, reviewController.updateReview);
 
 export default router;

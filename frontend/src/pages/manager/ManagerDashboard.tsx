@@ -20,9 +20,11 @@ import {
   Loader2,
   CheckCircle2,
   AlertTriangle,
-  MessageSquare
+  MessageSquare,
+  Landmark
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { ReconciliationTab } from '@/pages/admin/components/ReconciliationTab';
 import { Link } from 'react-router-dom';
 import { VendorTab } from '@/pages/admin/components/VendorTab';
 import { ManagerChatTab } from './ManagerChatTab';
@@ -59,6 +61,37 @@ const ManagerDashboard = () => {
   const addNotification = (msg: string) => {
     setNotifications(prev => [msg, ...prev].slice(0, 8));
   };
+
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const showConfirm = (message: string, onConfirm: () => void) => {
+    setConfirmDialog({
+      isOpen: true,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmDialog(null);
+      }
+    });
+  };
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ message, type });
+  };
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   // Lock Vendor Modal state
   const [lockModal, setLockModal] = useState<{
@@ -338,6 +371,7 @@ const ManagerDashboard = () => {
     { id: "vendors", label: "Hỗ trợ & Khóa Shop", icon: <Users size={20} /> },
     { id: "reports", label: "Báo cáo thống kê", icon: <BarChart3 size={20} /> },
     { id: "chat", label: "Chat", icon: <MessageSquare size={20} /> },
+    { id: "reconciliation", label: "Đối soát thanh toán", icon: <Landmark size={20} /> },
   ];
 
   const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8088";
@@ -1199,61 +1233,111 @@ const ManagerDashboard = () => {
           )}
 
           {/* TAB 6: REPORTS */}
-          {activeTab === "reports" && (
-            <ReportTab />
-          )}
+          {
+            activeTab === "reports" && (
+              <ReportTab />
+            )
+          }
 
           {/* TAB 7: CHAT */}
-          {activeTab === "chat" && (
-            <ManagerChatTab />
-          )}
+          {
+            activeTab === "chat" && (
+              <ManagerChatTab />
+            )
+          }
 
-        </div>
-      </main>
+          {activeTab === "reconciliation" && (
+            <ReconciliationTab showToast={showToast} showConfirm={showConfirm} />
+          )}
+        </div >
+      </main >
 
       {/* Lock Vendor Audit Reason Modal */}
-      {lockModal.show && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-6 animate-in fade-in duration-200">
-          <div className="bg-white border-4 border-black rounded-[2rem] p-8 max-w-md w-full shadow-brutal flex flex-col gap-6 transform animate-in slide-in-from-bottom-8 duration-300">
-            <div className="flex items-center gap-3 text-red-600">
-              <AlertTriangle size={32} />
-              <h3 className="text-xl font-serif font-black uppercase tracking-tight">Yêu cầu khóa gian hàng</h3>
-            </div>
+      {
+        lockModal.show && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-6 animate-in fade-in duration-200">
+            <div className="bg-white border-4 border-black rounded-[2rem] p-8 max-w-md w-full shadow-brutal flex flex-col gap-6 transform animate-in slide-in-from-bottom-8 duration-300">
+              <div className="flex items-center gap-3 text-red-600">
+                <AlertTriangle size={32} />
+                <h3 className="text-xl font-serif font-black uppercase tracking-tight">Yêu cầu khóa gian hàng</h3>
+              </div>
 
-            <div className="text-sm font-bold text-gray-600 leading-relaxed">
-              Bạn đang chuẩn bị khóa gian hàng <strong className="text-black uppercase">"{lockModal.vendorName}"</strong>. Hành động này sẽ tạm ngừng quyền bán lẻ và ẩn mọi sản phẩm thuộc gian hàng này.
-            </div>
+              <div className="text-sm font-bold text-gray-600 leading-relaxed">
+                Bạn đang chuẩn bị khóa gian hàng <strong className="text-black uppercase">"{lockModal.vendorName}"</strong>. Hành động này sẽ tạm ngừng quyền bán lẻ và ẩn mọi sản phẩm thuộc gian hàng này.
+              </div>
 
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Lý do khóa Shop (Bắt buộc để lưu vết Audit Log)</label>
-              <textarea
-                rows={3}
-                placeholder="Ví dụ: Bán hàng giả nhãn hiệu, lừa đảo giao dịch khách hàng..."
-                value={lockModal.reason}
-                onChange={(e) => setLockModal({ ...lockModal, reason: e.target.value })}
-                className="bg-gray-50 border-2 border-black rounded-xl p-3 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all"
-              />
-            </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Lý do khóa Shop (Bắt buộc để lưu vết Audit Log)</label>
+                <textarea
+                  rows={3}
+                  placeholder="Ví dụ: Bán hàng giả nhãn hiệu, lừa đảo giao dịch khách hàng..."
+                  value={lockModal.reason}
+                  onChange={(e) => setLockModal({ ...lockModal, reason: e.target.value })}
+                  className="bg-gray-50 border-2 border-black rounded-xl p-3 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all"
+                />
+              </div>
 
-            <div className="flex gap-3 justify-end pt-2">
-              <button
-                onClick={() => setLockModal({ show: false, vendorId: null, vendorName: "", reason: "" })}
-                className="px-5 py-3 border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-100 transition-colors"
-              >
-                Hủy bỏ
-              </button>
-              <button
-                onClick={handleConfirmLockVendor}
-                className="px-5 py-3 bg-red-600 text-white border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-colors shadow-subtle active:translate-y-0.5"
-              >
-                Xác nhận khóa
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  onClick={() => setLockModal({ show: false, vendorId: null, vendorName: "", reason: "" })}
+                  className="px-5 py-3 border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-100 transition-colors"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  onClick={handleConfirmLockVendor}
+                  className="px-5 py-3 bg-red-600 text-white border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition-colors shadow-subtle active:translate-y-0.5"
+                >
+                  Xác nhận khóa
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        toast && (
+          <div className="fixed top-6 right-6 z-[9999] animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className={`border-4 border-black p-4 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-3 font-black text-sm ${toast.type === 'success' ? 'bg-[#A3E635]' : toast.type === 'error' ? 'bg-[#F87171]' : 'bg-[#60A5FA]'
+              }`}>
+              {toast.type === 'success' && <Check className="w-5 h-5 stroke-[3]" />}
+              {toast.type === 'error' && <X className="w-5 h-5 stroke-[3]" />}
+              {toast.type === 'info' && <Bell className="w-5 h-5 stroke-[3]" />}
+              <span className="text-black uppercase tracking-wider">{toast.message}</span>
+              <button onClick={() => setToast(null)} className="ml-2 hover:bg-black/10 p-1 rounded transition-colors cursor-pointer">
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
+      {
+        confirmDialog && (
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setConfirmDialog(null)}>
+            <div className="bg-white border-[3px] border-black rounded-[2rem] p-8 max-w-sm w-full shadow-brutal text-center" onClick={e => e.stopPropagation()}>
+              <h3 className="text-lg font-black uppercase tracking-tighter mb-4 text-black">Xác nhận</h3>
+              <p className="text-sm font-bold text-gray-700 mb-6">{confirmDialog.message}</p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={confirmDialog.onConfirm}
+                  className="px-6 py-3 border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest bg-red-600 text-white hover:bg-red-700 transition-all shadow-subtle active:translate-y-[2px]"
+                >
+                  Đồng ý
+                </button>
+                <button
+                  onClick={() => setConfirmDialog(null)}
+                  className="px-6 py-3 border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest bg-white hover:bg-gray-50 transition-all text-black"
+                >
+                  Hủy
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
 
-    </div>
+    </div >
   );
 };
 

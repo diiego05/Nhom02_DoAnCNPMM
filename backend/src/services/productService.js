@@ -159,7 +159,20 @@ const getProductBySlug = async (slug) => {
     0,
   );
 
-  return { ...product.toJSON(), totalStock };
+  // Tính số lượng đánh giá và điểm trung bình
+  const reviewStats = await db.ProductReview.findOne({
+    where: { product_id: product.id },
+    attributes: [
+      [db.sequelize.fn("COUNT", db.sequelize.col("id")), "review_count"],
+      [db.sequelize.fn("AVG", db.sequelize.col("rating")), "rating_average"]
+    ],
+    raw: true
+  });
+
+  const review_count = parseInt(reviewStats?.review_count || 0, 10);
+  const rating_average = parseFloat(reviewStats?.rating_average || 0);
+
+  return { ...product.toJSON(), totalStock, review_count, rating_average };
 };
 
 const getSimilarProducts = async (categoryId, excludeProductId, limit = 6) => {

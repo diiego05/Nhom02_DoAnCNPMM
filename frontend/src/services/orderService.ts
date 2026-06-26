@@ -35,6 +35,27 @@ const orderService = {
     const response = await axiosClient.post("/payment/vnpay_retry", { orderId });
     return response.data.data as { paymentUrl: string };
   },
+
+  // Shipper COD Reconciliation
+  getShipperCollectedCOD: async () => {
+    const response = await axiosClient.get("/orders/shipper/cod/collected");
+    return response.data;
+  },
+
+  submitShipperReconciliation: async (payload: { orderIds: number[]; note?: string }) => {
+    const response = await axiosClient.post("/orders/shipper/cod/reconcile", payload);
+    return response.data;
+  },
+
+  getShipperReconciliationHistory: async () => {
+    const response = await axiosClient.get("/orders/shipper/cod/reconciliations");
+    return response.data;
+  },
+
+  updateOrderStatus: async (orderId: number, status: string, note?: string) => {
+    const response = await axiosClient.patch(`/orders/${orderId}/status`, { status, note });
+    return response.data;
+  },
 };
 
 export default orderService;

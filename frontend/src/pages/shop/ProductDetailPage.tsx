@@ -14,7 +14,12 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { useProductDetail, useSimilarProducts, useToggleFavorite, useRecordView } from "@/hooks/useProducts";
+import {
+  useProductDetail,
+  useSimilarProducts,
+  useToggleFavorite,
+  useRecordView,
+} from "@/hooks/useProducts";
 import { formatViewCount, formatPrice } from "@/utils/format";
 import { useAddToCart } from "@/hooks/useCart";
 import { useAppSelector } from "@/stores/hooks";
@@ -23,10 +28,10 @@ import { useProductReviews } from "@/hooks/useReviews";
 import { useQuery } from "@tanstack/react-query";
 import { vendorService } from "@/services/vendorService";
 
-const DEFAULT_SHOP_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='128' height='128'><rect width='100' height='100' fill='%23FFE4D6' stroke='black' stroke-width='4'/><path d='M20 40 L50 15 L80 40 L80 85 L20 85 Z' fill='white' stroke='black' stroke-width='4'/><rect x='40' y='55' width='20' height='30' fill='%23D97736' stroke='black' stroke-width='4'/><path d='M15 40 L85 40' stroke='black' stroke-width='4'/></svg>";
+const DEFAULT_SHOP_LOGO =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='128' height='128'><rect width='100' height='100' fill='%23FFE4D6' stroke='black' stroke-width='4'/><path d='M20 40 L50 15 L80 40 L80 85 L20 85 Z' fill='white' stroke='black' stroke-width='4'/><rect x='40' y='55' width='20' height='30' fill='%23D97736' stroke='black' stroke-width='4'/><path d='M15 40 L85 40' stroke='black' stroke-width='4'/></svg>";
 
 const ProductDetailPage = () => {
-
   const { id: slug } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [activeImgIndex, setActiveImgIndex] = useState(0);
@@ -34,14 +39,18 @@ const ProductDetailPage = () => {
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [activeTab, setActiveTab] = useState("description");
-  const [addMessage, setAddMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [addMessage, setAddMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const isAuthenticated = useAppSelector((state) => !!state.auth.accessToken);
   const user = useAppSelector((state) => state.auth.user);
   const isShipper =
     (typeof user?.role === "string"
       ? user.role.toLowerCase() === "shipper"
-      : user?.role?.role_name?.toLowerCase() === "shipper") || user?.email?.includes("shipper");
+      : user?.role?.role_name?.toLowerCase() === "shipper") ||
+    user?.email?.includes("shipper");
   const addToCartMutation = useAddToCart();
 
   // Scroll to top when page loads
@@ -51,17 +60,20 @@ const ProductDetailPage = () => {
 
   // Gọi API lấy thông tin chi tiết sản phẩm và sản phẩm tương tự
   const { data: product, isLoading, error } = useProductDetail(slug || "");
-  const { data: similarProducts } =
-    useSimilarProducts(slug || "");
+  const { data: similarProducts } = useSimilarProducts(slug || "");
 
   // Khởi tạo các hook API mới
   const recordViewMutation = useRecordView();
   const toggleFavoriteMutation = useToggleFavorite();
   const { data: favorites } = useFavorites();
-  
+
   // Tab reviews
   const [reviewPage, setReviewPage] = useState(1);
-  const { data: reviewsData } = useProductReviews(product?.id || 0, reviewPage, 5);
+  const { data: reviewsData } = useProductReviews(
+    product?.id || 0,
+    reviewPage,
+    5,
+  );
 
   // Ghi nhận lượt xem 1 lần khi load product thành công
   useEffect(() => {
@@ -174,10 +186,10 @@ const ProductDetailPage = () => {
 
   const imgs =
     product.images && product.images.length > 0
-      ? product.images.map((img) => 
-          img.image_url.startsWith('http') || img.image_url.startsWith('data:') 
-            ? img.image_url 
-            : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${img.image_url.startsWith('/') ? '' : '/'}${img.image_url}`
+      ? product.images.map((img) =>
+          img.image_url.startsWith("http") || img.image_url.startsWith("data:")
+            ? img.image_url
+            : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${img.image_url.startsWith("/") ? "" : "/"}${img.image_url}`,
         )
       : ["/placeholder.jpg"];
 
@@ -259,7 +271,7 @@ const ProductDetailPage = () => {
         <div className="lg:w-1/2 flex flex-col pt-0 w-full">
           <div className="space-y-10">
             <div className="flex items-center justify-between">
-              <span className="badge-brutal bg-primary text-white border-black px-4 py-2">
+              <span className="badge-brutal bg-primary text-white border-black px-4 py-2 rounded-md">
                 {product.is_new
                   ? "Mới Về"
                   : product.sold_count > 15
@@ -267,11 +279,14 @@ const ProductDetailPage = () => {
                     : "Sản Phẩm"}
               </span>
               <div className="flex gap-4">
-                <button 
+                <button
                   onClick={handleToggleFavorite}
                   className={`w-14 h-14 bg-white border-2 border-black rounded-2xl shadow-subtle flex items-center justify-center transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none ${isFavorite ? "text-red-500 border-red-500 shadow-[4px_4px_0px_0px_rgba(239,68,68,1)] hover:bg-red-50" : "hover:bg-primary hover:text-white"}`}
                 >
-                  <Heart size={24} fill={isFavorite ? "currentColor" : "none"} />
+                  <Heart
+                    size={24}
+                    fill={isFavorite ? "currentColor" : "none"}
+                  />
                 </button>
                 <button className="w-14 h-14 bg-white border-2 border-black rounded-2xl shadow-subtle flex items-center justify-center hover:bg-primary hover:text-white hover:shadow-none transition-all active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">
                   <Share2 size={24} />
@@ -287,9 +302,14 @@ const ProductDetailPage = () => {
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1 bg-yellow-100 px-2 py-1 rounded-lg border border-yellow-300">
                   <Star size={16} className="fill-yellow-500 text-yellow-500" />
-                  <span className="font-black text-sm">{Number(product.rating_average || 0).toFixed(1)}</span>
+                  <span className="font-black text-sm">
+                    {Number(product.rating_average || 0).toFixed(1)}
+                  </span>
                 </div>
-                <span className="text-sm font-black text-gray-500 underline tracking-tighter cursor-pointer hover:text-primary" onClick={() => setActiveTab("reviews")}>
+                <span
+                  className="text-sm font-black text-gray-500 underline tracking-tighter cursor-pointer hover:text-primary"
+                  onClick={() => setActiveTab("reviews")}
+                >
                   {product.review_count || 0} ĐÁNH GIÁ
                 </span>
               </div>
@@ -427,7 +447,9 @@ const ProductDetailPage = () => {
                 </div>
 
                 {addMessage && (
-                  <div className={`p-3 rounded-xl border-2 border-black text-xs font-black uppercase tracking-widest text-center ${addMessage.type === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                  <div
+                    className={`p-3 rounded-xl border-2 border-black text-xs font-black uppercase tracking-widest text-center ${addMessage.type === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}
+                  >
                     {addMessage.text}
                   </div>
                 )}
@@ -440,7 +462,11 @@ const ProductDetailPage = () => {
 
                 <div className="flex gap-4">
                   <button
-                    disabled={currentStock === 0 || addToCartMutation.isPending || isShipper}
+                    disabled={
+                      currentStock === 0 ||
+                      addToCartMutation.isPending ||
+                      isShipper
+                    }
                     onClick={() => {
                       addToCartMutation.mutate(
                         {
@@ -448,24 +474,36 @@ const ProductDetailPage = () => {
                           variantId: activeVariant?.id,
                           quantity,
                           product: product,
-                          variant: activeVariant
+                          variant: activeVariant,
                         },
                         {
                           onSuccess: () => {
-                            window.dispatchEvent(new CustomEvent("cart-item-added"));
-                            setAddMessage({ type: "success", text: "Đã thêm sản phẩm vào giỏ hàng thành công!" });
+                            window.dispatchEvent(
+                              new CustomEvent("cart-item-added"),
+                            );
+                            setAddMessage({
+                              type: "success",
+                              text: "Đã thêm sản phẩm vào giỏ hàng thành công!",
+                            });
                             setTimeout(() => setAddMessage(null), 3000);
                           },
                           onError: (err: any) => {
-                            setAddMessage({ type: "error", text: err?.response?.data?.message || "Thêm vào giỏ hàng thất bại!" });
+                            setAddMessage({
+                              type: "error",
+                              text:
+                                err?.response?.data?.message ||
+                                "Thêm vào giỏ hàng thất bại!",
+                            });
                             setTimeout(() => setAddMessage(null), 3000);
                           },
-                        }
+                        },
                       );
                     }}
                     className="flex-1 h-16 border-2 border-black rounded-2xl font-black text-xs uppercase tracking-widest bg-white hover:bg-primary hover:text-white transition-all active:translate-x-[2px] active:translate-y-[2px] flex items-center justify-center disabled:opacity-50 disabled:pointer-events-none"
                   >
-                    {addToCartMutation.isPending ? "Đang thêm..." : "Thêm vào giỏ"}
+                    {addToCartMutation.isPending
+                      ? "Đang thêm..."
+                      : "Thêm vào giỏ"}
                   </button>
                   <button
                     disabled={currentStock === 0 || isShipper}
@@ -473,19 +511,22 @@ const ProductDetailPage = () => {
                     onClick={() => {
                       if (!isAuthenticated) {
                         // Lưu thông tin Buy Now vào sessionStorage để sau khi login xong có thể tự load lại
-                        sessionStorage.setItem("buyNowItem", JSON.stringify({
-                          id: -1,
-                          product_id: product.id,
-                          product_variant_id: activeVariant?.id || null,
-                          quantity,
-                          unit_price: displayPrice,
-                          product: product,
-                          variant: activeVariant
-                        }));
+                        sessionStorage.setItem(
+                          "buyNowItem",
+                          JSON.stringify({
+                            id: -1,
+                            product_id: product.id,
+                            product_variant_id: activeVariant?.id || null,
+                            quantity,
+                            unit_price: displayPrice,
+                            product: product,
+                            variant: activeVariant,
+                          }),
+                        );
                         navigate("/auth/login?redirect=/checkout&buyNow=1");
                         return;
                       }
-                      
+
                       navigate("/checkout", {
                         state: {
                           buyNowItem: {
@@ -495,9 +536,9 @@ const ProductDetailPage = () => {
                             quantity,
                             unit_price: displayPrice,
                             product: product,
-                            variant: activeVariant
-                          }
-                        }
+                            variant: activeVariant,
+                          },
+                        },
                       });
                     }}
                     className="flex-1 h-16 bg-black text-white border-2 border-black rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary transition-all active:translate-x-[2px] active:translate-y-[2px] flex items-center justify-center disabled:opacity-50 disabled:pointer-events-none"
@@ -544,7 +585,9 @@ const ProductDetailPage = () => {
         <div className="flex items-center gap-6 pr-8 md:border-r-2 md:border-black/5 shrink-0 w-full md:w-auto">
           <div className="w-20 h-20 bg-primary rounded-full border-2 border-black overflow-hidden shadow-subtle relative group shrink-0">
             <img
-              src={shopInfo?.shop_logo || shopInfo?.avatar_url || DEFAULT_SHOP_LOGO}
+              src={
+                shopInfo?.shop_logo || shopInfo?.avatar_url || DEFAULT_SHOP_LOGO
+              }
               alt={shopInfo?.shop_name || shopInfo?.name || "Avatar"}
               className="w-full h-full object-cover group-hover:scale-110 transition-transform"
             />
@@ -560,7 +603,8 @@ const ProductDetailPage = () => {
                 Online
               </span>
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                {shopInfo?.address?.split(',').pop()?.trim() || "TP. Hồ Chí Minh"}
+                {shopInfo?.address?.split(",").pop()?.trim() ||
+                  "TP. Hồ Chí Minh"}
               </span>
             </div>
             <div className="flex gap-2 mt-4">
@@ -588,10 +632,14 @@ const ProductDetailPage = () => {
                       new CustomEvent("openChat", {
                         detail: {
                           shopId: shopInfo.id,
-                          shopName: shopInfo.shop_name || shopInfo.name || "UTEShop Official",
-                          shopLogo: shopInfo.shop_logo || shopInfo.avatar_url || "",
+                          shopName:
+                            shopInfo.shop_name ||
+                            shopInfo.name ||
+                            "UTEShop Official",
+                          shopLogo:
+                            shopInfo.shop_logo || shopInfo.avatar_url || "",
                         },
-                      })
+                      }),
                     );
                   }
                 }}
@@ -599,18 +647,42 @@ const ProductDetailPage = () => {
               >
                 <MessageCircle size={14} /> Chat ngay
               </button>
-
-
             </div>
           </div>
         </div>
 
         <div className="flex-grow grid grid-cols-2 md:grid-cols-4 gap-6 w-full">
           {[
-            { label: "Đánh giá", value: shopInfo?.rating ? `${Number(shopInfo.rating).toFixed(1)}/5` : "4.9/5" },
-            { label: "Sản phẩm", value: shopInfo?.productsCount !== undefined ? String(shopInfo.productsCount) : "128" },
-            { label: "Tỉ lệ phản hồi", value: shopInfo?.response_rate !== undefined ? `${shopInfo.response_rate}%` : "98%" },
-            { label: "Tham gia", value: shopInfo?.created_at ? (new Date().getFullYear() - new Date(shopInfo.created_at).getFullYear() > 0 ? `${new Date().getFullYear() - new Date(shopInfo.created_at).getFullYear()} năm` : "Mới") : "4 năm" },
+            {
+              label: "Đánh giá",
+              value: shopInfo?.rating
+                ? `${Number(shopInfo.rating).toFixed(1)}/5`
+                : "4.9/5",
+            },
+            {
+              label: "Sản phẩm",
+              value:
+                shopInfo?.productsCount !== undefined
+                  ? String(shopInfo.productsCount)
+                  : "128",
+            },
+            {
+              label: "Tỉ lệ phản hồi",
+              value:
+                shopInfo?.response_rate !== undefined
+                  ? `${shopInfo.response_rate}%`
+                  : "98%",
+            },
+            {
+              label: "Tham gia",
+              value: shopInfo?.created_at
+                ? new Date().getFullYear() -
+                    new Date(shopInfo.created_at).getFullYear() >
+                  0
+                  ? `${new Date().getFullYear() - new Date(shopInfo.created_at).getFullYear()} năm`
+                  : "Mới"
+                : "4 năm",
+            },
           ].map((stat, i) => (
             <div
               key={i}
@@ -762,14 +834,26 @@ const ProductDetailPage = () => {
                   Đánh giá sản phẩm
                 </h3>
                 <div className="flex items-center gap-4 bg-yellow-100 px-6 py-4 rounded-2xl border-2 border-yellow-300">
-                  <span className="text-5xl font-black text-yellow-600">{Number(product.rating_average || 0).toFixed(1)}</span>
+                  <span className="text-5xl font-black text-yellow-600">
+                    {Number(product.rating_average || 0).toFixed(1)}
+                  </span>
                   <div className="flex flex-col">
                     <div className="flex gap-1">
                       {[...Array(5)].map((_, i) => (
-                        <Star key={i} size={20} className={i < Math.round(Number(product.rating_average || 0)) ? "fill-yellow-500 text-yellow-500" : "fill-gray-200 text-gray-200"} />
+                        <Star
+                          key={i}
+                          size={20}
+                          className={
+                            i < Math.round(Number(product.rating_average || 0))
+                              ? "fill-yellow-500 text-yellow-500"
+                              : "fill-gray-200 text-gray-200"
+                          }
+                        />
                       ))}
                     </div>
-                    <span className="text-sm font-bold text-gray-500">{product.review_count || 0} lượt đánh giá</span>
+                    <span className="text-sm font-bold text-gray-500">
+                      {product.review_count || 0} lượt đánh giá
+                    </span>
                   </div>
                 </div>
               </div>
@@ -777,12 +861,25 @@ const ProductDetailPage = () => {
               <div className="space-y-8">
                 {reviewsData?.reviews && reviewsData.reviews.length > 0 ? (
                   reviewsData.reviews.map((review: any) => (
-                    <div key={review.id} className="border-2 border-black/10 rounded-3xl p-8 hover:border-black transition-colors">
+                    <div
+                      key={review.id}
+                      className="border-2 border-black/10 rounded-3xl p-8 hover:border-black transition-colors"
+                    >
                       <div className="flex justify-between items-start mb-4">
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-full border-2 border-black overflow-hidden bg-gray-100">
                             {review.user?.profile?.avatar_url ? (
-                              <img src={review.user.profile.avatar_url.startsWith('http') ? review.user.profile.avatar_url : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${review.user.profile.avatar_url}`} alt="Avatar" className="w-full h-full object-cover" />
+                              <img
+                                src={
+                                  review.user.profile.avatar_url.startsWith(
+                                    "http",
+                                  )
+                                    ? review.user.profile.avatar_url
+                                    : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${review.user.profile.avatar_url}`
+                                }
+                                alt="Avatar"
+                                className="w-full h-full object-cover"
+                              />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center font-black text-xl text-gray-400">
                                 {review.user?.email?.[0].toUpperCase()}
@@ -790,36 +887,69 @@ const ProductDetailPage = () => {
                             )}
                           </div>
                           <div>
-                            <p className="font-black text-lg">{review.user?.profile?.full_name || review.user?.email.split('@')[0]}</p>
-                            <p className="text-xs font-bold text-gray-400">{new Date(review.created_at).toLocaleDateString("vi-VN")}</p>
+                            <p className="font-black text-lg">
+                              {review.user?.profile?.full_name ||
+                                review.user?.email.split("@")[0]}
+                            </p>
+                            <p className="text-xs font-bold text-gray-400">
+                              {new Date(review.created_at).toLocaleDateString(
+                                "vi-VN",
+                              )}
+                            </p>
                           </div>
                         </div>
                         <div className="flex gap-1 bg-gray-50 px-3 py-1.5 rounded-lg border border-black/10">
                           {[...Array(5)].map((_, i) => (
-                            <Star key={i} size={14} className={i < review.rating ? "fill-yellow-500 text-yellow-500" : "fill-gray-200 text-gray-200"} />
+                            <Star
+                              key={i}
+                              size={14}
+                              className={
+                                i < review.rating
+                                  ? "fill-yellow-500 text-yellow-500"
+                                  : "fill-gray-200 text-gray-200"
+                              }
+                            />
                           ))}
                         </div>
                       </div>
-                      <p className="text-gray-700 font-medium leading-relaxed">{review.comment}</p>
-                      
-                      {review.images && JSON.parse(review.images).length > 0 && (
-                        <div className="flex gap-4 mt-6">
-                          {JSON.parse(review.images).map((imgUrl: string, idx: number) => (
-                            <div key={idx} className="w-24 h-24 rounded-xl border border-black/20 overflow-hidden cursor-pointer hover:border-primary">
-                              <img src={imgUrl.startsWith('http') ? imgUrl : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${imgUrl}`} alt="Review img" className="w-full h-full object-cover" />
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      <p className="text-gray-700 font-medium leading-relaxed">
+                        {review.comment}
+                      </p>
+
+                      {review.images &&
+                        JSON.parse(review.images).length > 0 && (
+                          <div className="flex gap-4 mt-6">
+                            {JSON.parse(review.images).map(
+                              (imgUrl: string, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="w-24 h-24 rounded-xl border border-black/20 overflow-hidden cursor-pointer hover:border-primary"
+                                >
+                                  <img
+                                    src={
+                                      imgUrl.startsWith("http")
+                                        ? imgUrl
+                                        : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${imgUrl}`
+                                    }
+                                    alt="Review img"
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        )}
                     </div>
                   ))
                 ) : (
                   <div className="text-center py-12 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-300">
-                    <p className="font-bold text-gray-400">Chưa có đánh giá nào cho sản phẩm này.</p>
+                    <p className="font-bold text-gray-400">
+                      Chưa có đánh giá nào cho sản phẩm này.
+                    </p>
                   </div>
                 )}
               </div>
-              
+
               {/* Phân trang Reviews */}
               {reviewsData && reviewsData.totalPages > 1 && (
                 <div className="flex justify-center gap-2 pt-8">
@@ -875,7 +1005,7 @@ const ProductDetailPage = () => {
         <section className="relative">
           <div className="flex justify-between items-end mb-16">
             <div>
-              <span className="badge-brutal bg-primary text-white border-black mb-4 inline-block">
+              <span className="badge-brutal p-2 bg-primary text-white border-black mb-4 inline-block rounded-lg">
                 CÓ THỂ BẠN THÍCH
               </span>
               <h2 className="text-5xl font-serif font-black tracking-tighter uppercase">

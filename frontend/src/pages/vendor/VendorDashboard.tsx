@@ -824,6 +824,27 @@ const VendorDashboard = () => {
     });
   };
 
+  // Nhận hàng hoàn
+  const handleConfirmReturn = async (orderId: number) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Xác nhận nhận hàng hoàn",
+      message:
+        "Bạn có chắc chắn đã nhận lại hàng hoàn từ shipper?",
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await vendorService.confirmReturn(orderId);
+          alert("Xác nhận nhận hàng hoàn thành công!");
+          fetchShopOrders();
+        } catch (err: any) {
+          console.error(err);
+          alert(err.response?.data?.message || "Lỗi khi cập nhật!");
+        }
+      },
+    });
+  };
+
   // Xử lý hàng loạt
   const handleBulkUpdate = async (status: string) => {
     let targetStatus = "";
@@ -2293,20 +2314,41 @@ const VendorDashboard = () => {
                                 </td>
                                 <td className="px-8 py-4">
                                   <span
-                                    className={`text-[9px] font-black uppercase px-2 py-1 rounded border ${order.status === "PENDING" ? "bg-orange-50 text-orange-600 border-orange-100" : order.status === "CONFIRMED" ? "bg-blue-50 text-blue-600 border-blue-100" : order.status === "PREPARING" ? "bg-indigo-50 text-indigo-600 border-indigo-100" : order.status === "READY_FOR_PICKUP" ? "bg-purple-50 text-purple-600 border-purple-100" : order.status === "DELIVERED" || order.status === "COMPLETED" ? "bg-green-50 text-green-600 border-green-100" : "bg-red-50 text-red-600 border-red-100"}`}
+                                    className={`text-[9px] font-black uppercase px-2 py-1 rounded border ${
+                                      order.status === "PENDING" ? "bg-orange-50 text-orange-600 border-orange-100" :
+                                      order.status === "CONFIRMED" ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                      order.status === "PREPARING" ? "bg-indigo-50 text-indigo-600 border-indigo-100" :
+                                      order.status === "READY_FOR_PICKUP" ? "bg-purple-50 text-purple-600 border-purple-100" :
+                                      order.status === "PICKED_UP" ? "bg-cyan-50 text-cyan-600 border-cyan-100" :
+                                      order.status === "IN_TRANSIT" ? "bg-pink-50 text-pink-600 border-pink-100" :
+                                      order.status === "DELIVERING" ? "bg-yellow-50 text-yellow-600 border-yellow-100" :
+                                      order.status === "DELIVERED" || order.status === "COMPLETED" ? "bg-green-50 text-green-600 border-green-100" :
+                                      order.status === "RETURN_PENDING" ? "bg-pink-50 text-pink-700 border-pink-200" :
+                                      order.status === "RETURNED" ? "bg-gray-50 text-gray-600 border-gray-100" :
+                                      "bg-red-50 text-red-600 border-red-100"
+                                    }`}
                                   >
                                     {order.status === "PENDING"
-                                      ? "Đang chờ"
+                                      ? "Chờ xác nhận"
                                       : order.status === "CONFIRMED"
                                         ? "Đã xác nhận"
                                         : order.status === "PREPARING"
                                           ? "Đang chuẩn bị"
                                           : order.status === "READY_FOR_PICKUP"
                                             ? "Sẵn sàng giao"
-                                            : order.status === "DELIVERED" ||
-                                                order.status === "COMPLETED"
-                                              ? "Hoàn tất"
-                                              : "Hủy bỏ"}
+                                            : order.status === "PICKED_UP"
+                                              ? "Đã lấy hàng"
+                                              : order.status === "IN_TRANSIT"
+                                                ? "Đang luân chuyển"
+                                                : order.status === "DELIVERING"
+                                                  ? "Đang giao"
+                                                  : order.status === "DELIVERED" || order.status === "COMPLETED"
+                                                    ? "Hoàn tất"
+                                                    : order.status === "RETURN_PENDING"
+                                                      ? "Đang hoàn hàng"
+                                                      : order.status === "RETURNED"
+                                                        ? "Đã hoàn hàng"
+                                                        : "Đã hủy"}
                                   </span>
                                 </td>
                                 <td className="px-8 py-4 text-right">
@@ -2336,6 +2378,14 @@ const VendorDashboard = () => {
                                       className="px-4 py-2 bg-primary text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-black hover:text-white transition-all shadow-subtle active:translate-y-0.5 active:shadow-none"
                                     >
                                       Sẵn sàng giao
+                                    </button>
+                                  )}
+                                  {order.status === "RETURN_PENDING" && (
+                                    <button
+                                      onClick={() => handleConfirmReturn(order.id)}
+                                      className="px-4 py-2 bg-pink-500 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-black hover:text-white transition-all shadow-subtle active:translate-y-0.5 active:shadow-none"
+                                    >
+                                      Nhận hàng hoàn
                                     </button>
                                   )}
                                 </td>

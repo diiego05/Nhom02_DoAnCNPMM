@@ -494,7 +494,7 @@ const getFinancialReport = async (dateFrom, dateTo) => {
     dateFilter[Op.lte] = endDate;
   }
 
-  const shopOrderWhere = { status: { [Op.ne]: "CANCELLED" } };
+  const shopOrderWhere = { status: { [Op.notIn]: ["CANCELLED", "FAILED", "RETURN_PENDING", "RETURNED"] } };
   if (Object.keys(dateFilter).length > 0) {
     shopOrderWhere.updated_at = dateFilter;
   }
@@ -697,7 +697,7 @@ const getPaymentReconciliation = async () => {
     include: [{
       model: db.ShopOrder,
       as: "shopOrder",
-      where: { status: { [Op.ne]: "CANCELLED" } },
+      where: { status: { [Op.notIn]: ["CANCELLED", "FAILED", "RETURN_PENDING", "RETURNED"] } },
       attributes: ["shop_id", "status"],
       required: true
     }],
@@ -961,6 +961,225 @@ const getOrderByCode = async (checkoutCode) => {
   return parentOrder;
 };
 
+const getPendingShipperReconciliations = async () => {
+  const role = await db.Role.findOne({ where: { role_name: "shipper" } });
+  if (!role) return [];
+
+  const shippers = await db.User.findAll({
+    where: { role_id: role.id },
+    include: [
+      {
+        model: db.UserProfile,
+        as: "profile",
+        attributes: ["full_name"]
+      }
+    ],
+    attributes: ["id", "email", "phone", "status"]
+  });
+
+  const overview = [];
+
+  for (const shipper of shippers) {
+    // Count total orders assigned
+    const totalOrders = await db.ShopOrder.count({
+      where: { shipper_id: shipper.id }
+    });
+
+    // Count delivered orders
+    const deliveredOrders = await db.ShopOrder.count({
+      where: { shipper_id: shipper.id, status: "DELIVERED" }
+    });
+
+    // Get orders that are HELD_BY_SHIPPER
+    const heldOrders = await db.ShopOrder.findAll({
+      where: {
+        shipper_id: shipper.id,
+        status: "DELIVERED",
+        cod_status: "HELD_BY_SHIPPER"
+      },
+      include: [
+        {
+          model: db.ParentOrder,
+          as: "parentOrder",
+          where: { payment_method: "COD" },
+          attributes: ["id", "checkout_code", "payment_method", "shipping_address"]
+        }
+      ],
+      attributes: ["id", "shop_order_code", "final_amount", "subtotal", "discount_amount", "commission_amount", "created_at"]
+    });
+
+    const totalHeldAmount = heldOrders.reduce((sum, o) => sum + Number(o.final_amount), 0);
+
+    // Only include in overview if they have assigned orders or are holding cash
+    if (totalOrders > 0 || totalHeldAmount > 0) {
+      overview.push({
+        id: shipper.id, // map id to shipper's ID for routing
+        shipper: {
+          id: shipper.id,
+          email: shipper.email,
+          phone: shipper.phone,
+          status: shipper.status,
+          full_name: shipper.profile?.full_name || "Chưa cập nhật"
+        },
+        totalOrders,
+        deliveredOrders,
+        totalHeldAmount,
+        heldOrders
+      });
+    }
+  }
+
+  return overview;
+};
+
+const approveShipperReconciliation = async (processorId, shipperId) => {
+  const transaction = await db.sequelize.transaction();
+  try {
+    // 1. Find all delivered COD orders held by this shipper
+    const orders = await db.ShopOrder.findAll({
+      where: {
+        shipper_id: shipperId,
+        status: "DELIVERED",
+        cod_status: "HELD_BY_SHIPPER"
+      },
+      include: [
+        {
+          model: db.ParentOrder,
+          as: "parentOrder",
+          where: { payment_method: "COD" }
+        }
+      ],
+      transaction
+    });
+
+    if (orders.length === 0) {
+      throw new Error("Shipper không giữ tiền mặt thu hộ nào cần đối soát");
+    }
+
+    const totalAmount = orders.reduce((sum, o) => sum + Number(o.final_amount), 0);
+
+    // 2. Create a ShipperReconciliation record with status APPROVED for audit trail
+    const recon = await db.ShipperReconciliation.create({
+      shipper_id: shipperId,
+      amount_submitted: totalAmount,
+      status: "APPROVED",
+      confirmed_by: processorId,
+      note: "Đã nộp tiền mặt đối soát thành công (hệ thống tự động)"
+    }, { transaction });
+
+    // 3. Update orders and credit shop wallets
+    for (const order of orders) {
+      await order.update({
+        cod_status: "CONFIRMED",
+        shipper_reconciliation_id: recon.id
+      }, { transaction });
+
+      // Calculate Net Shop Amount: subtotal - discount_amount - commission_amount
+      const netShopAmount = Number(order.subtotal) - Number(order.discount_amount) - Number(order.commission_amount);
+
+      const [wallet] = await db.ShopWallet.findOrCreate({
+        where: { shop_id: order.shop_id },
+        defaults: { balance: 0.00, pending_balance: 0.00, total_earned: 0.00 },
+        transaction
+      });
+
+      await wallet.increment('pending_balance', { by: netShopAmount, transaction });
+    }
+
+    await transaction.commit();
+    return recon;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+};
+
+const rejectShipperReconciliation = async (processorId, shipperId, reason) => {
+  const transaction = await db.sequelize.transaction();
+  try {
+    // 1. Find all delivered COD orders held by this shipper
+    const orders = await db.ShopOrder.findAll({
+      where: {
+        shipper_id: shipperId,
+        status: "DELIVERED",
+        cod_status: "HELD_BY_SHIPPER"
+      },
+      include: [
+        {
+          model: db.ParentOrder,
+          as: "parentOrder",
+          where: { payment_method: "COD" }
+        }
+      ],
+      transaction
+    });
+
+    if (orders.length === 0) {
+      throw new Error("Shipper không giữ tiền mặt thu hộ nào cần từ chối");
+    }
+
+    const totalAmount = orders.reduce((sum, o) => sum + Number(o.final_amount), 0);
+
+    // 2. Create a ShipperReconciliation record with status REJECTED for audit trail
+    const recon = await db.ShipperReconciliation.create({
+      shipper_id: shipperId,
+      amount_submitted: totalAmount,
+      status: "REJECTED",
+      confirmed_by: processorId,
+      note: reason || "Từ chối đối soát do thiếu tiền"
+    }, { transaction });
+
+    // 3. Update orders
+    for (const order of orders) {
+      await order.update({
+        cod_status: "MISMATCH",
+        shipper_reconciliation_id: recon.id
+      }, { transaction });
+    }
+
+    // 4. Lock shipper account
+    const shipperUser = await db.User.findByPk(shipperId, { transaction });
+    if (shipperUser) {
+      await shipperUser.update({ status: "LOCKED" }, { transaction });
+    }
+
+    await transaction.commit();
+    return recon;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+};
+
+const rejectShopPayout = async (processorId, payoutId, reason) => {
+  const transaction = await db.sequelize.transaction();
+  try {
+    const payout = await db.ShopPayout.findByPk(payoutId, { transaction });
+    if (!payout) throw new Error("Không tìm thấy lệnh rút tiền");
+    if (payout.status !== "PENDING" && payout.status !== "PROCESSING") {
+      throw new Error("Lệnh rút tiền này đã được xử lý");
+    }
+
+    await payout.update({
+      status: "REJECTED",
+      processed_by: processorId,
+      reject_reason: reason || "Yêu cầu rút tiền bị từ chối"
+    }, { transaction });
+
+    // Refund money back to shop wallet balance
+    const wallet = await db.ShopWallet.findOne({ where: { shop_id: payout.shop_id }, transaction });
+    if (wallet) {
+      await wallet.increment('balance', { by: payout.amount, transaction });
+    }
+
+    await transaction.commit();
+    return payout;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+};
+
 export default {
   // Manager
   // Users
@@ -987,6 +1206,10 @@ export default {
   // Reconciliation
   getPaymentReconciliation,
   approveShopPayout,
+  rejectShopPayout,
+  getPendingShipperReconciliations,
+  approveShipperReconciliation,
+  rejectShipperReconciliation,
   // Payment Logs
   getPaymentLogs,
   getWithdrawalLogs,

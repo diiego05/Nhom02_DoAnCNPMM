@@ -174,17 +174,21 @@ const getShopStatistics = async (shopId) => {
       })
     : 12; // fallback mock
 
-  // Tính toán doanh thu sau chiết khấu 10% và số dư khả dụng
-  const approvedWithdrawals = await db.ShopPayout.sum("amount", {
-    where: { shop_id: shopId, status: "COMPLETED" }
-  }) || 0;
-  const netRevenue = totalRevenue * 0.9;
-  const availableBalance = Math.max(0, netRevenue - approvedWithdrawals);
+  // Lấy hoặc khởi tạo ví của shop từ cơ sở dữ liệu
+  const [wallet] = await db.ShopWallet.findOrCreate({
+    where: { shop_id: shopId },
+    defaults: { balance: 0.00, pending_balance: 0.00, total_earned: 0.00 }
+  });
+
+  const availableBalance = Number(wallet.balance);
+  const pendingBalance = Number(wallet.pending_balance);
+  const netRevenue = Number(wallet.total_earned);
 
   return {
     revenue: totalRevenue,
     netRevenue,
     availableBalance,
+    pendingBalance,
     ordersCount: orderIds.size,
     productsCount,
     commentsCount,
@@ -464,38 +468,53 @@ const requestWithdrawal = async (shopId, withdrawData) => {
   if (!amount || amount <= 0) throw new Error("Số tiền rút không hợp lệ");
   if (!bank_name || !account_number || !account_name) throw new Error("Thiếu thông tin ngân hàng");
 
-  // Tính số dư khả dụng
-  const stats = await getShopStatistics(shopId);
-  if (amount > stats.availableBalance) {
-    throw new Error("Số dư khả dụng không đủ để thực hiện giao dịch này");
-  }
-
-  // Create ShopPayout entry
-  const payout = await db.ShopPayout.create({
-    shop_id: shopId,
-    amount,
-    bank_name,
-    bank_account_no: account_number,
-    bank_account_name: account_name,
-    status: "PENDING"
-  });
-
-  // Gửi thông báo cho Vendor (chính chủ)
+  const transaction = await db.sequelize.transaction();
   try {
-    const shop = await db.Shop.findByPk(shopId);
-    if (shop && shop.vendor_id) {
-      await notificationService.createNotification(
-        shop.vendor_id,
-        "Yêu cầu rút tiền thành công",
-        `Bạn đã gửi yêu cầu rút tiền trị giá ${Number(amount).toLocaleString()}₫ về tài khoản ngân hàng ${bank_name}. Vui lòng chờ quản trị viên phê duyệt.`,
-        "PAYOUT_STATUS"
-      );
-    }
-  } catch (notifErr) {
-    console.error("Failed to create withdrawal request notification:", notifErr);
-  }
+    const wallet = await db.ShopWallet.findOne({
+      where: { shop_id: shopId },
+      transaction
+    });
 
-  return payout;
+    if (!wallet || Number(wallet.balance) < Number(amount)) {
+      throw new Error("Số dư khả dụng không đủ để thực hiện giao dịch này");
+    }
+
+    // Deduct from wallet balance immediately (locked/withdrawn state)
+    wallet.balance = Number(wallet.balance) - Number(amount);
+    await wallet.save({ transaction });
+
+    // Create ShopPayout entry
+    const payout = await db.ShopPayout.create({
+      shop_id: shopId,
+      amount,
+      bank_name,
+      bank_account_no: account_number,
+      bank_account_name: account_name,
+      status: "PENDING"
+    }, { transaction });
+
+    await transaction.commit();
+
+    // Gửi thông báo cho Vendor (chính chủ)
+    try {
+      const shop = await db.Shop.findByPk(shopId);
+      if (shop && shop.vendor_id) {
+        await notificationService.createNotification(
+          shop.vendor_id,
+          "Yêu cầu rút tiền thành công",
+          `Bạn đã gửi yêu cầu rút tiền trị giá ${Number(amount).toLocaleString()}₫ về tài khoản ngân hàng ${bank_name}. Vui lòng chờ quản trị viên phê duyệt.`,
+          "PAYOUT_STATUS"
+        );
+      }
+    } catch (notifErr) {
+      console.error("Failed to create withdrawal request notification:", notifErr);
+    }
+
+    return payout;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
 };
 
 const getWithdrawals = async (shopId) => {
