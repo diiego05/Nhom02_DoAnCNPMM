@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import orderService from "@/services/orderService";
 import {
   useMyOrders,
   useCancelOrder,
@@ -21,6 +23,8 @@ import {
 import { OrderStatus } from "@/types/order.types";
 
 const OrderHistoryPage = () => {
+  const queryClient = useQueryClient();
+  const [isConfirming, setIsConfirming] = useState<number | null>(null);
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("all");
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -66,6 +70,20 @@ const OrderHistoryPage = () => {
     }
   };
 
+  const handleConfirmReceipt = async (orderId: number) => {
+    if (!window.confirm("Bạn xác nhận đã nhận đầy đủ hàng và muốn hoàn tất đơn hàng?")) return;
+    setIsConfirming(orderId);
+    try {
+      await orderService.updateOrderStatus(orderId, 'COMPLETED');
+      alert("Xác nhận nhận hàng và hoàn tất đơn hàng thành công!");
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    } catch (error: any) {
+      alert("Lỗi: " + (error.response?.data?.message || error.message));
+    } finally {
+      setIsConfirming(null);
+    }
+  };
+
   const handleRetryPayment = (parentOrderId: number) => {
     retryPaymentMutation.mutate(parentOrderId, {
       onSuccess: (data) => {
@@ -90,10 +108,12 @@ const OrderHistoryPage = () => {
   ];
 
   const renderTimeline = (currentStatus: string) => {
-    if (currentStatus === "CANCELLED" || currentStatus === "CANCEL_REQUESTED")
+    if (["CANCELLED", "CANCEL_REQUESTED", "FAILED", "RETURN_PENDING", "RETURNED"].includes(currentStatus))
       return null;
       
-    const normalizedStatus = currentStatus === "READY_FOR_PICKUP" ? "PREPARING" : currentStatus;
+    const normalizedStatus = ["READY_FOR_PICKUP", "PICKED_UP", "IN_TRANSIT", "DELIVERING"].includes(currentStatus) 
+      ? "DELIVERING" 
+      : currentStatus;
     const currentIndex = orderStatuses.findIndex(
       (s) => s.key === normalizedStatus,
     );
@@ -145,12 +165,17 @@ const OrderHistoryPage = () => {
       PENDING: "Chờ xác nhận",
       CONFIRMED: "Đã xác nhận",
       PREPARING: "Đang chuẩn bị",
-      READY_FOR_PICKUP: "Sẵn sàng giao",
-      DELIVERING: "Đang giao hàng",
-      SHIPPING: "Đang giao hàng",
+      READY_FOR_PICKUP: "Shipper đang đến lấy hàng",
+      PICKED_UP: "Shipper đã lấy hàng thành công",
+      IN_TRANSIT: "Đang luân chuyển",
+      DELIVERING: "Shipper đang đi giao",
+      SHIPPING: "Shipper đang đi giao",
       DELIVERED: "Giao thành công",
       CANCEL_REQUESTED: "Yêu cầu hủy",
       CANCELLED: "Đã hủy",
+      FAILED: "Giao thất bại",
+      RETURN_PENDING: "Đang chuyển hoàn",
+      RETURNED: "Đã hoàn hàng",
     };
     return labels[status] || status;
   };
@@ -158,10 +183,12 @@ const OrderHistoryPage = () => {
   const getStatusColor = (status: OrderStatus) => {
     if (["DELIVERED"].includes(status))
       return "bg-green-50 text-green-600 border-green-200";
-    if (["DELIVERING", "SHIPPING"].includes(status))
+    if (["DELIVERING", "SHIPPING", "IN_TRANSIT", "PICKED_UP", "READY_FOR_PICKUP"].includes(status))
       return "bg-blue-50 text-blue-600 border-blue-200";
-    if (["CANCELLED", "CANCEL_REQUESTED"].includes(status))
+    if (["CANCELLED", "CANCEL_REQUESTED", "FAILED"].includes(status))
       return "bg-red-50 text-red-600 border-red-200";
+    if (["RETURN_PENDING", "RETURNED"].includes(status))
+      return "bg-pink-50 text-pink-600 border-pink-200";
     return "bg-orange-50 text-orange-600 border-orange-200";
   };
 
@@ -419,16 +446,25 @@ const OrderHistoryPage = () => {
                     return null;
                   })()}
                   {order.status === "DELIVERED" ? (
-                    <button
-                      onClick={() => navigate(`/orders/${order.id}`)}
-                      className="flex items-center gap-2 px-6 py-3 bg-black text-white border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all active:translate-y-1 shadow-subtle hover:shadow-none"
-                    >
-                      <Star
-                        size={14}
-                        className="text-yellow-400 fill-yellow-400"
-                      />{" "}
-                      Đánh giá sản phẩm
-                    </button>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleConfirmReceipt(order.id)}
+                        disabled={isConfirming !== null}
+                        className="flex items-center gap-2 px-6 py-3 bg-green-500 text-white border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-green-600 transition-all active:translate-y-1 shadow-subtle hover:shadow-none disabled:opacity-50"
+                      >
+                        {isConfirming === order.id ? "Đang xử lý..." : "Đã nhận hàng"}
+                      </button>
+                      <button
+                        onClick={() => navigate(`/orders/${order.id}`)}
+                        className="flex items-center gap-2 px-6 py-3 bg-black text-white border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all active:translate-y-1 shadow-subtle hover:shadow-none"
+                      >
+                        <Star
+                          size={14}
+                          className="text-yellow-400 fill-yellow-400"
+                        />{" "}
+                        Đánh giá sản phẩm
+                      </button>
+                    </div>
                   ) : (
                     <button
                       onClick={() => navigate(`/orders/${order.id}`)}

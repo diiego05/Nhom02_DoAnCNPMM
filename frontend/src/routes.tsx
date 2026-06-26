@@ -8,6 +8,7 @@ import Register from "@/pages/auth/Register";
 import VerifyOTP from "@/pages/auth/VerifyOTP";
 import ForgotPassword from "@/pages/auth/ForgotPassword";
 import Profile from "@/pages/user/Profile";
+import { ShipperDashboard } from "@/pages/shipper/ShipperDashboard";
 
 import HomePage from "@/pages/shop/HomePage";
 import ProductListPage from "@/pages/shop/ProductListPage";
@@ -152,6 +153,14 @@ export const getRoutes = (): RouteObject[] => {
       element: (
         <AuthGuard allowedRoles={["admin"]}>
           <AdminDashboard />
+        </AuthGuard>
+      ),
+    },
+    {
+      path: "shipper",
+      element: (
+        <AuthGuard allowedRoles={["shipper", "admin"]}>
+          <ShipperDashboard />
         </AuthGuard>
       ),
     },
