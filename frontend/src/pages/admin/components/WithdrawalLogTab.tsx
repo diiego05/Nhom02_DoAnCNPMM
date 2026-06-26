@@ -72,6 +72,7 @@ export const WithdrawalLogTab = ({ showToast }: WithdrawalLogTabProps) => {
                icon: <CheckCircle2 size={12} />,
             };
          case "PENDING":
+         case "PENDING_APPROVAL":
             return {
                label: "Chờ duyệt",
                color: "bg-yellow-100 text-yellow-800 border-yellow-300",

@@ -17,6 +17,7 @@ export default (sequelize, DataTypes) => {
       id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
       shop_id: { type: DataTypes.BIGINT, allowNull: false },
       category_id: { type: DataTypes.INTEGER, allowNull: true },
+      brand_id: { type: DataTypes.INTEGER, allowNull: true },
       name: { type: DataTypes.STRING(300), allowNull: false },
       slug: { type: DataTypes.STRING(350), unique: true, allowNull: true },
       description: { type: DataTypes.TEXT, allowNull: true },

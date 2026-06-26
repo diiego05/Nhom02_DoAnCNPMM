@@ -12,14 +12,20 @@ export interface ChatMessage {
   id: number;
   conversation_id: number;
   sender_id: number;
-  body: string;
+  body: string | null;
   is_read: boolean;
   sent_at: string;
+
   sender?: {
     role?: {
       role_name: string;
     };
   };
+
+  attachment_url?: string | null;
+  attachment_name?: string | null;
+  attachment_type?: string | null;
+
 }
 
 export interface ConversationInfo {
@@ -27,7 +33,7 @@ export interface ConversationInfo {
   partner: ChatPartner;
   lastMessage: {
     id: number;
-    body: string;
+    body: string | null;
     sent_at: string;
     sender_id: number;
     is_read: boolean;
@@ -42,16 +48,40 @@ export const chatService = {
     const response = await axiosClient.get("/chats/unread-count");
     return response.data;
   },
-  
+
   // Lấy lịch sử tin nhắn với đối tác (partnerId)
   getChatHistory: async (partnerId: number | string) => {
     const response = await axiosClient.get(`/chats/messages/${partnerId}`);
     return response.data;
   },
-  
+
   // Gửi tin nhắn đến đối tác (receiverId)
-  sendMessage: async (receiverId: number | string, content: string) => {
-    const response = await axiosClient.post("/chats/messages", { receiverId, content });
+  sendMessage: async (
+    receiverId: number | string,
+    content: string,
+    attachmentUrl?: string | null,
+    attachmentName?: string | null,
+    attachmentType?: string | null
+  ) => {
+    const response = await axiosClient.post("/chats/messages", {
+      receiverId,
+      content,
+      attachmentUrl,
+      attachmentName,
+      attachmentType
+    });
+    return response.data;
+  },
+
+  // Tải tệp đính kèm lên server (Cloudinary)
+  uploadAttachment: async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await axiosClient.post("/chats/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
     return response.data;
   },
 

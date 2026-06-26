@@ -15,15 +15,41 @@ const getMessages = async (req, res) => {
 const sendMessage = async (req, res) => {
   try {
     const senderId = req.user.id;
-    const { receiverId, content } = req.body;
+    const { receiverId, content, attachmentUrl, attachmentName, attachmentType } = req.body;
     if (!receiverId) {
       return res.status(400).json({ message: "Thiếu ID người nhận" });
     }
-    const message = await chatService.sendMessage(senderId, receiverId, content);
+    const message = await chatService.sendMessage(
+      senderId,
+      receiverId,
+      content,
+      attachmentUrl,
+      attachmentName,
+      attachmentType
+    );
     return res.status(201).json({ message: "Gửi tin nhắn thành công", data: message });
   } catch (error) {
     console.error("Error sending chat message:", error);
     return res.status(400).json({ message: error.message || "Lỗi gửi tin nhắn" });
+  }
+};
+
+const uploadAttachment = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Không có file nào được chọn" });
+    }
+    return res.status(200).json({
+      message: "Tải file lên thành công",
+      data: {
+        url: req.file.path,
+        name: req.file.originalname,
+        type: req.file.mimetype,
+      },
+    });
+  } catch (error) {
+    console.error("Error uploading chat attachment:", error);
+    return res.status(500).json({ message: "Lỗi hệ thống khi tải file" });
   }
 };
 
@@ -52,6 +78,7 @@ const getConversations = async (req, res) => {
 export default {
   getMessages,
   sendMessage,
+  uploadAttachment,
   getUnreadCount,
   getConversations
 };

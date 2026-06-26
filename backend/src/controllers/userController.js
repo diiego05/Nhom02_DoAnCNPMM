@@ -10,7 +10,18 @@ const getUserProfile = async (req, res) => {
 
     return res.status(200).json({
       message: "Profile retrieved successfully",
-      data: user,
+      data: {
+        id: user.user_id || userId,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        fullName: user.full_name,
+        dateOfBirth: user.birthday,
+        gender: user.gender,
+        avatarUrl: user.avatar_url,
+        loyalty_points: user.loyalty_points,
+        shipper_shop_id: user.shipper_shop_id,
+      },
     });
   } catch (error) {
     return res.status(500).json({ message: "Internal server error" });

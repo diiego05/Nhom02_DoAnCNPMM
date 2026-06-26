@@ -4,15 +4,31 @@ const getUserProfileById = (id) => {
   // TODO: Implement get user by id
   return new Promise(async (resolve, reject) => {
     try {
+      //       let userAccount = await db.User.findByPk(id, {
+      //         attributes: { exclude: ['password'] },
+      //         include: [
+      //           { model: db.Role, as: 'role' },
+      //           { model: db.UserProfile, as: 'profile' }
+      //         ]
+      //       });
+      // <<<<<<< HEAD
+      //       if (userAccount) {
+      //         resolve(userAccount);
+      // =======
       let userAccount = await db.User.findByPk(id, {
-        attributes: { exclude: ['password'] },
-        include: [
-          { model: db.Role, as: 'role' },
-          { model: db.UserProfile, as: 'profile' }
-        ]
+        attributes: ["loyalty_points", "email", "phone", "role_id"],
+        include: [{ model: db.Role, as: "role", attributes: ["role_name"] }],
       });
-      if (userAccount) {
-        resolve(userAccount);
+      if (userProfile || userAccount) {
+        resolve({
+          ...userProfile,
+          loyalty_points: userAccount?.loyalty_points,
+          email: userAccount?.email,
+          phone: userAccount?.phone,
+          role_id: userAccount?.role_id,
+          role: userAccount?.role?.role_name,
+        });
+
       } else {
         resolve(null);
       }
@@ -63,8 +79,8 @@ const getFavorites = async (userId) => {
   return await db.Wishlist.findAll({
     where: { user_id: userId },
     include: [
-      { 
-        model: db.Product, 
+      {
+        model: db.Product,
         as: "product",
         include: [
           {
@@ -84,8 +100,8 @@ const getViewedProducts = async (userId) => {
   return await db.UserViewedProduct.findAll({
     where: { user_id: userId },
     include: [
-      { 
-        model: db.Product, 
+      {
+        model: db.Product,
         as: "product",
         include: [
           {

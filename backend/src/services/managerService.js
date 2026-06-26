@@ -1,4 +1,5 @@
 import db from "../models/index.js";
+import notificationService from "./notificationService.js";
 
 const getStats = async () => {
   const pendingProducts = await db.Product.count({ where: { approval_status: "PENDING" } });
@@ -76,7 +77,33 @@ const updateProductStatus = async (productId, status) => {
     throw new Error("Trạng thái không hợp lệ");
   }
 
+
   await product.update({ approval_status: status });
+
+  try {
+    const shop = await db.Shop.findByPk(product.shop_id);
+    if (shop && shop.vendor_id) {
+      let title = "";
+      let content = "";
+      if (status === "APPROVED") {
+        title = "Sản phẩm được phê duyệt";
+        content = `Sản phẩm "${product.name}" của bạn đã được kiểm duyệt thành công và đã hiển thị công khai trên sàn.`;
+      } else if (status === "REJECTED") {
+        title = "Sản phẩm bị từ chối phê duyệt";
+        content = `Sản phẩm "${product.name}" của bạn đã bị từ chối kiểm duyệt bởi Ban quản lý.`;
+      } else if (status === "HIDDEN") {
+        title = "Sản phẩm bị ẩn";
+        content = `Sản phẩm "${product.name}" của bạn đã được chuyển sang trạng thái ẩn.`;
+      }
+
+      if (title && content) {
+        await notificationService.createNotification(shop.vendor_id, title, content, "PRODUCT_STATUS");
+      }
+    }
+  } catch (notifErr) {
+    console.error("Failed to notify vendor of product status change:", notifErr);
+  }
+
   return product;
 };
 
@@ -295,6 +322,24 @@ const updateVendorStatus = async (shopId, status, reason) => {
     console.log(`[AUDIT LOG] Shop "${shop.shop_name}" (ID: ${shop.id}) was UNBANNED. Reason: ${reason || "No reason provided"}`);
   }
 
+  try {
+    let title = "";
+    let content = "";
+    if (status === "BANNED") {
+      title = "Gian hàng của bạn đã bị khóa";
+      content = `Gian hàng "${shop.shop_name}" của bạn đã bị KHÓA hoạt động trên sàn. Lý do: ${reason || "Vi phạm điều khoản chính sách của sàn."}`;
+    } else if (status === "APPROVED") {
+      title = "Gian hàng được mở khóa hoạt động";
+      content = `Gian hàng "${shop.shop_name}" của bạn đã được mở khóa và có thể tiếp tục hoạt động bán hàng bình thường.`;
+    }
+
+    if (title && content) {
+      await notificationService.createNotification(shop.vendor_id, title, content, "SHOP_STATUS");
+    }
+  } catch (notifErr) {
+    console.error("Failed to notify vendor of shop status change:", notifErr);
+  }
+
   return shop;
 };
 
@@ -320,7 +365,7 @@ const deleteReview = async (id) => {
 const restoreReview = async (id) => {
   const review = await db.ProductReview.findByPk(id, { paranoid: false });
   if (!review) throw new Error("Đánh giá không tồn tại");
-  
+
   await review.restore();
   return true;
 };

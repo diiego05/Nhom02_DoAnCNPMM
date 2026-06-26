@@ -108,6 +108,8 @@ const AdminDashboard = () => {
    }, [showAdminProfileModal, currentUser]);
 
    const handleUpdateAdminProfile = async () => {
+      if (!currentUser) return;
+
       try {
          const formData = new FormData();
          formData.append("full_name", adminForm.full_name);

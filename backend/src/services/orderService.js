@@ -34,10 +34,10 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
       include: [{ model: db.Shop, as: "shop" }]
     });
     if (!product || product.approval_status !== "APPROVED") throw new Error(`Sản phẩm ${item.product_id} không hợp lệ`);
-    
+
     let variant = null;
     let price = 0;
-    
+
     if (item.product_variant_id || item.variant_id) {
       variant = await db.ProductVariant.findByPk(item.product_variant_id || item.variant_id);
       if (!variant || variant.product_id !== product.id) throw new Error("Biến thể không hợp lệ");
@@ -83,11 +83,11 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
       if (shopsData[shopId]) {
         const coupon = await db.Coupon.findOne({ where: { code, shop_id: shopId } });
         if (coupon && shopsData[shopId].subtotal >= coupon.min_order_amount) {
-           const discount = coupon.discount_type === 'PERCENT' 
-              ? (shopsData[shopId].subtotal * Number(coupon.discount_value) / 100)
-              : Number(coupon.discount_value);
-           shopsData[shopId].shop_discount = coupon.max_discount ? Math.min(discount, Number(coupon.max_discount)) : discount;
-           shopsData[shopId].shop_coupon_id = coupon.id;
+          const discount = coupon.discount_type === 'PERCENT'
+            ? (shopsData[shopId].subtotal * Number(coupon.discount_value) / 100)
+            : Number(coupon.discount_value);
+          shopsData[shopId].shop_discount = coupon.max_discount ? Math.min(discount, Number(coupon.max_discount)) : discount;
+          shopsData[shopId].shop_coupon_id = coupon.id;
         }
       }
     }
@@ -112,7 +112,7 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
     platformCouponObj = await db.Coupon.findOne({ where: { code: platformCouponCode, shop_id: null } });
     if (platformCouponObj) {
       let validSubtotal = parentSubtotal;
-      
+
       // Nếu có giới hạn danh mục
       if (platformCouponObj.category_id) {
         validSubtotal = 0;
@@ -127,8 +127,8 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
 
       if (validSubtotal >= platformCouponObj.min_order_amount) {
         const discount = platformCouponObj.discount_type === 'PERCENT'
-            ? (validSubtotal * Number(platformCouponObj.discount_value) / 100)
-            : Number(platformCouponObj.discount_value);
+          ? (validSubtotal * Number(platformCouponObj.discount_value) / 100)
+          : Number(platformCouponObj.discount_value);
         platformDiscount = platformCouponObj.max_discount ? Math.min(discount, Number(platformCouponObj.max_discount)) : discount;
       } else if (platformCouponObj.category_id && validSubtotal === 0) {
         throw new Error("Mã giảm giá sàn không áp dụng cho danh mục sản phẩm bạn đang mua");
@@ -171,11 +171,11 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
 
 const createOrder = async (userId, data) => {
   const { paymentMethod = "COD", addressId, platformCouponCode, shopCoupons, items, usePoints, note } = data;
-  
+
   const calcResult = await calculateCheckout(userId, { items, platformCouponCode, shopCoupons, usePoints });
   const address = await db.UserAddress.findByPk(addressId);
   if (!address) throw new Error("Địa chỉ không hợp lệ");
-  
+
   const shippingAddressStr = `${address.receiver_name}, ${address.phone}, ${address.street || ''}, ${address.ward}, ${address.district}, ${address.province}`;
 
   const transaction = await db.sequelize.transaction();
@@ -348,8 +348,8 @@ const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
   const { count, rows } = await db.ShopOrder.findAndCountAll({
     where,
     include: [
-      { 
-        model: db.OrderItem, 
+      {
+        model: db.OrderItem,
         as: "items",
         include: [
           {
@@ -366,7 +366,7 @@ const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
             ]
           }
         ]
-      }, 
+      },
       { model: db.Shop, as: "shop", paranoid: false },
       { model: db.ParentOrder, as: "parentOrder", paranoid: false }
     ],
@@ -534,10 +534,10 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
   if (role === "vendor") {
     const userShop = await db.Shop.findOne({ where: { vendor_id: userId } });
     if (!userShop || userShop.id !== shopOrder.shop_id) {
-       throw new Error("Không có quyền cập nhật đơn hàng này");
+      throw new Error("Không có quyền cập nhật đơn hàng này");
     }
     if (newStatus === "PREPARING" && shopOrder.parentOrder?.payment_method === "VNPAY" && shopOrder.parentOrder?.payment_status === "UNPAID") {
-       throw new Error("Đơn hàng chưa thanh toán VNPay không thể chuyển sang Đang chuẩn bị");
+      throw new Error("Đơn hàng chưa thanh toán VNPay không thể chuyển sang Đang chuẩn bị");
     }
   } else if (role === "user") {
     if (shopOrder.parentOrder.user_id !== userId) {
@@ -559,12 +559,12 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
       updateData.shipper_id = assignedShipperId;
     }
   }
-  
+
   // Set shipper_id if the user is shipper, current status is READY_FOR_PICKUP and shipper_id is not assigned yet
   if (role === "shipper" && oldStatus === "READY_FOR_PICKUP" && !shopOrder.shipper_id) {
     updateData.shipper_id = userId;
   }
-  
+
   // Handle DELIVERED logic (COD vs Online)
   if (newStatus === "DELIVERED" && oldStatus !== "DELIVERED") {
     updateData.delivered_at = new Date();
@@ -591,7 +591,7 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
       where: { shop_id: shopOrder.shop_id },
       defaults: { balance: 0.00, pending_balance: 0.00, total_earned: 0.00 }
     });
-    
+
     // Safety check to prevent negative pending balance
     const deductAmount = Math.min(Number(wallet.pending_balance), netShopAmount);
     wallet.pending_balance = Number(wallet.pending_balance) - deductAmount;
@@ -599,7 +599,7 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
     wallet.total_earned = Number(wallet.total_earned) + netShopAmount;
     await wallet.save();
   }
-  
+
   await shopOrder.update(updateData);
 
   // Add loyalty points when delivered successfully
@@ -608,12 +608,13 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
       await db.User.increment('loyalty_points', { by: shopOrder.points_earned, where: { id: shopOrder.parentOrder.user_id } });
     }
 
+
     // Update payment_status to PAID for COD if all active shop orders are delivered
     if (shopOrder.parentOrder.payment_method === "COD") {
       const allShopOrders = await db.ShopOrder.findAll({
         where: { parent_order_id: shopOrder.parent_order_id }
       });
-      const allCompleted = allShopOrders.every(order => 
+      const allCompleted = allShopOrders.every(order =>
         (order.id === shopOrder.id) ? true : ["DELIVERED", "CANCELLED", "RETURN_PENDING", "RETURNED"].includes(order.status)
       );
       if (allCompleted) {
@@ -623,6 +624,33 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
         );
       }
     }
+
+
+    // Update ShopWallet: increase pending_balance and total_earned
+    const netEarning = parseFloat(shopOrder.final_amount) - parseFloat(shopOrder.commission_amount) - parseFloat(shopOrder.shipping_fee);
+    const [wallet] = await db.ShopWallet.findOrCreate({
+      where: { shop_id: shopOrder.shop_id },
+      defaults: { balance: 0, pending_balance: 0, total_earned: 0 }
+    });
+    await wallet.increment({
+      pending_balance: netEarning,
+      total_earned: netEarning
+    });
+  }
+
+  // Release pending balance to available balance when completed successfully
+  if (newStatus === "COMPLETED" && oldStatus !== "COMPLETED") {
+    const netEarning = parseFloat(shopOrder.final_amount) - parseFloat(shopOrder.commission_amount) - parseFloat(shopOrder.shipping_fee);
+    const [wallet] = await db.ShopWallet.findOrCreate({
+      where: { shop_id: shopOrder.shop_id },
+      defaults: { balance: 0, pending_balance: 0, total_earned: 0 }
+    });
+    const newPending = Math.max(0, parseFloat(wallet.pending_balance) - netEarning);
+    await wallet.update({
+      pending_balance: newPending,
+      balance: db.sequelize.literal(`balance + ${netEarning}`)
+    });
+
   }
 
   // Refund points when cancelled or failed
@@ -805,7 +833,7 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
 const bulkUpdateOrderStatus = async (shopOrderIds, userId, newStatus, role) => {
   const results = [];
   const errors = [];
-  
+
   for (const orderId of shopOrderIds) {
     try {
       const order = await updateOrderStatus(orderId, userId, newStatus, role);
@@ -814,11 +842,11 @@ const bulkUpdateOrderStatus = async (shopOrderIds, userId, newStatus, role) => {
       errors.push({ orderId, message: err.message });
     }
   }
-  
+
   if (results.length === 0 && errors.length > 0) {
     throw new Error(`Cập nhật thất bại: ${errors[0].message}`);
   }
-  
+
   return { updated: results.length, errors };
 };
 
@@ -896,8 +924,8 @@ const getOrderDetail = async (shopOrderId, userId) => {
   const shopOrder = await db.ShopOrder.findOne({
     where: { id: shopOrderId },
     include: [
-      { 
-        model: db.OrderItem, 
+      {
+        model: db.OrderItem,
         as: "items",
         include: [
           {
@@ -914,7 +942,7 @@ const getOrderDetail = async (shopOrderId, userId) => {
             ]
           }
         ]
-      }, 
+      },
       { model: db.Shop, as: "shop", paranoid: false },
       { model: db.ParentOrder, as: "parentOrder", attributes: ['id', 'shipping_address', 'payment_method', 'payment_status', 'user_id', 'note'] },
       { model: db.ProductReview, as: "reviews" }
@@ -993,7 +1021,7 @@ const cancelOrder = async (shopOrderId, userId, reason) => {
     await notificationService.createNotification(
       userId,
       isPreparing ? "Yêu cầu hủy đơn hàng" : "Hủy đơn hàng thành công",
-      isPreparing 
+      isPreparing
         ? `Bạn đã gửi yêu cầu hủy đơn hàng ${shopOrder.shop_order_code}. Vui lòng chờ shop xác nhận.`
         : `Bạn đã hủy đơn hàng ${shopOrder.shop_order_code} thành công.`,
       "ORDER_UPDATE"

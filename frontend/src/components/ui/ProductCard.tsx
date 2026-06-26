@@ -173,10 +173,6 @@ const AddToCartModal = ({
   const { data: product, isLoading } = useProductDetail(productSlug);
   const addToCartMutation = useAddToCart();
 
-  const finalProductImage = productImage.startsWith('http') || productImage.startsWith('data:') || productImage.startsWith('/placeholder') 
-    ? productImage 
-    : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${productImage.startsWith('/') ? '' : '/'}${productImage}`;
-
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -207,6 +203,36 @@ const AddToCartModal = ({
   const activeVariant = product?.variants?.find(
     (v) => v.color === selectedColor && v.size === selectedSize,
   );
+
+  // Tính toán giá hiển thị và giá gốc linh hoạt theo biến thể
+  const basePrice = activeVariant?.price
+    ? Number(activeVariant.price)
+    : product?.price || productPrice;
+
+  const displayPrice = activeVariant
+    ? (activeVariant.sale_price ? Number(activeVariant.sale_price) : Number(activeVariant.price))
+    : (product?.sale_price ? Number(product.sale_price) : Number(product?.price || productPrice));
+
+  const isSale = activeVariant
+    ? !!activeVariant.sale_price
+    : !!product?.sale_price;
+
+  const originalPriceVal = isSale
+    ? (activeVariant ? Number(activeVariant.price) : Number(product?.price || originalPrice))
+    : undefined;
+
+  // Tính toán ảnh hiển thị linh hoạt theo màu sắc biến thể được chọn
+  const variantWithImage = product?.variants?.find(
+    (v: any) => v.color === selectedColor && v.image_url
+  );
+  
+  const currentImage = variantWithImage?.image_url || productImage || "";
+
+  const finalProductImage = !currentImage
+    ? "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=400"
+    : (currentImage.startsWith('http') || currentImage.startsWith('data:') || currentImage.startsWith('/placeholder') 
+      ? currentImage 
+      : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${currentImage.startsWith('/') ? '' : '/'}${currentImage}`);
 
   const currentStock = activeVariant
     ? activeVariant.stock_quantity
@@ -285,11 +311,11 @@ const AddToCartModal = ({
             </h3>
             <div className="flex items-center gap-3 mt-2">
               <span className="text-lg font-black text-primary">
-                {formatPrice(productPrice)}
+                {formatPrice(displayPrice)}
               </span>
-              {originalPrice && (
+              {originalPriceVal && (
                 <span className="text-xs text-gray-300 line-through">
-                  {formatPrice(originalPrice)}
+                  {formatPrice(originalPriceVal)}
                 </span>
               )}
             </div>

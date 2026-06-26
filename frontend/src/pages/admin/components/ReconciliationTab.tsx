@@ -296,9 +296,16 @@ export const ReconciliationTab = ({ showToast, showConfirm }: ReconciliationTabP
                                     </span>
                                  </td>
                                  <td className="px-6 py-5 text-center">
-                                    <span className={`inline-flex items-center gap-1.5 text-[9px] font-black uppercase px-3 py-1.5 rounded-full border-2 border-black ${cfg.color}`}>
-                                       {cfg.icon} {cfg.label}
-                                    </span>
+                                    <div className="flex flex-col items-center gap-1">
+                                       <span className={`inline-flex items-center gap-1.5 text-[9px] font-black uppercase px-3 py-1.5 rounded-full border-2 border-black ${cfg.color}`}>
+                                          {cfg.icon} {cfg.label}
+                                       </span>
+                                       {shop.reconciliation_status === "WITHDRAWAL_REQUESTED" && shop.latest_payout && (
+                                          <span className="text-[11px] font-black text-blue-600 block mt-0.5">
+                                             Rút: {fmt(shop.latest_payout.amount)}₫
+                                          </span>
+                                       )}
+                                    </div>
                                  </td>
                                  <td className="px-6 py-5 text-center">
                                     {shop.reconciliation_status === "WITHDRAWAL_REQUESTED" && shop.latest_payout ? (
