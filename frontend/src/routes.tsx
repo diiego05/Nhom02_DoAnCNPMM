@@ -135,7 +135,7 @@ export const getRoutes = (): RouteObject[] => {
     {
       path: "vendor",
       element: (
-        <AuthGuard allowedRoles={["vendor", "admin"]}>
+        <AuthGuard allowedRoles={["user", "vendor", "admin"]}>
           <VendorDashboard />
         </AuthGuard>
       ),

@@ -1,6 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { userService, UserProfile } from "@/services/userService";
 
+export interface UserProfile {
+  fullName: string;
+  dateOfBirth?: string;
+  gender?: string;
+  avatarUrl?: string;
+  loyalty_points: number;
+  shipper_shop_id?: number | null;
+}
+
 export const useProfile = (options?: any) => {
   return useQuery<UserProfile>({
     queryKey: ["profile"],

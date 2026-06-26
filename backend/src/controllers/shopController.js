@@ -268,6 +268,22 @@ const requestWithdrawal = async (req, res) => {
   }
 };
 
+const getShopProducts = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.getShopByUserId(userId);
+    if (!shop) {
+      return res.status(404).json({ message: "Không tìm thấy Shop" });
+    }
+    const { page = 1, limit = 5 } = req.query;
+    const result = await shopService.getShopProducts(shop.id, { page, limit });
+    return res.status(200).json({ message: "Success", data: result });
+  } catch (error) {
+    console.error("Error getting shop products:", error);
+    return res.status(500).json({ error: error.message || "Internal server error" });
+  }
+};
+
 const getWithdrawals = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -293,6 +309,7 @@ export default {
   createProduct,
   updateProduct,
   deleteProduct,
+  getShopProducts,
   getShopVouchers,
   createShopVoucher,
   deleteShopVoucher,

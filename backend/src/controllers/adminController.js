@@ -71,14 +71,14 @@ const updateUserProfile = async (req, res) => {
       avatar_url = req.file.path;
     }
 
-    const user = await adminService.updateUserProfileByAdmin(id, { 
-      email, 
-      phone, 
-      full_name, 
-      gender, 
-      birthday, 
+    const user = await adminService.updateUserProfileByAdmin(id, {
+      email,
+      phone,
+      full_name,
+      gender,
+      birthday,
       password,
-      avatar_url 
+      avatar_url
     });
 
     return res.status(200).json({ message: "Cập nhật thông tin tài khoản thành công", data: user });
@@ -340,8 +340,8 @@ const rejectShopPayout = async (req, res) => {
   try {
     const adminId = req.user.id;
     const { id } = req.params;
-    const { reason } = req.body;
-    const payout = await adminService.rejectShopPayout(adminId, id, reason);
+    const { reason, reject_reason } = req.body;
+    const payout = await adminService.rejectShopPayout(adminId, id, reason || reject_reason);
     return res.status(200).json({ message: "Từ chối lệnh chuyển tiền thành công", data: payout });
   } catch (error) {
     console.error("Error rejecting payout:", error);
@@ -383,6 +383,8 @@ const rejectShipperReconciliation = async (req, res) => {
     return res.status(400).json({ message: error.message || "Lỗi từ chối đối soát" });
   }
 };
+
+
 
 
 // ============================================================

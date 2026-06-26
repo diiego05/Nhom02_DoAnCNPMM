@@ -30,6 +30,7 @@ export default (sequelize, DataTypes) => {
       size: { type: DataTypes.STRING(20), allowNull: false },
       color: { type: DataTypes.STRING(50), allowNull: false },
       color_hex: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "#888888" },
+      image_url: { type: DataTypes.TEXT, allowNull: true },
       price: { type: DataTypes.DECIMAL(15, 2), allowNull: false },
       sale_price: { type: DataTypes.DECIMAL(15, 2), allowNull: true },
       stock_quantity: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },

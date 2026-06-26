@@ -13,8 +13,11 @@ export default (sequelize, DataTypes) => {
       id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
       conversation_id: { type: DataTypes.BIGINT, allowNull: false },
       sender_id: { type: DataTypes.BIGINT, allowNull: false },
-      body: { type: DataTypes.TEXT, allowNull: false },
+      body: { type: DataTypes.TEXT, allowNull: true },
       is_read: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+      attachment_url: { type: DataTypes.TEXT, allowNull: true },
+      attachment_name: { type: DataTypes.STRING(255), allowNull: true },
+      attachment_type: { type: DataTypes.STRING(100), allowNull: true },
     },
     {
       sequelize,
