@@ -8,6 +8,7 @@ router.use(verifyToken);
 
 router.post("/calculate", orderController.calculateCheckout); // Tính toán đơn hàng
 router.post("/", orderController.createOrder); // Đặt hàng
+router.get("/counts", orderController.getMyOrderCounts); // Đếm số lượng đơn hàng
 router.get("/", orderController.getMyOrders); // Lịch sử đơn hàng
 router.get("/shipper", orderController.getShipperOrders); // Shipper orders
 router.get("/:id", orderController.getOrderDetail); // Chi tiết đơn hàng

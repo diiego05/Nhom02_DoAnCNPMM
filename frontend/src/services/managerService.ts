@@ -62,6 +62,13 @@ export const managerService = {
     const response = await axiosClient.put(`/manager/vendors/${id}/status`, { status, reason });
     return response.data.data;
   },
+  getReturnRequests: async (page = 1, limit = 10, status = "ALL") => {
+    const response = await axiosClient.get("/manager/returns", { params: { page, limit, status } });
+    return response.data.data;
+  },
+  resolveReturnRequest: async (id: number, approved: boolean, resolveNote: string) => {
+    const response = await axiosClient.post(`/manager/returns/${id}/resolve`, { approved, resolveNote });
+    return response.data.data;
+  },
 };
-
 export default managerService;

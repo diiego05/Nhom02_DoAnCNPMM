@@ -305,6 +305,8 @@ const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
   if (status) {
     if (status === 'PREPARING') {
       where.status = ['PREPARING', 'READY_FOR_PICKUP'];
+    } else if (typeof status === 'string' && status.includes(',')) {
+      where.status = status.split(',');
     } else {
       where.status = status;
     }
@@ -386,6 +388,50 @@ const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
     currentPage: parseInt(page),
     orders: rows,
   };
+};
+
+const getUserOrderCounts = async (userId) => {
+  const counts = await db.ShopOrder.findAll({
+    attributes: [
+      'status',
+      [db.sequelize.fn('COUNT', db.sequelize.col('ShopOrder.id')), 'count']
+    ],
+    include: [{
+      model: db.ParentOrder,
+      as: "parentOrder",
+      where: { user_id: userId },
+      attributes: [],
+      paranoid: false,
+    }],
+    group: ['status'],
+    raw: true,
+  });
+
+  const countMap = {
+    ALL: 0,
+    PENDING: 0,
+    CONFIRMED: 0,
+    PREPARING: 0,
+    READY_FOR_PICKUP: 0,
+    DELIVERING: 0,
+    DELIVERED: 0,
+    CANCELLED: 0,
+    RETURN_PENDING: 0,
+    RETURNED: 0,
+    RETURNS: 0,
+  };
+
+  counts.forEach(c => {
+    if (countMap[c.status] !== undefined) {
+      countMap[c.status] = Number(c.count);
+      countMap.ALL += Number(c.count);
+    }
+  });
+
+  // RETURNS includes RETURN_PENDING and RETURNED
+  countMap.RETURNS = countMap.RETURN_PENDING + countMap.RETURNED;
+
+  return countMap;
 };
 
 const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = null) => {
@@ -687,7 +733,8 @@ const getOrderDetail = async (shopOrderId, userId) => {
       }, 
       { model: db.Shop, as: "shop", paranoid: false },
       { model: db.ParentOrder, as: "parentOrder", attributes: ['id', 'shipping_address', 'payment_method', 'payment_status', 'user_id', 'note'] },
-      { model: db.ProductReview, as: "reviews" }
+      { model: db.ProductReview, as: "reviews" },
+      { model: db.ReturnRequest, as: "returnRequests" }
     ]
   });
 
@@ -788,4 +835,4 @@ const cancelOrder = async (shopOrderId, userId, reason) => {
   return shopOrder;
 };
 
-export default { calculateCheckout, createOrder, getUserOrders, updateOrderStatus, getOrderDetail, cancelOrder, getShipperOrders, bulkUpdateOrderStatus };
+export default { calculateCheckout, createOrder, getUserOrders, getUserOrderCounts, updateOrderStatus, getOrderDetail, cancelOrder, getShipperOrders, bulkUpdateOrderStatus };

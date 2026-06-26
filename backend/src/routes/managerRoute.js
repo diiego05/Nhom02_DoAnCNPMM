@@ -26,4 +26,8 @@ router.post("/campaigns", managerController.createCampaign);
 router.get("/vendors", managerController.getVendors);
 router.put("/vendors/:id/status", managerController.updateVendorStatus);
 
+router.get("/returns", managerController.getReturnRequests);
+router.get("/returns/:id", managerController.getReturnRequestDetail);
+router.post("/returns/:id/resolve", managerController.resolveReturnRequest);
+
 export default router;

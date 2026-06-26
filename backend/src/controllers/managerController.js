@@ -1,4 +1,5 @@
 import managerService from "../services/managerService.js";
+import returnService from "../services/returnService.js";
 
 const getStats = async (req, res) => {
   try {
@@ -131,6 +132,36 @@ const updateVendorStatus = async (req, res) => {
   }
 };
 
+const getReturnRequests = async (req, res) => {
+  try {
+    const result = await returnService.getAllReturnRequestsForManager(req.query);
+    return res.status(200).json({ message: "Success", data: result });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+const getReturnRequestDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await returnService.getReturnRequestDetail(id);
+    return res.status(200).json({ message: "Success", data: result });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+const resolveReturnRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { approved, resolveNote } = req.body;
+    const result = await returnService.managerResolveReturn(req.user.id, id, approved, resolveNote);
+    return res.status(200).json({ message: "Xử lý tranh chấp trả hàng thành công", data: result });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
 export default {
   getStats,
   getPendingProducts,
@@ -145,4 +176,7 @@ export default {
   createCampaign,
   getVendors,
   updateVendorStatus,
+  getReturnRequests,
+  getReturnRequestDetail,
+  resolveReturnRequest,
 };

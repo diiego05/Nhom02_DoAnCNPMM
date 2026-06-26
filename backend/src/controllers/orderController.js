@@ -59,6 +59,15 @@ const getMyOrders = async (req, res) => {
   }
 };
 
+const getMyOrderCounts = async (req, res) => {
+  try {
+    const result = await orderService.getUserOrderCounts(req.user.id);
+    return res.status(200).json({ message: "Success", data: result });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 const calculateCheckout = async (req, res) => {
   try {
     const { items, platformCouponCode, shopCoupons, usePoints } = req.body;
@@ -150,6 +159,7 @@ const cancelOrder = async (req, res) => {
 export default {
   createOrder,
   getMyOrders,
+  getMyOrderCounts,
   calculateCheckout,
   updateOrderStatus,
   getOrderDetail,

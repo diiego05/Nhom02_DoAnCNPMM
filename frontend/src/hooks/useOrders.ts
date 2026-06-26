@@ -11,6 +11,13 @@ export const useMyOrders = (status?: string, page = 1, limit = 10) => {
   });
 };
 
+export const useMyOrderCounts = () => {
+  return useQuery({
+    queryKey: ["orderCounts"],
+    queryFn: () => orderService.getMyOrderCounts(),
+  });
+};
+
 export const useOrderDetail = (id: number) => {
   return useQuery({
     queryKey: ["order", id],

@@ -75,9 +75,23 @@ const getViewedProducts = async (req, res) => {
   }
 };
 
+const uploadMultipleImages = async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "No files uploaded" });
+    }
+    const urls = req.files.map((file) => file.path);
+    return res.status(200).json({ message: "Upload success", data: urls });
+  } catch (error) {
+    console.error("Upload error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export default {
   getUserProfile,
   updateUserProfile,
   getFavorites,
   getViewedProducts,
+  uploadMultipleImages,
 };

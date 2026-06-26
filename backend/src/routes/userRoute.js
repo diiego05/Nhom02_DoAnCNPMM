@@ -39,5 +39,6 @@ router.put(
 
 router.get("/me/favorites", verifyToken, userController.getFavorites);
 router.get("/me/viewed", verifyToken, userController.getViewedProducts);
+router.post("/upload", verifyToken, upload.array("images", 5), userController.uploadMultipleImages);
 
 export default router;

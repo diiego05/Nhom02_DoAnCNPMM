@@ -1,4 +1,5 @@
 import shopService from "../services/shopService.js";
+import returnService from "../services/returnService.js";
 import db from "../models/index.js";
 
 const registerShop = async (req, res) => {
@@ -241,15 +242,52 @@ const getShopReviews = async (req, res) => {
 const uploadImage = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
+      return res.status(400).json({ error: "Vui lòng chọn ảnh để tải lên" });
     }
-    return res.status(200).json({ 
-      message: "Upload successfully", 
-      url: req.file.path 
+    const imageUrl = `/public/uploads/${req.file.filename}`;
+    return res.status(200).json({
+      message: "Tải ảnh lên thành công",
+      url: imageUrl,
     });
   } catch (error) {
     console.error("Error uploading image:", error);
     return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const getShopReturnRequests = async (req, res) => {
+  try {
+    const shop = await shopService.getShopByUserId(req.user.id);
+    if (!shop) return res.status(404).json({ message: "Không tìm thấy shop" });
+    const result = await returnService.getReturnRequestsByShop(shop.id, req.query);
+    return res.status(200).json({ message: "Success", data: result });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+const approveReturnRequest = async (req, res) => {
+  try {
+    const shop = await shopService.getShopByUserId(req.user.id);
+    if (!shop) return res.status(404).json({ message: "Không tìm thấy shop" });
+    const { id } = req.params;
+    const result = await returnService.vendorApproveReturn(shop.id, id);
+    return res.status(200).json({ message: "Chấp nhận trả hàng thành công", data: result });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
+const rejectReturnRequest = async (req, res) => {
+  try {
+    const shop = await shopService.getShopByUserId(req.user.id);
+    if (!shop) return res.status(404).json({ message: "Không tìm thấy shop" });
+    const { id } = req.params;
+    const { rejectNote } = req.body;
+    const result = await returnService.vendorRejectReturn(shop.id, id, rejectNote);
+    return res.status(200).json({ message: "Từ chối trả hàng thành công", data: result });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
   }
 };
 
@@ -298,6 +336,9 @@ export default {
   deleteShopVoucher,
   getShopReviews,
   uploadImage,
+  getShopReturnRequests,
+  approveReturnRequest,
+  rejectReturnRequest,
   requestWithdrawal,
   getWithdrawals,
   getTopShops,

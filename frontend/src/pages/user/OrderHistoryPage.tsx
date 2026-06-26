@@ -10,12 +10,14 @@ import {
   Hash,
   Loader2,
   Store,
+  RefreshCcw,
 } from "lucide-react";
 import PaymentCountdownButton from "@/components/ui/PaymentCountdownButton";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   useMyOrders,
+  useMyOrderCounts,
   useCancelOrder,
   useRetryPayment,
 } from "@/hooks/useOrders";
@@ -48,6 +50,8 @@ const OrderHistoryPage = () => {
         return "DELIVERED";
       case "cancelled":
         return "CANCELLED";
+      case "returns":
+        return "RETURN_PENDING,RETURNED";
       default:
         return "all";
     }
@@ -65,6 +69,7 @@ const OrderHistoryPage = () => {
   ];
 
   const { data: orderResponse, isLoading } = useMyOrders(getStatusQuery());
+  const { data: counts } = useMyOrderCounts();
   const cancelOrderMutation = useCancelOrder();
   const retryPaymentMutation = useRetryPayment();
   const addToCartMutation = useAddToCart();
@@ -187,13 +192,54 @@ const OrderHistoryPage = () => {
   };
 
   const tabs = [
-    { id: "all", label: "Tất cả", icon: <Package size={16} /> },
-    { id: "pending", label: "Chờ xác nhận", icon: <Calendar size={16} /> },
-    { id: "confirmed", label: "Đã xác nhận", icon: <CheckCircle size={16} /> },
-    { id: "preparing", label: "Đang chuẩn bị", icon: <Package size={16} /> },
-    { id: "shipping", label: "Đang giao", icon: <Truck size={16} /> },
-    { id: "completed", label: "Hoàn thành", icon: <CheckCircle size={16} /> },
-    { id: "cancelled", label: "Đã hủy", icon: <XCircle size={16} /> },
+    {
+      id: "all",
+      label: "Tất cả",
+      icon: <Package size={16} />,
+      countKey: "ALL",
+    },
+    {
+      id: "pending",
+      label: "Chờ xác nhận",
+      icon: <Calendar size={16} />,
+      countKey: "PENDING",
+    },
+    {
+      id: "confirmed",
+      label: "Đã xác nhận",
+      icon: <CheckCircle size={16} />,
+      countKey: "CONFIRMED",
+    },
+    {
+      id: "preparing",
+      label: "Đang chuẩn bị",
+      icon: <Package size={16} />,
+      countKey: "PREPARING",
+    },
+    {
+      id: "shipping",
+      label: "Đang giao",
+      icon: <Truck size={16} />,
+      countKey: "DELIVERING",
+    },
+    {
+      id: "completed",
+      label: "Hoàn thành",
+      icon: <CheckCircle size={16} />,
+      countKey: "DELIVERED",
+    },
+    {
+      id: "returns",
+      label: "Trả hàng/Hoàn tiền",
+      icon: <RefreshCcw size={16} />,
+      countKey: "RETURNS",
+    },
+    {
+      id: "cancelled",
+      label: "Đã hủy",
+      icon: <XCircle size={16} />,
+      countKey: "CANCELLED",
+    },
   ];
 
   const getStatusLabel = (status: OrderStatus) => {
@@ -207,6 +253,8 @@ const OrderHistoryPage = () => {
       DELIVERED: "Giao thành công",
       CANCEL_REQUESTED: "Yêu cầu hủy",
       CANCELLED: "Đã hủy",
+      RETURN_PENDING: "Yêu cầu trả hàng",
+      RETURNED: "Đã trả hàng",
     };
     return labels[status] || status;
   };
@@ -218,6 +266,8 @@ const OrderHistoryPage = () => {
       return "bg-blue-50 text-blue-600 border-blue-200";
     if (["CANCELLED", "CANCEL_REQUESTED"].includes(status))
       return "bg-red-50 text-red-600 border-red-200";
+    if (["RETURN_PENDING", "RETURNED"].includes(status))
+      return "bg-purple-50 text-purple-600 border-purple-200";
     return "bg-orange-50 text-orange-600 border-orange-200";
   };
 
@@ -247,15 +297,25 @@ const OrderHistoryPage = () => {
           </div>
         </div>
 
-        {/* Tabs Bento Wrapper */}
-        <div className="bg-white border-2 border-black rounded-[2rem] p-3 mb-10 shadow-sm inline-flex flex-wrap gap-2">
+        {/* Tabs Group */}
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-8 custom-scrollbar">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === tab.id ? "bg-black text-white" : "hover:bg-primary/5 text-gray-400 hover:text-black"}`}
+              className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all border-2 whitespace-nowrap flex-shrink-0 ${activeTab === tab.id ? "bg-primary text-white border-primary shadow-lg shadow-primary/30" : "bg-white text-gray-500 border-gray-200 hover:border-primary/50"}`}
             >
-              {tab.icon} {tab.label}
+              {tab.icon}
+              <span className="text-[11px] uppercase tracking-wider mt-[2px]">
+                {tab.label}
+              </span>
+              {counts && counts[tab.countKey] !== undefined && (
+                <span
+                  className={`ml-1 px-2 py-0.5 rounded-full text-[10px] ${activeTab === tab.id ? "bg-white text-primary" : "bg-gray-100 text-gray-500"}`}
+                >
+                  {counts[tab.countKey]}
+                </span>
+              )}
             </button>
           ))}
         </div>

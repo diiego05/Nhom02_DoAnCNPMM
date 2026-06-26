@@ -1,37 +1,32 @@
 import {
   LayoutDashboard,
-  Settings,
-  Package,
   ShoppingCart,
   Percent,
   Wallet,
   MessageSquare,
   ExternalLink,
-  Search,
-  Bell,
   Plus,
-  Filter,
-  ArrowUpRight,
-  Star,
-  ShoppingBag,
   Heart,
-  Store,
-  TrendingUp,
   Clock,
   CheckCircle2,
   Edit3,
   Trash2,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
-  User,
   FileDown,
   MessageCircle,
   Send,
-  MoreHorizontal,
-  Paperclip,
-  Smile,
+  ChevronDown,
+  Package,
+  RefreshCcw,
+  Star,
+  ShoppingBag,
+  Search,
+  TrendingUp,
+  Store,
   X,
+  Smile,
+  AlertCircle,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
@@ -246,6 +241,41 @@ const VendorDashboard = () => {
     end_date: "",
   });
 
+  // Returns state
+  const [returnRequests, setReturnRequests] = useState<any[]>([]);
+  const [rejectModal, setRejectModal] = useState<{
+    isOpen: boolean;
+    returnId: number | null;
+    rejectNote: string;
+  }>({
+    isOpen: false,
+    returnId: null,
+    rejectNote: "",
+  });
+
+  const REJECT_SUGGESTIONS = [
+    "Sản phẩm không có dấu hiệu lỗi",
+    "Sản phẩm đã qua sử dụng, không còn nguyên vẹn",
+    "Hình ảnh minh chứng không rõ ràng",
+    "Lý do không hợp lệ theo chính sách cửa hàng",
+    "Quá thời hạn đổi trả",
+  ];
+
+  const handleOpenRejectModal = (returnId: number) => {
+    setRejectModal({ isOpen: true, returnId, rejectNote: "" });
+  };
+
+  const handleSubmitReject = async () => {
+    if (!rejectModal.returnId) return;
+    try {
+      await vendorService.rejectReturnRequest(rejectModal.returnId, rejectModal.rejectNote);
+      setRejectModal({ isOpen: false, returnId: null, rejectNote: "" });
+      fetchShopReturns();
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Lỗi khi từ chối");
+    }
+  };
+
   // Settings State
   const [settingsForm, setSettingsForm] = useState({
     name: "",
@@ -299,6 +329,17 @@ const VendorDashboard = () => {
       .catch((err) => console.log("Lỗi tải danh mục:", err));
   }, []);
 
+  const fetchShopReturns = async () => {
+    try {
+      const res = await vendorService.getShopReturnRequests(1, 50, "ALL");
+      if (res && res.returns) {
+        setReturnRequests(res.returns);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   // Tải thương hiệu sản phẩm từ backend
   useEffect(() => {
     publicAxios
@@ -334,6 +375,8 @@ const VendorDashboard = () => {
       fetchShopReviews();
     } else if (activeTab === "finance") {
       fetchWithdrawalHistory();
+    } else if (activeTab === "returns") {
+      fetchShopReturns();
     }
   }, [activeTab, isRegistered, shopInfo, productsPage]);
 
@@ -511,7 +554,7 @@ const VendorDashboard = () => {
           );
           return;
         }
-        finalVariants = productVariants.map((v, i) => ({
+        finalVariants = productVariants.map((v) => ({
           size: v.size || "Free Size",
           color: v.color || "Default",
           color_hex: v.color_hex || "#888888",
@@ -1031,6 +1074,11 @@ const VendorDashboard = () => {
       id: "interactions",
       label: "Bình luận & Đánh giá",
       icon: <MessageSquare size={20} />,
+    },
+    {
+      id: "returns",
+      label: "Trả hàng/Hoàn tiền",
+      icon: <RefreshCcw size={20} />,
     },
   ];
 
@@ -2131,6 +2179,179 @@ const VendorDashboard = () => {
                   </form>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB: TRẢ HÀNG/HOÀN TIỀN (Returns) */}
+          {activeTab === "returns" && (
+            <div className="space-y-8">
+              <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-serif font-black uppercase">
+                  Quản lý Trả hàng
+                </h2>
+              </div>
+              <div className="bg-white border-2 border-black rounded-3xl p-6 md:p-8 shadow-brutal mt-8">
+                {returnRequests.length === 0 ? (
+                  <div className="text-center py-16">
+                    <RefreshCcw
+                      size={48}
+                      className="mx-auto text-gray-300 mb-4"
+                    />
+                    <p className="text-gray-500 font-bold uppercase tracking-widest text-sm">
+                      Chưa có yêu cầu trả hàng nào
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {returnRequests.map((req) => (
+                      <div
+                        key={req.id}
+                        className="p-6 border-2 border-black rounded-2xl hover:shadow-subtle transition-all bg-white flex flex-col gap-4"
+                      >
+                        <div className="flex justify-between items-start border-b border-gray-100 pb-4">
+                          <div>
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="text-xs font-black uppercase bg-black text-white px-3 py-1 rounded-md">
+                                Đơn hàng #{req.shop_order_id || req.shopOrder?.shop_order_code}
+                              </span>
+                              <span
+                                className={`text-xs font-black uppercase px-3 py-1 rounded-md border-2 ${req.status === "PENDING" ? "bg-orange-100 text-orange-600 border-orange-200" : req.status === "APPROVED_BY_SHOP" || req.status === "RESOLVED_BY_ADMIN" || req.status === "COMPLETED" ? "bg-green-100 text-green-600 border-green-200" : "bg-red-100 text-red-600 border-red-200"}`}
+                              >
+                                {req.status}
+                              </span>
+                            </div>
+                            <p className="text-sm font-bold text-gray-600">
+                              Lý do: {req.reason}
+                            </p>
+                            <p className="text-sm font-medium text-gray-500 mt-1">
+                              Số tiền hoàn:{" "}
+                              {Number(
+                                req.items?.reduce(
+                                  (sum: number, item: any) =>
+                                    sum +
+                                    item.quantity *
+                                      (item.orderItem?.unit_price || 0),
+                                  0,
+                                ) || 0,
+                              ).toLocaleString()}
+                              ₫
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            {req.status === "PENDING" && (
+                              <>
+                                <button
+                                  onClick={() => handleOpenRejectModal(req.id)}
+                                  className="px-4 py-2 border-2 border-red-500 text-red-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 transition-all active:translate-y-1"
+                                >
+                                  Từ chối
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (
+                                      confirm(
+                                        "Bạn có chắc muốn chấp nhận yêu cầu này? Tiền sẽ được hoàn cho khách.",
+                                      )
+                                    ) {
+                                      try {
+                                        await vendorService.approveReturnRequest(
+                                          req.id,
+                                        );
+                                        alert(
+                                          "Đã chấp nhận trả hàng. Tiền đã được hoàn.",
+                                        );
+                                        fetchShopReturns();
+                                      } catch (err: any) {
+                                        alert(
+                                          err.response?.data?.message || "Lỗi",
+                                        );
+                                      }
+                                    }
+                                  }}
+                                  className="px-4 py-2 border-2 border-black bg-primary text-black rounded-xl font-black text-[10px] uppercase tracking-widest shadow-brutal hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all"
+                                >
+                                  Chấp nhận
+                                </button>
+                              </>
+                            )}
+                            {req.status === "REJECTED" && (
+                              <p className="text-xs text-red-500 font-bold italic">
+                                Khách có thể khiếu nại lên admin
+                              </p>
+                            )}
+                            {req.status === "DISPUTED" && (
+                              <p className="text-xs text-orange-500 font-bold italic">
+                                Đang được Quản lý xử lý
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="pt-2">
+                          <p className="text-[10px] font-black uppercase text-gray-400 mb-3">
+                            Sản phẩm trả lại
+                          </p>
+                          <div className="space-y-3">
+                            {req.items?.map((item: any) => (
+                              <div
+                                key={item.id}
+                                className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl"
+                              >
+                                {item.orderItem?.variant?.product?.images?.[0]?.image_url ? (
+                                  <img 
+                                    src={item.orderItem.variant.product.images[0].image_url} 
+                                    alt={item.orderItem.product_name}
+                                    className="w-16 h-16 object-cover rounded-lg border border-gray-200"
+                                  />
+                                ) : (
+                                  <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
+                                    <Package size={24} className="text-gray-400" />
+                                  </div>
+                                )}
+                                <div className="flex-1">
+                                  <p className="text-sm font-bold">
+                                    {item.orderItem?.product_name || "Sản phẩm"}
+                                  </p>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {item.orderItem?.size} | {item.orderItem?.color} {item.orderItem?.sku ? `| SKU: ${item.orderItem.sku}` : ''}
+                                  </p>
+                                  <p className="text-xs font-black mt-1">
+                                    Số lượng: {item.quantity}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-gray-100">
+                          <p className="text-[10px] font-black uppercase text-gray-400 mb-3 mt-3">
+                            Ảnh minh chứng từ khách
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {(() => {
+                              try {
+                                const urls = req.evidence_urls ? JSON.parse(req.evidence_urls) : [];
+                                return urls.length > 0 ? urls.map((url: string, idx: number) => (
+                                  <a href={url} target="_blank" rel="noreferrer" key={idx}>
+                                    <img src={url} alt="Minh chứng" className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition-opacity" />
+                                  </a>
+                                )) : <p className="text-xs text-gray-500 italic">Không có ảnh đính kèm</p>;
+                              } catch(e) {
+                                return req.evidence_urls ? (
+                                  <a href={req.evidence_urls} target="_blank" rel="noreferrer" className="text-blue-500 text-xs underline">
+                                    Xem minh chứng
+                                  </a>
+                                ) : <p className="text-xs text-gray-500 italic">Không có ảnh đính kèm</p>;
+                              }
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -3515,6 +3736,74 @@ const VendorDashboard = () => {
               >
                 Đồng ý
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Return Modal */}
+      {rejectModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md bg-white border-2 border-black rounded-[2rem] p-6 shadow-brutal animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b-2 border-black/10 pb-4 mb-6">
+              <h3 className="font-black text-xl text-red-500 uppercase tracking-widest flex items-center gap-2">
+                <AlertCircle size={24} />
+                Từ chối trả hàng
+              </h3>
+              <button
+                onClick={() => setRejectModal({ isOpen: false, returnId: null, rejectNote: "" })}
+                className="p-2 hover:bg-red-50 rounded-full transition-colors text-gray-500 hover:text-red-500"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-black uppercase text-gray-500 mb-2 block">
+                  Lý do từ chối (Bắt buộc)
+                </label>
+                <textarea
+                  value={rejectModal.rejectNote}
+                  onChange={(e) => setRejectModal({ ...rejectModal, rejectNote: e.target.value })}
+                  className="w-full bg-gray-50 border-2 border-black rounded-xl p-4 font-medium text-sm focus:outline-none focus:ring-4 focus:ring-red-500/20 transition-all h-32 resize-none"
+                  placeholder="Nhập lý do chi tiết..."
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block">
+                  Gợi ý lý do:
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {REJECT_SUGGESTIONS.map((suggestion, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setRejectModal({ ...rejectModal, rejectNote: suggestion })}
+                      className="px-3 py-1.5 bg-gray-100 border border-gray-300 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-200 hover:text-black transition-colors text-left"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-4 border-t-2 border-black/10 mt-6">
+                <button
+                  onClick={() => setRejectModal({ isOpen: false, returnId: null, rejectNote: "" })}
+                  className="flex-1 py-3 border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-50 transition-all"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleSubmitReject}
+                  disabled={!rejectModal.rejectNote.trim()}
+                  className="flex-1 py-3 border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest bg-red-500 text-white shadow-subtle hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Từ chối
+                </button>
+              </div>
             </div>
           </div>
         </div>

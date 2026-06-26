@@ -21,6 +21,7 @@ import systemRouter from "./routes/systemRoute.js";
 import managerRouter from "./routes/managerRoute.js";
 import notificationRouter from "./routes/notificationRoute.js";
 import paymentRouter from "./routes/paymentRoute.js";
+import returnRouter from "./routes/returnRoute.js";
 import cron from "node-cron";
 import orderService from "./services/orderService.js";
 import morgan from "morgan";
@@ -63,6 +64,7 @@ app.use("/manager", managerRouter);
 app.use("/notifications", notificationRouter);
 app.use("/payment", paymentRouter);
 app.use("/system", systemRouter);
+app.use("/returns", returnRouter);
 app.get("/brands", (req, res) => {
   return res.status(200).json({
     message: "Success",

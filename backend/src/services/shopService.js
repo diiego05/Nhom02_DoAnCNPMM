@@ -121,6 +121,37 @@ const getShopStatistics = async (shopId) => {
     ],
   });
 
+  // 1.5. Lấy các yêu cầu trả hàng đã thành công để trừ doanh thu
+  const completedReturns = await db.ReturnRequest.findAll({
+    where: {
+      status: ["COMPLETED", "RESOLVED_BY_ADMIN"]
+    },
+    include: [
+      {
+        model: db.ShopOrder,
+        as: "shopOrder",
+        where: { shop_id: shopId, status: "RETURNED" },
+        required: true
+      },
+      {
+        model: db.ReturnItem,
+        as: "items",
+        include: [{ model: db.OrderItem, as: "orderItem" }]
+      }
+    ]
+  });
+
+  let totalReturnedAmount = 0;
+  const returnedAmountByOrder = {};
+  completedReturns.forEach(req => {
+    let reqTotal = 0;
+    req.items.forEach(item => {
+      reqTotal += parseFloat(item.quantity * item.orderItem.unit_price || 0);
+    });
+    returnedAmountByOrder[req.shop_order_id] = reqTotal;
+    totalReturnedAmount += reqTotal;
+  });
+
   // 2. Tính doanh thu và đếm đơn hàng độc nhất
   let totalRevenue = 0;
   const orderIds = new Set();
@@ -128,6 +159,9 @@ const getShopStatistics = async (shopId) => {
     totalRevenue += parseFloat(item.unit_price * item.quantity || 0);
     orderIds.add(item.shop_order_id);
   });
+  
+  // Trừ đi doanh thu của các mặt hàng bị trả
+  totalRevenue -= totalReturnedAmount;
 
   // 3. Đếm số lượng sản phẩm của Shop
   const productsCount = await db.Product.count({
@@ -154,9 +188,19 @@ const getShopStatistics = async (shopId) => {
     });
 
     let daySum = 0;
+    const dayOrderIds = new Set();
     dayItems.forEach((item) => {
       daySum += parseFloat(item.unit_price * item.quantity || 0);
+      dayOrderIds.add(item.shop_order_id);
     });
+
+    // Trừ đi giá trị hàng bị trả của các đơn hàng trong ngày này
+    dayOrderIds.forEach(orderId => {
+      if (returnedAmountByOrder[orderId]) {
+        daySum -= returnedAmountByOrder[orderId];
+      }
+    });
+
     dailyRevenue[i] = daySum;
   }
 

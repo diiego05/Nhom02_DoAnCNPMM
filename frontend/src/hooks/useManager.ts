@@ -38,18 +38,21 @@ export const useUpdateProductStatus = () => {
 export const useDisputes = () => {
   return useQuery({
     queryKey: ["manager", "disputes"],
-    queryFn: managerService.getDisputes,
+    queryFn: () => managerService.getReturnRequests(1, 100, "REJECTED"),
   });
 };
 
 export const useResolveDispute = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) =>
-      managerService.resolveDispute(id, status),
+    mutationFn: ({ id, approved, resolveNote }: { id: number; approved: boolean, resolveNote: string }) =>
+      managerService.resolveReturnRequest(id, approved, resolveNote),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["manager", "disputes"] });
       queryClient.invalidateQueries({ queryKey: ["manager", "stats"] });
+    },
+    onError: (error: any) => {
+      alert(error.response?.data?.message || "Lỗi khi xử lý khiếu nại");
     },
   });
 };

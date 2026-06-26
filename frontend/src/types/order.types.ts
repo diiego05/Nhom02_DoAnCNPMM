@@ -59,6 +59,7 @@ export interface Order {
   items?: OrderItem[];
   statusLogs?: OrderStatusLog[];
   reviews?: any[];
+  returnRequests?: any[];
   shop?: { id: number; name: string; avatar_url?: string; shop_name?: string };
   shop_order_code?: string;
   order_code?: string;

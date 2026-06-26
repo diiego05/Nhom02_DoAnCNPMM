@@ -20,6 +20,7 @@ import { useCreateReview, useUpdateReview } from "@/hooks/useReviews";
 import { OrderStatus } from "@/types/order.types";
 import { useSystemSettings } from "@/hooks/useSystemSettings";
 import { useAddToCart } from "@/hooks/useCart";
+import { ReturnOrderModal } from "@/components/modals/ReturnOrderModal";
 
 const OrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +29,7 @@ const OrderDetailPage = () => {
   const navigate = useNavigate();
 
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [selectedProductToReview, setSelectedProductToReview] =
     useState<any>(null);
   const [rating, setRating] = useState(5);
@@ -582,7 +584,8 @@ const OrderDetailPage = () => {
             </div>
           </div>
           {/* Action Buttons */}
-          {(order.status === "CANCELLED" || order.status === "CANCEL_REQUESTED") && (
+          {(order.status === "CANCELLED" ||
+            order.status === "CANCEL_REQUESTED") && (
             <div className="p-8 bg-white border-t-2 border-black/5 flex justify-end">
               <button
                 onClick={() => handleRepurchase(order.items || [])}
@@ -593,8 +596,38 @@ const OrderDetailPage = () => {
               </button>
             </div>
           )}
+          {order.status === "DELIVERED" && (
+            <div className="p-8 bg-white border-t-2 border-black/5 flex justify-end">
+              {order.returnRequests && order.returnRequests.length > 0 ? (
+                <div className="flex flex-col items-end gap-2">
+                  <span className="text-sm font-black text-red-500 uppercase tracking-widest bg-red-50 px-4 py-2 rounded-xl border border-red-100">
+                    Đã yêu cầu trả hàng
+                  </span>
+                  {order.returnRequests[0].status === "RESOLVED_BY_ADMIN" && (
+                    <span className="text-xs font-bold text-gray-500">
+                      Yêu cầu trả hàng của bạn đã bị từ chối và không thể yêu
+                      cầu lại.
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setReturnModalOpen(true)}
+                  className="flex items-center gap-2 px-8 py-4 bg-white text-red-600 border-2 border-red-200 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-red-50 hover:border-red-300 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 active:translate-y-1"
+                >
+                  Yêu cầu Trả hàng / Hoàn tiền
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      <ReturnOrderModal
+        isOpen={returnModalOpen}
+        onClose={() => setReturnModalOpen(false)}
+        order={order}
+      />
 
       {/* Review Modal */}
       {reviewModalOpen && selectedProductToReview && (

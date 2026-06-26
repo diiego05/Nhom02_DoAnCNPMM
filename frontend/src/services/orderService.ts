@@ -21,6 +21,11 @@ const orderService = {
     return response.data.data as OrderListResponse;
   },
 
+  getMyOrderCounts: async () => {
+    const response = await axiosClient.get("/orders/counts");
+    return response.data.data as Record<string, number>;
+  },
+
   getOrderDetail: async (id: number) => {
     const response = await axiosClient.get(`/orders/${id}`);
     return response.data.data as Order;

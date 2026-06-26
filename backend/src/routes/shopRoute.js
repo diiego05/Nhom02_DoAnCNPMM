@@ -41,4 +41,9 @@ router.get("/my-shop/withdrawals", shopController.getWithdrawals);
 // Tải ảnh lên từ thiết bị
 router.post("/my-shop/upload", upload.single("image"), shopController.uploadImage);
 
+// Quản lý yêu cầu trả hàng
+router.get("/my-shop/returns", shopController.getShopReturnRequests);
+router.post("/my-shop/returns/:id/approve", shopController.approveReturnRequest);
+router.post("/my-shop/returns/:id/reject", shopController.rejectReturnRequest);
+
 export default router;

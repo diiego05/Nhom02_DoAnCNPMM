@@ -1,4 +1,5 @@
 import { axiosClient, publicAxios } from "./axiosClient";
+import { ReturnListResponse, ReturnRequest } from "@/types/return.types";
 
 export interface ShopRegistrationData {
   name: string;
@@ -202,5 +203,20 @@ export const vendorService = {
   sendMessage: async (receiverId: number | string, content: string) => {
     const response = await axiosClient.post("/chats/messages", { receiverId, content });
     return response.data;
+  },
+
+  getShopReturnRequests: async (page = 1, limit = 10, status = "ALL") => {
+    const response = await axiosClient.get("/shops/my-shop/returns", { params: { page, limit, status } });
+    return response.data.data as ReturnListResponse;
+  },
+
+  approveReturnRequest: async (id: number) => {
+    const response = await axiosClient.post(`/shops/my-shop/returns/${id}/approve`);
+    return response.data.data as ReturnRequest;
+  },
+
+  rejectReturnRequest: async (id: number, rejectNote: string) => {
+    const response = await axiosClient.post(`/shops/my-shop/returns/${id}/reject`, { rejectNote });
+    return response.data.data as ReturnRequest;
   },
 };
