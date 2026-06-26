@@ -63,6 +63,7 @@ export interface Order {
   updated_at: string;
   items?: OrderItem[];
   statusLogs?: OrderStatusLog[];
+  reviews?: any[];
   shop?: { id: number; name: string; avatar_url?: string; shop_name?: string };
   shop_order_code?: string;
   order_code?: string;

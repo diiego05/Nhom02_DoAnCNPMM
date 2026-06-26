@@ -355,6 +355,31 @@ const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
     distinct: true,
   });
 
+  for (let shopOrder of rows) {
+    if (
+      shopOrder.parentOrder?.payment_method === "VNPAY" &&
+      shopOrder.parentOrder?.payment_status === "UNPAID" &&
+      shopOrder.status !== "CANCELLED"
+    ) {
+      const hoursDiff = (new Date() - new Date(shopOrder.created_at)) / (1000 * 60 * 60);
+      if (hoursDiff > 24) {
+        await shopOrder.update({ status: "CANCELLED" });
+        shopOrder.status = "CANCELLED";
+        // Hoàn điểm nếu có sử dụng
+        if (shopOrder.points_used && shopOrder.points_used > 0) {
+          await db.User.increment('loyalty_points', { by: shopOrder.points_used, where: { id: shopOrder.parentOrder.user_id } });
+        }
+        // Hoàn kho
+        const orderItems = await db.OrderItem.findAll({ where: { shop_order_id: shopOrder.id } });
+        for (const item of orderItems) {
+          if (item.variant_id) {
+            await db.ProductVariant.increment("stock_quantity", { by: item.quantity, where: { id: item.variant_id }, paranoid: false });
+          }
+        }
+      }
+    }
+  }
+
   return {
     total: count,
     totalPages: Math.ceil(count / limit),
@@ -490,6 +515,9 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
     if (!userShop || userShop.id !== shopOrder.shop_id) {
        throw new Error("Không có quyền cập nhật đơn hàng này");
     }
+    if (newStatus === "PREPARING" && shopOrder.parentOrder?.payment_method === "VNPAY" && shopOrder.parentOrder?.payment_status === "UNPAID") {
+       throw new Error("Đơn hàng chưa thanh toán VNPay không thể chuyển sang Đang chuẩn bị");
+    }
   } else if (role === "user") {
     if (shopOrder.parentOrder.user_id !== userId) {
       throw new Error("Không có quyền cập nhật đơn hàng này");
@@ -557,6 +585,22 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
   if (newStatus === "DELIVERED" && oldStatus !== "DELIVERED") {
     if (shopOrder.points_earned && shopOrder.points_earned > 0) {
       await db.User.increment('loyalty_points', { by: shopOrder.points_earned, where: { id: shopOrder.parentOrder.user_id } });
+    }
+
+    // Update payment_status to PAID for COD if all active shop orders are delivered
+    if (shopOrder.parentOrder.payment_method === "COD") {
+      const allShopOrders = await db.ShopOrder.findAll({
+        where: { parent_order_id: shopOrder.parent_order_id }
+      });
+      const allCompleted = allShopOrders.every(order => 
+        (order.id === shopOrder.id) ? true : ["DELIVERED", "CANCELLED", "RETURN_PENDING", "RETURNED"].includes(order.status)
+      );
+      if (allCompleted) {
+        await db.ParentOrder.update(
+          { payment_status: "PAID" },
+          { where: { id: shopOrder.parent_order_id } }
+        );
+      }
     }
   }
 
@@ -851,12 +895,34 @@ const getOrderDetail = async (shopOrderId, userId) => {
         ]
       }, 
       { model: db.Shop, as: "shop", paranoid: false },
-      { model: db.ParentOrder, as: "parentOrder", attributes: ['id', 'shipping_address', 'payment_method', 'payment_status', 'user_id', 'note'] }
+      { model: db.ParentOrder, as: "parentOrder", attributes: ['id', 'shipping_address', 'payment_method', 'payment_status', 'user_id', 'note'] },
+      { model: db.ProductReview, as: "reviews" }
     ]
   });
 
   if (!shopOrder) throw new Error("Không tìm thấy đơn hàng");
   if (shopOrder.parentOrder.user_id !== userId) throw new Error("Không có quyền xem đơn hàng này");
+
+  if (
+    shopOrder.parentOrder.payment_method === "VNPAY" &&
+    shopOrder.parentOrder.payment_status === "UNPAID" &&
+    shopOrder.status !== "CANCELLED"
+  ) {
+    const hoursDiff = (new Date() - new Date(shopOrder.created_at)) / (1000 * 60 * 60);
+    if (hoursDiff > 24) {
+      await shopOrder.update({ status: "CANCELLED" });
+      shopOrder.status = "CANCELLED";
+      if (shopOrder.points_used && shopOrder.points_used > 0) {
+        await db.User.increment('loyalty_points', { by: shopOrder.points_used, where: { id: shopOrder.parentOrder.user_id } });
+      }
+      const orderItems = await db.OrderItem.findAll({ where: { shop_order_id: shopOrder.id } });
+      for (const item of orderItems) {
+        if (item.variant_id) {
+          await db.ProductVariant.increment("stock_quantity", { by: item.quantity, where: { id: item.variant_id }, paranoid: false });
+        }
+      }
+    }
+  }
 
   return shopOrder;
 };

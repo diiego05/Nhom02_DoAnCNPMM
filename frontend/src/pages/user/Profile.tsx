@@ -149,7 +149,7 @@ const Profile = () => {
     const p = profile as any;
     if (u || p) {
       reset({
-        full_name: p?.full_name || u?.full_name || u?.fullName || "",
+        full_name: p?.profile?.full_name || p?.full_name || u?.profile?.full_name || u?.fullName || "",
         phone: p?.phone || u?.phone || "",
         date_of_birth: p?.birthday
           ? p.birthday.split("T")[0]
@@ -317,10 +317,10 @@ const Profile = () => {
                 <img
                   src={
                     avatarPreview ||
-                    (user?.avatarUrl
-                      ? user.avatarUrl.startsWith("http")
-                        ? user.avatarUrl
-                        : `${API_URL}${user.avatarUrl}`
+                    (user?.avatarUrl || (profile as any)?.profile?.avatar_url
+                      ? (user?.avatarUrl || (profile as any)?.profile?.avatar_url).startsWith("http")
+                        ? (user?.avatarUrl || (profile as any)?.profile?.avatar_url)
+                        : `${API_URL}${user?.avatarUrl || (profile as any)?.profile?.avatar_url}`
                       : `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23a0a0a0"><rect width="24" height="24" fill="%23e4e6eb"/><circle cx="12" cy="8" r="4"/><path d="M12 14c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z"/></svg>`)
                   }
                   alt={user?.fullName || "User"}
