@@ -268,7 +268,6 @@ const createShopProduct = async (shopId, productData) => {
     const {
       name,
       category_id,
-      brand_id,
       description,
       price,
       sale_price,
@@ -322,7 +321,6 @@ const createShopProduct = async (shopId, productData) => {
       {
         name,
         category_id: category_id || null,
-        brand_id: brand_id || null,
         slug,
         description: description || "",
         price: finalPrice,
@@ -443,7 +441,6 @@ const updateShopProduct = async (shopId, productId, productData) => {
     const {
       name,
       category_id,
-      brand_id,
       description,
       price,
       sale_price,
@@ -495,7 +492,6 @@ const updateShopProduct = async (shopId, productId, productData) => {
       {
         name: name || product.name,
         category_id: category_id || product.category_id,
-        brand_id: brand_id !== undefined ? brand_id : product.brand_id,
         description: description !== undefined ? description : product.description,
         price: finalPrice,
         sale_price: finalSalePrice,

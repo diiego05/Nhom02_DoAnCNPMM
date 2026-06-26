@@ -42,6 +42,7 @@ const getSimilarProducts = async (req, res) => {
     );
     return res.status(200).json({ message: "Success", data: similarProducts });
   } catch (error) {
+    console.error("Error in getSimilarProducts:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

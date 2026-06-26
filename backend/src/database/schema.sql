@@ -502,8 +502,7 @@ CREATE TABLE `shop_orders` (
                            'DELIVERED',         -- Giao thành công
                            'CANCELLED',         -- Đã hủy
                            'RETURN_PENDING',    -- Đang xử lý hoàn hàng
-                           'RETURNED',          -- Đã hoàn hàng
-                           'COMPLETED'          -- Đã hoàn thành (Vendor nhận tiền)
+                           'RETURNED'           -- Đã hoàn hàng
                          ) NOT NULL DEFAULT 'PENDING',
   `created_at`           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -633,7 +632,7 @@ CREATE TABLE `shop_payouts` (
   `amount`       DECIMAL(15,2) NOT NULL,
   `bank_name`    VARCHAR(100)  DEFAULT NULL,
   `bank_account` VARCHAR(255)  NOT NULL,
-  `status`       ENUM('PENDING','PENDING_APPROVAL','PROCESSING','COMPLETED','REJECTED') NOT NULL DEFAULT 'PENDING',
+  `status`       ENUM('PENDING','PROCESSING','COMPLETED','REJECTED') NOT NULL DEFAULT 'PENDING',
   `processed_by` BIGINT        DEFAULT NULL COMMENT 'Admin/Manager duyệt',
   `reject_reason` VARCHAR(255) DEFAULT NULL,
   `created_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -4,31 +4,24 @@ const getUserProfileById = (id) => {
   // TODO: Implement get user by id
   return new Promise(async (resolve, reject) => {
     try {
-      //       let userAccount = await db.User.findByPk(id, {
-      //         attributes: { exclude: ['password'] },
-      //         include: [
-      //           { model: db.Role, as: 'role' },
-      //           { model: db.UserProfile, as: 'profile' }
-      //         ]
-      //       });
-      // <<<<<<< HEAD
-      //       if (userAccount) {
-      //         resolve(userAccount);
-      // =======
       let userAccount = await db.User.findByPk(id, {
         attributes: ["loyalty_points", "email", "phone", "role_id"],
-        include: [{ model: db.Role, as: "role", attributes: ["role_name"] }],
+        include: [
+          { model: db.Role, as: "role", attributes: ["role_name"] },
+          { model: db.UserProfile, as: "profile" }
+        ],
       });
-      if (userProfile || userAccount) {
+      
+      if (userAccount) {
+        let userProfile = userAccount.profile ? userAccount.profile.toJSON() : {};
         resolve({
           ...userProfile,
-          loyalty_points: userAccount?.loyalty_points,
-          email: userAccount?.email,
-          phone: userAccount?.phone,
-          role_id: userAccount?.role_id,
-          role: userAccount?.role?.role_name,
+          loyalty_points: userAccount.loyalty_points,
+          email: userAccount.email,
+          phone: userAccount.phone,
+          role_id: userAccount.role_id,
+          role: userAccount.role ? userAccount.role.role_name : null,
         });
-
       } else {
         resolve(null);
       }
