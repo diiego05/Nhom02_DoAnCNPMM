@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Order } from "@/types/order.types";
 import { useCreateReturnRequest } from "@/hooks/useReturns";
 import { axiosClient } from "@/services/axiosClient";
+import toast from "react-hot-toast";
 
 interface ReturnOrderModalProps {
   order: Order;
@@ -56,17 +57,17 @@ export const ReturnOrderModal = ({ order, isOpen, onClose }: ReturnOrderModalPro
       }));
 
     if (returnItems.length === 0) {
-      alert("Vui lòng chọn ít nhất 1 sản phẩm để trả");
+      toast.error("Vui lòng chọn ít nhất 1 sản phẩm để trả");
       return;
     }
 
     if (!reason) {
-      alert("Vui lòng nhập lý do trả hàng");
+      toast.error("Vui lòng nhập lý do trả hàng");
       return;
     }
 
     if (evidenceFiles.length === 0) {
-      alert("Vui lòng tải lên ít nhất 1 ảnh minh chứng về tình trạng sản phẩm");
+      toast.error("Vui lòng tải lên ít nhất 1 ảnh minh chứng về tình trạng sản phẩm");
       return;
     }
 
@@ -77,7 +78,7 @@ export const ReturnOrderModal = ({ order, isOpen, onClose }: ReturnOrderModalPro
         const uploadRes = await uploadImages(evidenceFiles);
         evidenceUrls = uploadRes.data; // Server returns { message, data: urls }
       } catch (err) {
-        alert("Lỗi upload ảnh minh chứng");
+        toast.error("Lỗi upload ảnh minh chứng");
         setIsUploading(false);
         return;
       }

@@ -25,13 +25,13 @@ import {
   TrendingUp,
   Store,
   X,
-  Smile,
   AlertCircle,
   BookOpen,
   FileText,
   Download,
   Loader2,
-  Save
+  Save,
+  Paperclip
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
@@ -142,7 +142,14 @@ const VendorDashboard = () => {
   // Shop state
   const [shopInfo, setShopInfo] = useState<ShopProfileData | null>(null);
 
-  // Form Đăng ký Shop removed (moved to RegisterShopPage)
+  // Form Đăng ký Shop
+  const [registerForm, setRegisterForm] = useState({
+    name: "",
+    phone: "",
+    address: "",
+    description: "",
+    industry: "Thời trang Nam"
+  });
 
   // Overview Stats state
   const [stats, setStats] = useState<{
@@ -754,7 +761,7 @@ const VendorDashboard = () => {
       let finalSalePrice: number | undefined = productForm.sale_price ? parseFloat(productForm.sale_price.toString()) : undefined;
 
       if (hasVariants) {
-        finalVariants = productVariants.map((v, i) => ({
+        finalVariants = productVariants.map((v) => ({
           size: v.size || "Free Size",
           color: v.color || "Default",
           color_hex: v.color_hex || "#888888",
