@@ -1,4 +1,6 @@
 import adminService from "../services/adminService.js";
+import activityLogService from "../services/activityLogService.js";
+import db from "../models/index.js";
 
 // ============================================================
 // 1. QUẢN LÝ TÀI KHOẢN MANAGER
@@ -117,6 +119,17 @@ const approveShop = async (req, res) => {
     const adminId = req.user.id;
     const { id } = req.params;
     const shop = await adminService.approveShop(adminId, id);
+
+    // Ghi log hoạt động
+    await activityLogService.logActivity({
+      actionType: "SHOP_APPROVE",
+      entityType: "SHOP",
+      entityId: id,
+      description: `Phê duyệt gian hàng: "${shop?.shop_name || "N/A"}" (ID: ${id})`,
+      details: { shop_name: shop?.shop_name, vendor_id: shop?.vendor_id },
+      req,
+    });
+
     return res.status(200).json({ message: "Phê duyệt gian hàng thành công", data: shop });
   } catch (error) {
     console.error("Error approving shop:", error);
@@ -130,6 +143,17 @@ const rejectShop = async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
     const shop = await adminService.rejectShop(adminId, id, reason);
+
+    // Ghi log hoạt động
+    await activityLogService.logActivity({
+      actionType: "SHOP_REJECT",
+      entityType: "SHOP",
+      entityId: id,
+      description: `Từ chối gian hàng: "${shop?.shop_name || "N/A"}" (ID: ${id}). Lý do: ${reason || "Không có lý do cụ thể"}`,
+      details: { shop_name: shop?.shop_name, vendor_id: shop?.vendor_id, reason },
+      req,
+    });
+
     return res.status(200).json({ message: "Từ chối gian hàng thành công", data: shop });
   } catch (error) {
     console.error("Error rejecting shop:", error);
@@ -163,6 +187,17 @@ const updateSystemSetting = async (req, res) => {
     }
 
     const setting = await adminService.updateSystemSetting(adminId, key, value);
+
+    // Ghi log hoạt động
+    await activityLogService.logActivity({
+      actionType: "SYSTEM_SETTING_UPDATE",
+      entityType: "SYSTEM_SETTING",
+      entityId: key,
+      description: `Cập nhật cấu hình hệ thống: "${key}" thành "${value}"`,
+      details: { key, value },
+      req,
+    });
+
     return res.status(200).json({ message: "Cập nhật cấu hình thành công", data: setting });
   } catch (error) {
     console.error("Error updating setting:", error);
@@ -184,6 +219,17 @@ const getCategories = async (req, res) => {
 const createCategory = async (req, res) => {
   try {
     const category = await adminService.createCategory(req.body);
+
+    // Ghi log hoạt động
+    await activityLogService.logActivity({
+      actionType: "CATEGORY_CREATE",
+      entityType: "CATEGORY",
+      entityId: category?.id,
+      description: `Tạo danh mục sản phẩm mới: "${category?.name || "N/A"}"`,
+      details: { category_name: category?.name, category_id: category?.id, parent_id: category?.parent_id },
+      req,
+    });
+
     return res.status(201).json({ message: "Tạo danh mục thành công", data: category });
   } catch (error) {
     console.error("Error creating category:", error);
@@ -195,6 +241,17 @@ const updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
     const category = await adminService.updateCategory(id, req.body);
+
+    // Ghi log hoạt động
+    await activityLogService.logActivity({
+      actionType: "CATEGORY_UPDATE",
+      entityType: "CATEGORY",
+      entityId: id,
+      description: `Cập nhật danh mục sản phẩm: "${category?.name || "N/A"}" (ID: ${id})`,
+      details: { category_name: category?.name, payload: req.body },
+      req,
+    });
+
     return res.status(200).json({ message: "Cập nhật danh mục thành công", data: category });
   } catch (error) {
     console.error("Error updating category:", error);
@@ -205,7 +262,19 @@ const updateCategory = async (req, res) => {
 const deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
+    const cat = await db.Category.findByPk(id);
     await adminService.deleteCategory(id);
+
+    // Ghi log hoạt động
+    await activityLogService.logActivity({
+      actionType: "CATEGORY_DELETE",
+      entityType: "CATEGORY",
+      entityId: id,
+      description: `Xóa danh mục sản phẩm: "${cat?.name || "N/A"}" (ID: ${id})`,
+      details: { category_name: cat?.name, id },
+      req,
+    });
+
     return res.status(200).json({ message: "Xóa danh mục thành công" });
   } catch (error) {
     console.error("Error deleting category:", error);
@@ -249,6 +318,17 @@ const approveShopPayout = async (req, res) => {
     const adminId = req.user.id;
     const { id } = req.params;
     const payout = await adminService.approveShopPayout(adminId, id);
+
+    // Ghi log hoạt động
+    await activityLogService.logActivity({
+      actionType: "PAYOUT_APPROVE",
+      entityType: "PAYOUT",
+      entityId: id,
+      description: `Phê duyệt yêu cầu rút tiền chuyển khoản ID: ${id} cho Shop ID: ${payout?.shop_id || "N/A"} với số tiền: ${Number(payout?.amount || 0).toLocaleString()}đ`,
+      details: { payout_id: id, shop_id: payout?.shop_id, amount: payout?.amount },
+      req,
+    });
+
     return res.status(200).json({ message: "Duyệt lệnh chuyển tiền thành công", data: payout });
   } catch (error) {
     console.error("Error approving payout:", error);
@@ -320,6 +400,17 @@ const getPaymentLogs = async (req, res) => {
   }
 };
 
+const getWithdrawalLogs = async (req, res) => {
+  try {
+    const { page, limit, status, search, from_date, to_date } = req.query;
+    const data = await adminService.getWithdrawalLogs(page, limit, { status, search, from_date, to_date });
+    return res.status(200).json({ message: "Success", data });
+  } catch (error) {
+    console.error("Error getting withdrawal logs:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 const getOrderByCode = async (req, res) => {
   try {
     const { code } = req.params;
@@ -328,6 +419,25 @@ const getOrderByCode = async (req, res) => {
   } catch (error) {
     console.error("Error getting order by code:", error);
     return res.status(400).json({ message: error.message });
+  }
+};
+
+const getActivityLogs = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, action_type, entity_type, search, from_date, to_date } = req.query;
+    const result = await activityLogService.getActivityLogs({
+      page,
+      limit,
+      actionType: action_type,
+      entityType: entity_type,
+      search,
+      fromDate: from_date,
+      toDate: to_date,
+    });
+    return res.status(200).json({ message: "Success", data: result });
+  } catch (error) {
+    console.error("Error getting activity logs:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -356,5 +466,7 @@ export default {
   approveShipperReconciliation,
   rejectShipperReconciliation,
   getPaymentLogs,
+  getWithdrawalLogs,
   getOrderByCode,
+  getActivityLogs,
 };

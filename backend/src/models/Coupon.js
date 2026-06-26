@@ -6,6 +6,7 @@ export default (sequelize, DataTypes) => {
       Coupon.belongsTo(models.Shop, { foreignKey: "shop_id", as: "shop" });
       Coupon.hasMany(models.ParentOrder, { foreignKey: "platform_coupon_id", as: "platformOrders" });
       Coupon.hasMany(models.ShopOrder, { foreignKey: "shop_coupon_id", as: "shopOrders" });
+      Coupon.belongsTo(models.Category, { foreignKey: "category_id", as: "category" });
     }
   }
 
@@ -13,6 +14,7 @@ export default (sequelize, DataTypes) => {
     {
       id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
       shop_id: { type: DataTypes.BIGINT, allowNull: true },
+      category_id: { type: DataTypes.BIGINT, allowNull: true },
       code: { type: DataTypes.STRING(50), allowNull: false, unique: true },
       discount_type: { type: DataTypes.ENUM("PERCENT", "FIXED"), allowNull: false },
       discount_value: { type: DataTypes.DECIMAL(15, 2), allowNull: false },

@@ -19,16 +19,6 @@ const getMessages = async (userId, partnerId) => {
     }
   }
 
-  // 3. Nếu không tìm thấy, tìm trường hợp partnerId là Vendor (chủ shop), userId là khách hàng (user_id)
-  if (!conversation) {
-    const partnerShop = await db.Shop.findOne({ where: { vendor_id: partnerId } });
-    if (partnerShop) {
-      conversation = await db.Conversation.findOne({
-        where: { shop_id: partnerShop.id, user_id: userId }
-      });
-    }
-  }
-
   if (!conversation) return [];
 
   // Đánh dấu đã đọc các tin nhắn của đối phương trong cuộc hội thoại này
@@ -45,6 +35,20 @@ const getMessages = async (userId, partnerId) => {
 
   return await db.Message.findAll({
     where: { conversation_id: conversation.id },
+    include: [
+      {
+        model: db.User,
+        as: "sender",
+        attributes: ["id", "email"],
+        include: [
+          {
+            model: db.Role,
+            as: "role",
+            attributes: ["role_name"]
+          }
+        ]
+      }
+    ],
     order: [["sent_at", "ASC"]]
   });
 };
@@ -57,24 +61,24 @@ const sendMessage = async (senderId, receiverId, content) => {
   let shopId = null;
   let customerId = null;
 
-  // Kiểm tra xem receiverId có phải là shop_id không
-  const shopByPk = await db.Shop.findByPk(receiverId);
-  if (shopByPk) {
-    shopId = shopByPk.id;
-    customerId = senderId;
-  } else {
-    // Kiểm tra xem senderId có phải là chủ shop không
-    const senderShop = await db.Shop.findOne({ where: { vendor_id: senderId } });
-    if (senderShop) {
-      shopId = senderShop.id;
+  // Ưu tiên 1: Nếu người gửi là Vendor đang reply lại khách hàng (conversation đã tồn tại)
+  const shopOfSender = await db.Shop.findOne({ where: { vendor_id: senderId } });
+  if (shopOfSender) {
+    const existingConv = await db.Conversation.findOne({
+      where: { shop_id: shopOfSender.id, user_id: receiverId }
+    });
+    if (existingConv) {
+      shopId = shopOfSender.id;
       customerId = receiverId;
-    } else {
-      // Kiểm tra xem receiverId có phải là vendor_id không
-      const receiverShop = await db.Shop.findOne({ where: { vendor_id: receiverId } });
-      if (receiverShop) {
-        shopId = receiverShop.id;
-        customerId = senderId;
-      }
+    }
+  }
+
+  // Ưu tiên 2: Nếu không phải Vendor reply, thì đây là khách hàng nhắn cho Shop
+  if (!shopId) {
+    const shopByPk = await db.Shop.findByPk(receiverId);
+    if (shopByPk) {
+      shopId = shopByPk.id;
+      customerId = senderId;
     }
   }
 
@@ -137,7 +141,10 @@ const getConversations = async (userId) => {
       {
         model: db.User,
         as: "user",
-        include: [{ model: db.UserProfile, as: "profile" }]
+        include: [
+          { model: db.UserProfile, as: "profile" },
+          { model: db.Role, as: "role", attributes: ["role_name"] }
+        ]
       },
       {
         model: db.Shop,
@@ -168,7 +175,8 @@ const getConversations = async (userId) => {
         type: "user",
         id: conv.user.id,
         name: conv.user.profile?.full_name || conv.user.email || "Khách hàng",
-        avatar: conv.user.profile?.avatar_url || null
+        avatar: conv.user.profile?.avatar_url || null,
+        role: conv.user.role?.role_name || "USER"
       };
     } else if (conv.shop) {
       partner = {
