@@ -321,17 +321,15 @@ const createOrder = async (userId, data) => {
   }
 };
 
-const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
-  const where = {};
-  if (status) {
-    if (status === 'PREPARING') {
-      where.status = ['PREPARING', 'READY_FOR_PICKUP'];
-    } else if (typeof status === 'string' && status.includes(',')) {
-      where.status = status.split(',');
-    } else {
-      where.status = status;
+  const getUserOrders = async (userId, { page = 1, limit = 10, status }) => {
+    const where = {};
+    if (status) {
+      if (typeof status === 'string' && status.includes(',')) {
+        where.status = status.split(',');
+      } else {
+        where.status = status;
+      }
     }
-  }
 
   // Find ParentOrders first
   const parentOrders = await db.ParentOrder.findAll({
@@ -434,7 +432,7 @@ const getUserOrderCounts = async (userId) => {
     CONFIRMED: 0,
     PREPARING: 0,
     READY_FOR_PICKUP: 0,
-    DELIVERING: 0,
+    SHIPPING: 0,
     DELIVERED: 0,
     CANCELLED: 0,
     RETURN_PENDING: 0,
@@ -443,8 +441,11 @@ const getUserOrderCounts = async (userId) => {
   };
 
   counts.forEach(c => {
-    if (countMap[c.status] !== undefined) {
-      countMap[c.status] = Number(c.count);
+    if (c.status === 'SHIPPING') {
+      countMap.DELIVERING += Number(c.count);
+      countMap.ALL += Number(c.count);
+    } else if (countMap[c.status] !== undefined) {
+      countMap[c.status] += Number(c.count);
       countMap.ALL += Number(c.count);
     }
   });
@@ -494,7 +495,7 @@ const autoAssignShipperByArea = async (shopOrderId) => {
     const activeOrders = await db.ShopOrder.findAll({
       where: {
         shipper_id: { [db.Sequelize.Op.in]: shipperIds },
-        status: ["READY_FOR_PICKUP", "PICKED_UP", "IN_TRANSIT", "DELIVERING", "RETURN_PENDING"]
+        status: ["SHIPPING", "RETURN_PENDING"]
       },
       include: [{ model: db.ParentOrder, as: "parentOrder" }]
     });
@@ -588,25 +589,20 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
       throw new Error("Không có quyền cập nhật đơn hàng này");
     }
   } else if (role === "shipper") {
-    if (shopOrder.shipper_id !== userId && shopOrder.status !== "READY_FOR_PICKUP") {
-      throw new Error("Không có quyền cập nhật đơn hàng này");
-    }
+    throw new Error("Shipper phải sử dụng tính năng cập nhật Vận đơn");
   }
 
   const oldStatus = shopOrder.status;
   const updateData = { status: newStatus };
 
-  // Trigger auto-assignment of shipper when transitioning to READY_FOR_PICKUP status
-  if (newStatus === "READY_FOR_PICKUP" && oldStatus !== "READY_FOR_PICKUP") {
+  // Trigger auto-assignment of shipper and create shipment when transitioning to PREPARING status
+  if (newStatus === "PREPARING" && oldStatus !== "PREPARING") {
     const assignedShipperId = await autoAssignShipperByArea(shopOrderId);
     if (assignedShipperId) {
       updateData.shipper_id = assignedShipperId;
     }
-  }
-
-  // Set shipper_id if the user is shipper, current status is READY_FOR_PICKUP and shipper_id is not assigned yet
-  if (role === "shipper" && oldStatus === "READY_FOR_PICKUP" && !shopOrder.shipper_id) {
-    updateData.shipper_id = userId;
+    const shipmentService = (await import("./shipmentService.js")).default;
+    await shipmentService.createShipment(shopOrderId, assignedShipperId || null);
   }
 
   // Handle DELIVERED logic (COD vs Online)
@@ -746,9 +742,6 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
       } else if (newStatus === "PREPARING") {
         actorTitle = "Chuẩn bị hàng";
         actorContent = `Bạn đã chuyển trạng thái chuẩn bị hàng cho đơn ${shopOrder.shop_order_code}.`;
-      } else if (newStatus === "READY_FOR_PICKUP") {
-        actorTitle = "Chuẩn bị hàng xong";
-        actorContent = `Bạn đã chuẩn bị xong hàng cho đơn ${shopOrder.shop_order_code} và sẵn sàng giao cho shipper.`;
       } else if (newStatus === "RETURNED") {
         actorTitle = "Nhận hàng hoàn thành công";
         actorContent = `Bạn đã xác nhận nhận lại hàng hoàn cho đơn hàng ${shopOrder.shop_order_code}.`;
@@ -761,19 +754,10 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
         actorTitle = "Hủy đơn hàng";
         actorContent = `Bạn đã hủy đơn hàng ${shopOrder.shop_order_code}.`;
       }
-    } else if (shopOrder.shipper_id === userId || (role === "shipper" && newStatus === "READY_FOR_PICKUP")) {
-      if (newStatus === "READY_FOR_PICKUP") {
-        actorTitle = "Nhận đơn giao hàng";
-        actorContent = `Bạn đã nhận giao đơn hàng ${shopOrder.shop_order_code} và đang đến lấy hàng.`;
-      } else if (newStatus === "PICKED_UP") {
-        actorTitle = "Đã lấy hàng";
-        actorContent = `Bạn đã xác nhận lấy hàng thành công cho đơn ${shopOrder.shop_order_code}.`;
-      } else if (newStatus === "IN_TRANSIT") {
-        actorTitle = "Bắt đầu luân chuyển";
-        actorContent = `Bạn đã bắt đầu luân chuyển đơn hàng ${shopOrder.shop_order_code}.`;
-      } else if (newStatus === "DELIVERING") {
-        actorTitle = "Bắt đầu đi giao";
-        actorContent = `Bạn đã bắt đầu đi giao đơn hàng ${shopOrder.shop_order_code} cho khách hàng.`;
+    } else if (shopOrder.shipper_id === userId) {
+      if (newStatus === "SHIPPING") {
+        actorTitle = "Bắt đầu giao hàng";
+        actorContent = `Đơn hàng ${shopOrder.shop_order_code} đã được cập nhật sang trạng thái Đang giao.`;
       } else if (newStatus === "DELIVERED") {
         actorTitle = "Giao hàng thành công";
         actorContent = `Bạn đã giao thành công đơn hàng ${shopOrder.shop_order_code}.`;
@@ -791,18 +775,15 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
     if (vendorId && userId !== vendorId) {
       let vendorTitle = "Cập nhật đơn hàng";
       let vendorContent = `Đơn hàng ${shopOrder.shop_order_code} của shop đã được cập nhật sang trạng thái ${newStatus}.`;
-      if (newStatus === "READY_FOR_PICKUP" && shopOrder.shipper_id) {
-        vendorTitle = "Shipper nhận đơn";
-        vendorContent = `Shipper đã nhận đơn giao hàng ${shopOrder.shop_order_code} và đang đến lấy hàng.`;
+      if (newStatus === "SHIPPING") {
+        vendorTitle = "Đơn hàng đang giao";
+        vendorContent = `Shipper đang giao đơn hàng ${shopOrder.shop_order_code}.`;
       } else if (newStatus === "PICKED_UP") {
         vendorTitle = "Shipper đã lấy hàng";
         vendorContent = `Shipper đã lấy hàng thành công cho đơn hàng ${shopOrder.shop_order_code}.`;
       } else if (newStatus === "IN_TRANSIT") {
         vendorTitle = "Đơn hàng đang luân chuyển";
         vendorContent = `Đơn hàng ${shopOrder.shop_order_code} đang được luân chuyển.`;
-      } else if (newStatus === "DELIVERING") {
-        vendorTitle = "Đơn hàng đang được giao";
-        vendorContent = `Shipper đang đi giao đơn hàng ${shopOrder.shop_order_code} cho khách hàng.`;
       } else if (newStatus === "DELIVERED") {
         vendorTitle = "Đơn hàng đã giao thành công";
         vendorContent = `Khách hàng/Shipper đã xác nhận giao thành công đơn hàng ${shopOrder.shop_order_code}.`;
@@ -828,9 +809,9 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
       } else if (newStatus === "PREPARING") {
         customerTitle = "Đang chuẩn bị hàng";
         customerContent = `Người bán đang chuẩn bị hàng cho đơn ${shopOrder.shop_order_code} của bạn.`;
-      } else if (newStatus === "READY_FOR_PICKUP") {
-        customerTitle = "Shipper đang đến lấy";
-        customerContent = `Đơn hàng ${shopOrder.shop_order_code} đã được chuẩn bị xong, shipper đang đến lấy hàng.`;
+      } else if (newStatus === "SHIPPING") {
+        customerTitle = "Đang giao hàng";
+        customerContent = `Đơn hàng ${shopOrder.shop_order_code} đang trên đường giao tới bạn.`;
       } else if (newStatus === "PICKED_UP") {
         customerTitle = "Shipper đã lấy hàng";
         customerContent = `Shipper đã lấy đơn hàng ${shopOrder.shop_order_code} của bạn thành công.`;
@@ -898,8 +879,8 @@ const getShipperOrders = async (userId, { page = 1, limit = 10, status }) => {
   const where = {};
 
   if (status) {
-    if (status === 'READY_FOR_PICKUP') {
-      where.status = 'READY_FOR_PICKUP';
+    if (status === 'SHIPPING') {
+      where.status = 'SHIPPING';
       where[db.Sequelize.Op.or] = [
         { shipper_id: null },
         { shipper_id: userId }
@@ -911,7 +892,7 @@ const getShipperOrders = async (userId, { page = 1, limit = 10, status }) => {
   } else {
     where[db.Sequelize.Op.or] = [
       {
-        status: 'READY_FOR_PICKUP',
+        status: 'SHIPPING',
         shipper_id: null
       },
       {
@@ -924,6 +905,7 @@ const getShipperOrders = async (userId, { page = 1, limit = 10, status }) => {
   const { count, rows } = await db.ShopOrder.findAndCountAll({
     where,
     include: [
+      { model: db.Shipment, as: "shipment" },
       {
         model: db.OrderItem,
         as: "items",
