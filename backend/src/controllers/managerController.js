@@ -14,7 +14,8 @@ const getStats = async (req, res) => {
 
 const getReportOverview = async (req, res) => {
   try {
-    const data = await managerService.getReportOverview();
+    const { month, year } = req.query;
+    const data = await managerService.getReportOverview(month, year);
     return res.status(200).json({ message: "Success", data });
   } catch (error) {
     console.error("Error getting report overview:", error);

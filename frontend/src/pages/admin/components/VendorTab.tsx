@@ -7,7 +7,6 @@ import {
    X,
    AlertTriangle,
    Eye,
-   Landmark,
 } from 'lucide-react';
 import { getShopStatusLabel } from '@/utils/statusUtils';
 import { adminService } from '@/services/adminService';
@@ -219,26 +218,6 @@ export const VendorTab = ({ showToast, showConfirm }: VendorTabProps) => {
                      </div>
                   </div>
 
-                  {/* Khối thông tin ngân hàng thụ hưởng */}
-                  <div className="mt-8 border-2 border-black/10 rounded-2xl p-6 bg-gradient-to-br from-blue-50 to-indigo-50">
-                     <h4 className="text-sm font-black uppercase tracking-widest mb-5 flex items-center gap-2 text-indigo-700">
-                        <Landmark size={18} /> Tài khoản thụ hưởng
-                     </h4>
-                     <div className="space-y-4">
-                        <div className="flex justify-between items-center py-2 border-b border-dashed border-indigo-200">
-                           <span className="text-xs font-black uppercase text-gray-400">Ngân hàng</span>
-                           <span className="text-sm font-bold text-black">{selectedShop.bank_name || <span className="text-gray-300 italic">Chưa cập nhật</span>}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-2 border-b border-dashed border-indigo-200">
-                           <span className="text-xs font-black uppercase text-gray-400">Số tài khoản</span>
-                           <span className="text-sm font-black tracking-wider text-black">{selectedShop.bank_account_no || <span className="text-gray-300 italic font-bold">Chưa cập nhật</span>}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-2">
-                           <span className="text-xs font-black uppercase text-gray-400">Chủ tài khoản</span>
-                           <span className="text-sm font-black uppercase text-black">{selectedShop.bank_account_name || <span className="text-gray-300 italic normal-case font-bold">Chưa cập nhật</span>}</span>
-                        </div>
-                     </div>
-                  </div>
 
                   {/* Nút duyệt / từ chối nếu PENDING */}
                   {selectedShop.status === 'PENDING' && (

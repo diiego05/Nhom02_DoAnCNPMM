@@ -188,6 +188,12 @@ const Header = () => {
           >
             BỘ SƯU TẬP
           </Link>
+          <Link
+            to="/blogs"
+            className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors"
+          >
+            BLOG TIN TỨC
+          </Link>
         </nav>
 
         {/* Search Bar */}

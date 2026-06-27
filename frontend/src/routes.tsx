@@ -24,6 +24,8 @@ import VendorDashboard from "@/pages/vendor/VendorDashboard";
 import ManagerDashboard from "@/pages/manager/ManagerDashboard";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import RegisterShopPage from "@/pages/shop/RegisterShopPage";
+import { BlogListPage } from "@/pages/shop/BlogListPage";
+import { BlogDetailPage } from "@/pages/shop/BlogDetailPage";
 
 export const getRoutes = (): RouteObject[] => {
   const role = "ADMIN";
@@ -104,6 +106,14 @@ export const getRoutes = (): RouteObject[] => {
               <ReviewPage />
             </AuthGuard>
           ),
+        },
+        {
+          path: "blogs",
+          element: <BlogListPage />,
+        },
+        {
+          path: "blogs/:slug",
+          element: <BlogDetailPage />,
         },
       ],
     },

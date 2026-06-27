@@ -174,3 +174,64 @@ export const useRestoreReview = () => {
     },
   });
 };
+
+export const useApproveShop = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => adminService.approveShop(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["manager", "vendors"] });
+      queryClient.invalidateQueries({ queryKey: ["manager", "stats"] });
+    },
+  });
+};
+
+export const useRejectShop = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      adminService.rejectShop(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["manager", "vendors"] });
+      queryClient.invalidateQueries({ queryKey: ["manager", "stats"] });
+    },
+  });
+};
+
+export const useManagerBlogs = () => {
+  return useQuery({
+    queryKey: ["manager", "blogs"],
+    queryFn: managerService.getManagerBlogs,
+  });
+};
+
+export const useCreateBlog = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: any) => managerService.createBlog(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["manager", "blogs"] });
+    },
+  });
+};
+
+export const useUpdateBlog = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number | string; payload: any }) =>
+      managerService.updateBlog(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["manager", "blogs"] });
+    },
+  });
+};
+
+export const useDeleteBlog = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number | string) => managerService.deleteBlog(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["manager", "blogs"] });
+    },
+  });
+};

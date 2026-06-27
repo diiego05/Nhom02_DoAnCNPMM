@@ -89,5 +89,11 @@ export const chatService = {
   getConversations: async () => {
     const response = await axiosClient.get("/chats/conversations");
     return response.data;
+  },
+
+  // Trò chuyện với trợ lý AI
+  chatWithAI: async (message: string) => {
+    const response = await axiosClient.post("/chat/ai", { message });
+    return response.data;
   }
 };
