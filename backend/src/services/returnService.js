@@ -9,7 +9,7 @@ const returnService = {
     
     try {
       const order = await db.ShopOrder.findOne({
-        where: { id: shopOrderId, status: "DELIVERED" },
+        where: { id: shopOrderId, status: ["DELIVERED", "COMPLETED"] },
         include: [
           { model: db.ParentOrder, as: "parentOrder", where: { user_id: userId } },
           { model: db.OrderItem, as: "items" }
@@ -21,16 +21,29 @@ const returnService = {
         throw new Error("Không tìm thấy đơn hàng hợp lệ để trả hàng");
       }
 
-      // Kiểm tra 7 ngày
-      const deliveredLog = await db.ShopOrderStatusHistory.findOne({
-        where: { shop_order_id: shopOrderId, new_status: "DELIVERED" },
-        order: [["changed_at", "DESC"]],
-        transaction
-      });
-      
-      const deliveredTime = deliveredLog ? new Date(deliveredLog.changed_at) : new Date(order.updated_at);
-      if (new Date() - deliveredTime > 7 * 24 * 60 * 60 * 1000) {
-        throw new Error("Đã quá 7 ngày kể từ khi nhận hàng, không thể yêu cầu trả hàng");
+      // Kiểm tra thời hạn trả hàng: 7 ngày đối với DELIVERED, 15 ngày đối với COMPLETED
+      let limitDays = 7;
+      let checkTime;
+      if (order.status === "COMPLETED") {
+        limitDays = 15;
+        const completedLog = await db.ShopOrderStatusHistory.findOne({
+          where: { shop_order_id: shopOrderId, new_status: "COMPLETED" },
+          order: [["changed_at", "DESC"]],
+          transaction
+        });
+        checkTime = completedLog ? new Date(completedLog.changed_at) : new Date(order.updated_at);
+      } else {
+        limitDays = 7;
+        const deliveredLog = await db.ShopOrderStatusHistory.findOne({
+          where: { shop_order_id: shopOrderId, new_status: "DELIVERED" },
+          order: [["changed_at", "DESC"]],
+          transaction
+        });
+        checkTime = deliveredLog ? new Date(deliveredLog.changed_at) : new Date(order.updated_at);
+      }
+
+      if (new Date() - checkTime > limitDays * 24 * 60 * 60 * 1000) {
+        throw new Error(`Đã quá ${limitDays} ngày kể từ khi nhận hàng/hoàn thành, không thể yêu cầu trả hàng`);
       }
 
       const existingRequest = await db.ReturnRequest.findOne({
@@ -69,26 +82,28 @@ const returnService = {
         }, { transaction });
       }
 
+      const oldStatus = order.status;
       await order.update({ status: "RETURN_PENDING" }, { transaction });
 
       await db.ShopOrderStatusHistory.create({
         shop_order_id: shopOrderId,
-        old_status: "DELIVERED",
+        old_status: oldStatus,
         new_status: "RETURN_PENDING",
         changed_by: userId,
         note: "Người dùng yêu cầu trả hàng",
       }, { transaction });
 
       // Cập nhật ví shop
-      // Chuyển từ balance sang pending_balance
+      // Chuyển từ balance sang pending_balance nếu đơn hàng cũ đã hoàn thành (tiền đã về ví khả dụng)
       const shopWallet = await db.ShopWallet.findOne({ where: { shop_id: order.shop_id }, transaction });
       if (shopWallet) {
         const amountToFreeze = order.final_amount - order.commission_amount;
-        // Thực tế chỉ nên freeze phần trả hàng nhưng để đơn giản freeze cả đơn
-        if (shopWallet.balance >= amountToFreeze) {
-            shopWallet.balance -= amountToFreeze;
-            shopWallet.pending_balance += amountToFreeze;
-            await shopWallet.save({ transaction });
+        if (oldStatus === "COMPLETED") {
+          if (shopWallet.balance >= amountToFreeze) {
+              shopWallet.balance -= amountToFreeze;
+              shopWallet.pending_balance += amountToFreeze;
+              await shopWallet.save({ transaction });
+          }
         }
       }
 
