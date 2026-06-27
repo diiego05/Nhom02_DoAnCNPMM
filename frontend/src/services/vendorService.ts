@@ -58,6 +58,7 @@ export interface VoucherData {
   description?: string;
   discount_type?: "PERCENTAGE" | "FIXED_AMOUNT";
   discount_value: number;
+  category_id?: string | number;
   min_order_amount?: number;
   max_discount?: number;
   usage_limit?: number;

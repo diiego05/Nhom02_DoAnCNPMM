@@ -15,6 +15,11 @@ const getValidCoupons = async (userId) => {
         { usage_limit: { [Op.gt]: db.sequelize.col('used_count') } }
       ]
     },
+    include: [{
+      model: db.Category,
+      as: 'category',
+      attributes: ['name']
+    }],
     order: [["discount_value", "DESC"]],
   });
 
@@ -82,6 +87,11 @@ const getMySavedCoupons = async (userId) => {
     include: [{
       model: Coupon,
       as: 'coupon',
+      include: [{
+        model: db.Category,
+        as: 'category',
+        attributes: ['name']
+      }],
       where: {
         end_date: { [Op.gte]: currentDate },
         [Op.or]: [
@@ -117,6 +127,11 @@ const getMyVoucherWallet = async (userId) => {
     include: [{
       model: Coupon,
       as: 'coupon',
+      include: [{
+        model: db.Category,
+        as: 'category',
+        attributes: ['name']
+      }]
     }],
     order: [['saved_at', 'DESC']]
   });

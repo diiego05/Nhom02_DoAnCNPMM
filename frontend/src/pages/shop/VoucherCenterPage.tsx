@@ -110,6 +110,12 @@ const VoucherCenterPage: React.FC = () => {
               Đã dùng {v.used_count}/{v.usage_limit}
             </div>
           )}
+          {v.category && (
+            <div className="text-[10px] mt-1 font-semibold text-primary flex items-center gap-1">
+              <Info size={10} />
+              Chỉ áp dụng cho: {v.category.name}
+            </div>
+          )}
         </div>
         <button
           type="button"

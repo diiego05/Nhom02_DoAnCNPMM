@@ -8,6 +8,28 @@ const generateOrderCode = (prefix = "ORD") => {
   return `${prefix}-${dateStr}-${random}`;
 };
 
+const getDescendantCategories = async (categoryId) => {
+  const descendants = [categoryId];
+  let currentLevel = [categoryId];
+
+  while (currentLevel.length > 0) {
+    const children = await db.Category.findAll({
+      where: { parent_id: { [db.Sequelize.Op.in]: currentLevel } },
+      attributes: ['id']
+    });
+    
+    if (children.length > 0) {
+      const childIds = children.map(c => c.id);
+      descendants.push(...childIds);
+      currentLevel = childIds;
+    } else {
+      currentLevel = [];
+    }
+  }
+
+  return descendants;
+};
+
 const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupons, usePoints }) => {
   // Fetch loyalty points settings once
   const earnRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_EARN_RATE' } });
@@ -64,6 +86,7 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
     const itemTotal = item.quantity * Number(price);
     shopsData[shopId].subtotal += itemTotal;
     shopsData[shopId].items.push({
+      cart_item_id: item.id || item.cart_item_id,
       product_id: product.id,
       variant_id: variant.id,
       product_name: product.name,
@@ -95,12 +118,29 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
             throw new Error(`Bạn chưa lưu mã giảm giá ${code}. Vui lòng lưu mã trước khi sử dụng.`);
           }
 
-          if (shopsData[shopId].subtotal >= coupon.min_order_amount) {
+          let validShopSubtotal = shopsData[shopId].subtotal;
+
+          // Nếu có giới hạn danh mục
+          if (coupon.category_id) {
+            validShopSubtotal = 0;
+            const validCategoryIds = await getDescendantCategories(coupon.category_id);
+            for (const item of shopsData[shopId].items) {
+              if (validCategoryIds.includes(item.category_id)) {
+                validShopSubtotal += item.total_price;
+              }
+            }
+          }
+
+          if (validShopSubtotal >= coupon.min_order_amount) {
             const discount = coupon.discount_type === 'PERCENT'
-              ? (shopsData[shopId].subtotal * Number(coupon.discount_value) / 100)
+              ? (validShopSubtotal * Number(coupon.discount_value) / 100)
               : Number(coupon.discount_value);
             shopsData[shopId].shop_discount = coupon.max_discount ? Math.min(discount, Number(coupon.max_discount)) : discount;
             shopsData[shopId].shop_coupon_id = coupon.id;
+          } else if (coupon.category_id && validShopSubtotal === 0) {
+            throw new Error(`Mã giảm giá ${code} không áp dụng cho danh mục sản phẩm bạn đang mua từ shop này`);
+          } else {
+            throw new Error(`Đơn hàng từ shop chưa đạt mức tối thiểu ${coupon.min_order_amount}₫ để áp dụng mã giảm giá ${code}`);
           }
         }
       }
@@ -141,9 +181,10 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
       // Nếu có giới hạn danh mục
       if (platformCouponObj.category_id) {
         validSubtotal = 0;
+        const validCategoryIds = await getDescendantCategories(platformCouponObj.category_id);
         for (const shop of Object.values(shopsData)) {
           for (const item of shop.items) {
-            if (item.category_id === platformCouponObj.category_id) {
+            if (validCategoryIds.includes(item.category_id)) {
               validSubtotal += item.total_price;
             }
           }
@@ -312,8 +353,11 @@ const createOrder = async (userId, data) => {
     }
 
     if (data.is_cart_checkout) {
-      // Vì hiện tại frontend chưa hỗ trợ thanh toán từng phần giỏ hàng, nên ta xóa luôn toàn bộ giỏ hàng
-      await db.CartItem.destroy({ where: { user_id: userId }, transaction });
+      // Vì hiện tại frontend hỗ trợ thanh toán từng phần giỏ hàng, nên ta chỉ xóa các item đã được chọn
+      const cartItemIds = calcResult.shops.flatMap(s => s.items.map(i => i.cart_item_id).filter(Boolean));
+      if (cartItemIds.length > 0) {
+        await db.CartItem.destroy({ where: { id: cartItemIds, user_id: userId }, transaction });
+      }
     }
 
     // Tạo PaymentLog ban đầu

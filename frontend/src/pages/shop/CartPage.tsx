@@ -11,8 +11,10 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart, useRemoveCartItem, useUpdateCartItem } from "@/hooks/useCart";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import toast from "react-hot-toast";
 import { useAppSelector } from "@/stores/hooks";
+import { Check } from "lucide-react";
 
 const CartPage = () => {
   const { data: cart, isLoading } = useCart();
@@ -23,6 +25,7 @@ const CartPage = () => {
     color: string;
     size: string;
   } | null>(null);
+  const [selectedItems, setSelectedItems] = useState<number[]>([]);
 
   const navigate = useNavigate();
   const isAuthenticated = useAppSelector((state) => !!state.auth.accessToken);
@@ -44,9 +47,48 @@ const CartPage = () => {
   }, {});
 
   const shopGroups: any[] = Object.values(groupedCartItems);
+  
+  const selectedCartItems = useMemo(() => {
+    return cartItems.filter(item => selectedItems.includes(item.id));
+  }, [cartItems, selectedItems]);
 
-  const shipping = shopGroups.length * 30000;
-  const total = subtotal + shipping;
+  const selectedSubtotal = useMemo(() => {
+    return selectedCartItems.reduce((acc, item) => {
+      const price = item.variant?.sale_price || item.variant?.price || item.product?.sale_price || item.product?.price || 0;
+      return acc + (Number(price) * item.quantity);
+    }, 0);
+  }, [selectedCartItems]);
+
+  // Shipping logic: Count number of distinct shops among selected items
+  const selectedShopIds = new Set(selectedCartItems.map(item => item.variant?.product?.shop?.id || item.product?.shop?.id || 'unknown'));
+  const shipping = selectedShopIds.size * 30000;
+  const total = selectedSubtotal + shipping;
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedItems(cartItems.map(item => item.id));
+    } else {
+      setSelectedItems([]);
+    }
+  };
+
+  const handleSelectShop = (shopId: any, itemsInShop: any[], checked: boolean) => {
+    if (checked) {
+      const newSelected = new Set([...selectedItems, ...itemsInShop.map(i => i.id)]);
+      setSelectedItems(Array.from(newSelected));
+    } else {
+      const shopItemIds = new Set(itemsInShop.map(i => i.id));
+      setSelectedItems(selectedItems.filter(id => !shopItemIds.has(id)));
+    }
+  };
+
+  const handleSelectItem = (itemId: number, checked: boolean) => {
+    if (checked) {
+      setSelectedItems(prev => [...prev, itemId]);
+    } else {
+      setSelectedItems(prev => prev.filter(id => id !== itemId));
+    }
+  };
 
   const handleUpdateQuantity = (
     itemId: number,
@@ -60,16 +102,28 @@ const CartPage = () => {
 
   const handleRemove = (itemId: number) => {
     if (window.confirm("Bạn có chắc muốn xóa sản phẩm này khỏi giỏ hàng?")) {
-      removeItemMutation.mutate(itemId);
+      removeItemMutation.mutate(itemId, {
+        onSuccess: () => {
+          toast.success("Đã xóa sản phẩm khỏi giỏ hàng");
+        },
+        onError: (err: any) => {
+          toast.error(err.response?.data?.message || err.message || "Không thể xóa sản phẩm");
+        }
+      });
     }
   };
 
   const handleCheckout = () => {
     if (cartItems.length === 0) return;
+    if (selectedItems.length === 0) {
+      toast.error("Vui lòng chọn ít nhất 1 sản phẩm để thanh toán");
+      return;
+    }
+    
     if (isAuthenticated) {
-      navigate("/checkout");
+      navigate("/checkout", { state: { selectedItems: selectedCartItems } });
     } else {
-      navigate("/auth/login?redirect=/checkout");
+      navigate("/auth/login?redirect=/checkout", { state: { selectedItems: selectedCartItems } });
     }
   };
 
@@ -87,15 +141,32 @@ const CartPage = () => {
         {/* Header */}
         <div className="mb-12 flex items-end justify-between">
           <div>
-            <h1 className="text-5xl font-serif font-black tracking-tighter uppercase mb-2">
-              Giỏ hàng
-            </h1>
-            <p className="text-gray-500 font-medium">
-              Bạn đang có{" "}
-              <span className="text-black font-bold">
-                {cartItems.length} sản phẩm
-              </span>{" "}
-              trong giỏ hàng
+            <div className="flex items-center gap-4 mb-2">
+              <h1 className="text-5xl font-serif font-black tracking-tighter uppercase">
+                Giỏ hàng
+              </h1>
+            </div>
+            <p className="text-gray-500 font-medium flex items-center gap-4 mt-2">
+              <label className="flex items-center gap-2 cursor-pointer group select-none">
+                <div 
+                  className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all duration-200 ${
+                    cartItems.length > 0 && selectedItems.length === cartItems.length
+                      ? "bg-primary border-primary text-white" 
+                      : "bg-white border-gray-300 text-transparent hover:border-primary"
+                  }`}
+                >
+                  <Check size={14} strokeWidth={4} />
+                </div>
+                <input 
+                  type="checkbox" 
+                  className="hidden"
+                  checked={cartItems.length > 0 && selectedItems.length === cartItems.length}
+                  onChange={(e) => handleSelectAll(e.target.checked)}
+                />
+                <span className="font-bold text-sm uppercase tracking-widest group-hover:text-black transition-colors">
+                  Chọn tất cả ({cartItems.length})
+                </span>
+              </label>
             </p>
           </div>
           <Link
@@ -117,6 +188,23 @@ const CartPage = () => {
                   className="bg-white border-2 border-black rounded-[2.5rem] p-8 shadow-sm overflow-hidden"
                 >
                   <div className="flex items-center gap-3 border-b-2 border-black pb-4 mb-6">
+                    <label className="cursor-pointer group select-none flex items-center justify-center">
+                      <div 
+                        className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all duration-200 ${
+                          group.items.length > 0 && group.items.every((i: any) => selectedItems.includes(i.id))
+                            ? "bg-primary border-primary text-white" 
+                            : "bg-white border-gray-300 text-transparent hover:border-primary"
+                        }`}
+                      >
+                        <Check size={14} strokeWidth={4} />
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        className="hidden"
+                        checked={group.items.length > 0 && group.items.every((i: any) => selectedItems.includes(i.id))}
+                        onChange={(e) => handleSelectShop(group.shop?.id || "unknown", group.items, e.target.checked)}
+                      />
+                    </label>
                     <Store className="text-primary" />
                     <h2 className="text-xl font-black uppercase tracking-tighter">
                       {group.shop?.shop_name || "UTEShop Official"}
@@ -139,8 +227,27 @@ const CartPage = () => {
                       return (
                         <div
                           key={item.id}
-                          className="flex items-center gap-8 py-6 first:pt-0 last:pb-0 border-b border-gray-100 last:border-0 group"
+                          className="flex items-center gap-4 py-6 first:pt-0 last:pb-0 border-b border-gray-100 last:border-0 group"
                         >
+                          {/* Checkbox */}
+                          <label className="cursor-pointer group select-none flex items-center justify-center flex-shrink-0">
+                            <div 
+                              className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all duration-200 ${
+                                selectedItems.includes(item.id)
+                                  ? "bg-primary border-primary text-white" 
+                                  : "bg-white border-gray-300 text-transparent hover:border-primary"
+                              }`}
+                            >
+                              <Check size={14} strokeWidth={4} />
+                            </div>
+                            <input 
+                              type="checkbox" 
+                              className="hidden"
+                              checked={selectedItems.includes(item.id)}
+                              onChange={(e) => handleSelectItem(item.id, e.target.checked)}
+                            />
+                          </label>
+
                           {/* Thumbnail */}
                           <div className="w-32 h-40 bg-gray-50 rounded-2xl overflow-hidden border-2 border-black flex-shrink-0 relative group-hover:shadow-subtle transition-all">
                             <img
@@ -385,7 +492,7 @@ const CartPage = () => {
                     Tạm tính
                   </span>
                   <span className="font-black">
-                    {subtotal.toLocaleString()}₫
+                    {selectedSubtotal.toLocaleString()}₫
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
@@ -394,10 +501,10 @@ const CartPage = () => {
                   </span>
                   <div className="text-right">
                     <span className="font-black text-black">
-                      {shipping.toLocaleString()}₫
+                      {shipping > 0 ? `${shipping.toLocaleString()}₫` : "0₫"}
                     </span>
                     <p className="text-[10px] text-gray-400 font-bold">
-                      ({shopGroups.length} kiện hàng)
+                      ({selectedShopIds.size} kiện hàng)
                     </p>
                   </div>
                 </div>
@@ -418,8 +525,7 @@ const CartPage = () => {
 
               <button
                 onClick={handleCheckout}
-                disabled={cartItems.length === 0}
-
+                disabled={selectedItems.length === 0}
                 className="w-full bg-primary border-2 border-black text-white mt-4 py-5 rounded-2xl flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-widest shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[6px] hover:translate-y-[6px] transition-all duration-200 whitespace-nowrap disabled:opacity-50 disabled:pointer-events-none"
 
               >

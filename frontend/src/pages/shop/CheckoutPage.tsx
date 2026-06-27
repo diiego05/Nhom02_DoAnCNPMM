@@ -49,6 +49,7 @@ const CheckoutPage = () => {
   }, [isAuthenticated, navigate]);
 
   const buyNowItem = location.state?.buyNowItem;
+  const selectedItems = location.state?.selectedItems;
   const { data: cart, isLoading: isCartLoading } = useCart();
   const { data: addresses, isLoading: isAddressesLoading } = useAddresses();
   const { data: profile } = useProfile();
@@ -258,7 +259,7 @@ const CheckoutPage = () => {
   };
 
   const onSubmit = async (data: any) => {
-    const checkoutItems = buyNowItem ? [buyNowItem] : cart?.items || [];
+    const checkoutItems = buyNowItem ? [buyNowItem] : (selectedItems || cart?.items || []);
 
     if (checkoutItems.length === 0) {
       alert("Đơn hàng của bạn đang trống!");
@@ -282,6 +283,7 @@ const CheckoutPage = () => {
         variant_id: item.product_variant_id || item.variant_id || item.variant?.id || undefined,
         quantity: item.quantity,
         unit_price: item.variant?.sale_price || item.variant?.price || item.unit_price,
+        cart_item_id: item.cart_item_id || item.id,
       })),
       is_cart_checkout: !buyNowItem,
     };
@@ -301,8 +303,11 @@ const CheckoutPage = () => {
     });
   };
 
-  const cartItems = buyNowItem ? [buyNowItem] : cart?.items || [];
-  const subtotal = buyNowItem ? buyNowItem.unit_price * buyNowItem.quantity : cart?.totalAmount || 0;
+  const cartItems = buyNowItem ? [buyNowItem] : (selectedItems || cart?.items || []);
+  const subtotal = buyNowItem ? buyNowItem.unit_price * buyNowItem.quantity : cartItems.reduce((acc: number, item: any) => {
+    const price = item.variant?.sale_price || item.variant?.price || item.unit_price || 0;
+    return acc + (Number(price) * item.quantity);
+  }, 0);
 
   const groupedCartItems = cartItems.reduce((acc: any, item: any) => {
     const product = item.variant?.product || item.product;
@@ -329,6 +334,7 @@ const CheckoutPage = () => {
             variant_id: item.product_variant_id || item.variant_id || item.variant?.id || undefined,
             quantity: item.quantity,
             unit_price: item.variant?.sale_price || item.variant?.price || item.unit_price,
+            cart_item_id: item.cart_item_id || item.id,
           })),
           platformCouponCode: couponCode || undefined,
           shopCoupons: shopCoupons,

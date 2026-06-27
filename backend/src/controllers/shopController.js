@@ -171,6 +171,7 @@ const createShopVoucher = async (req, res) => {
       usage_limit,
       start_date,
       end_date,
+      category_id,
     } = req.body;
 
     // Map discount_type từ frontend sang model enum (PERCENT, FIXED)
@@ -191,6 +192,7 @@ const createShopVoucher = async (req, res) => {
       start_date: start_date || new Date(),
       end_date: end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
       shop_id: shop.id,
+      category_id: category_id || null,
     });
 
     return res.status(201).json({ message: "Create voucher successfully", data: voucher });

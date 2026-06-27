@@ -192,6 +192,11 @@ function CouponCard({ coupon, isValid, navigate }: { coupon: any, isValid: boole
               Giảm tối đa ₫{Number(coupon.max_discount).toLocaleString()}
             </div>
           )}
+          {coupon.category && (
+            <div className="text-[10px] font-bold text-primary uppercase tracking-widest mt-1">
+              Áp dụng cho: {coupon.category.name}
+            </div>
+          )}
         </div>
         
         {/* Footer info */}
