@@ -7,7 +7,7 @@ import {
   Star, X, Store
 } from 'lucide-react';
 import PaymentCountdownButton from '@/components/ui/PaymentCountdownButton';
-import { useOrderDetail, useRetryPayment } from '@/hooks/useOrders';
+import { useOrderDetail, useRetryPayment, useShipmentDetail } from '@/hooks/useOrders';
 import { useCreateReview, useUpdateReview } from '@/hooks/useReviews';
 import { OrderStatus } from '@/types/order.types';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
@@ -18,6 +18,7 @@ import orderService from '@/services/orderService';
 const OrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const { data: order, isLoading, isError } = useOrderDetail(Number(id));
+  const { data: shipment, isLoading: isShipmentLoading } = useShipmentDetail(Number(id));
   const { data: systemSettings } = useSystemSettings() as any;
   const navigate = useNavigate();
 
@@ -172,7 +173,7 @@ const OrderDetailPage = () => {
     { key: "PENDING", label: "Đơn mới" },
     { key: "CONFIRMED", label: "Đã xác nhận" },
     { key: "PREPARING", label: "Chuẩn bị hàng" },
-    { key: "DELIVERING", label: "Đang giao" },
+    { key: "SHIPPING", label: "Đang giao" },
     { key: "DELIVERED", label: "Thành công" },
   ];
 
@@ -181,11 +182,7 @@ const OrderDetailPage = () => {
       'PENDING': 'Chờ xác nhận',
       'CONFIRMED': 'Đã xác nhận',
       'PREPARING': 'Đang chuẩn bị',
-      'READY_FOR_PICKUP': 'Chờ lấy hàng',
-      'PICKED_UP': 'Shipper đã lấy hàng thành công',
-      'IN_TRANSIT': 'Đang luân chuyển',
-      'DELIVERING': 'Shipper đang đi giao',
-      'SHIPPING': 'Shipper đang đi giao',
+      'SHIPPING': 'Đang đi giao',
       'DELIVERED': 'Giao thành công',
       'CANCEL_REQUESTED': 'Yêu cầu hủy',
       'CANCELLED': 'Đã hủy',
@@ -198,7 +195,7 @@ const OrderDetailPage = () => {
 
   const getStatusColor = (status: OrderStatus) => {
     if (['DELIVERED'].includes(status)) return 'bg-green-50 text-green-600 border-green-200';
-    if (['DELIVERING', 'SHIPPING', 'IN_TRANSIT', 'PICKED_UP', 'READY_FOR_PICKUP'].includes(status)) return 'bg-blue-50 text-blue-600 border-blue-200';
+    if (['SHIPPING'].includes(status)) return 'bg-blue-50 text-blue-600 border-blue-200';
     if (['CANCELLED', 'CANCEL_REQUESTED', 'FAILED'].includes(status)) return 'bg-red-50 text-red-600 border-red-200';
     if (['RETURN_PENDING', 'RETURNED'].includes(status)) return 'bg-pink-50 text-pink-600 border-pink-200';
     return 'bg-orange-50 text-orange-600 border-orange-200';
@@ -241,10 +238,7 @@ const OrderDetailPage = () => {
       );
     }
 
-    const normalizedStatus = ['READY_FOR_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERING'].includes(currentStatus)
-      ? 'DELIVERING'
-      : currentStatus;
-    const currentIndex = orderStatuses.findIndex(s => s.key === normalizedStatus);
+    const currentIndex = orderStatuses.findIndex(s => s.key === currentStatus);
 
     return (
       <div className="flex flex-row w-full mt-8 px-4 relative">
@@ -270,7 +264,78 @@ const OrderDetailPage = () => {
     );
   };
 
-  if (isLoading) {
+  const renderShipmentHistory = () => {
+    if (!shipment || !shipment.histories || shipment.histories.length === 0) return null;
+
+    return (
+      <div className="mt-8 border-t-2 border-gray-100 pt-8">
+        <h3 className="text-xl font-black uppercase mb-6 flex items-center gap-2">
+          <MapPin className="text-primary" size={24} /> Hành trình giao hàng
+        </h3>
+        
+        {shipment.shipper && (
+          <div className="bg-gray-50 p-4 rounded-xl border-2 border-gray-200 mb-6 flex items-center gap-4">
+            {shipment.shipper.avatar_url ? (
+              <img src={shipment.shipper.avatar_url} alt="Shipper" className="w-12 h-12 rounded-full border-2 border-primary object-cover" />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center font-bold text-lg">
+                {shipment.shipper.full_name[0]}
+              </div>
+            )}
+            <div>
+              <p className="text-sm font-black text-gray-500 uppercase tracking-widest mb-1">Tài xế giao hàng</p>
+              <p className="font-bold">{shipment.shipper.full_name}</p>
+              <p className="text-sm font-medium text-gray-600">{shipment.shipper.phone}</p>
+            </div>
+            {shipment.tracking_number && (
+              <div className="ml-auto text-right">
+                <p className="text-sm font-black text-gray-500 uppercase tracking-widest mb-1">Mã vận đơn</p>
+                <p className="font-bold text-primary">{shipment.tracking_number}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="relative pl-6">
+          <div className="absolute left-[11px] top-4 bottom-4 w-[2px] bg-gray-200"></div>
+          <div className="space-y-6">
+            {shipment.histories.map((h, idx) => (
+              <div key={h.id} className="relative flex gap-4">
+                <div className={`absolute -left-6 top-1 w-6 h-6 rounded-full border-4 border-white ${idx === 0 ? 'bg-primary shadow-[0_0_10px_rgba(var(--color-primary),0.5)]' : 'bg-gray-300'}`}></div>
+                <div className="flex-1">
+                  <p className={`font-bold ${idx === 0 ? 'text-black' : 'text-gray-500'}`}>
+                    {h.status === 'PENDING_PICKUP' ? 'Đang chờ lấy hàng' :
+                     h.status === 'PICKED_UP' ? 'Đã lấy hàng' :
+                     h.status === 'IN_TRANSIT' ? 'Đang luân chuyển' :
+                     h.status === 'OUT_FOR_DELIVERY' ? 'Đang đi giao' :
+                     h.status === 'DELIVERED' ? 'Giao thành công' :
+                     h.status === 'FAILED' ? 'Giao thất bại' :
+                     h.status === 'RETURNED' ? 'Đã hoàn hàng' : h.status}
+                  </p>
+                  {h.location && (
+                    <p className="text-sm font-medium text-gray-600 mt-1 flex items-center gap-1">
+                      <MapPin size={14} /> {h.location}
+                    </p>
+                  )}
+                  {h.note && (
+                    <p className="text-sm text-gray-500 mt-1">{h.note}</p>
+                  )}
+                  {h.proof_image_url && (
+                    <img src={h.proof_image_url} alt="Proof" className="mt-3 rounded-lg border border-gray-200 max-w-[200px] h-auto object-cover" />
+                  )}
+                  <p className="text-xs font-bold text-gray-400 mt-2">
+                    {new Date(h.created_at).toLocaleString('vi-VN')}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (isLoading || isShipmentLoading) {
     return (
       <div className="min-h-screen bg-[#F4F4F0] flex items-center justify-center">
         <Loader2 className="animate-spin text-primary" size={48} />
@@ -367,6 +432,7 @@ const OrderDetailPage = () => {
 
           <div className="p-8 border-b-2 border-black/5">
             {renderTimeline(order.status)}
+            {renderShipmentHistory()}
           </div>
 
           <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 bg-gray-50/30 border-b-2 border-black/5">

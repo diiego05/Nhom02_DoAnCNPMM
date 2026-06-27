@@ -146,6 +146,7 @@ const authSlice = createSlice({
       // ── initAuth ──
       .addCase(initAuthThunk.pending, (state) => {
         state.loading = true;
+        state.initialized = false;
       })
       .addCase(initAuthThunk.fulfilled, (state, action) => {
         state.loading = false;

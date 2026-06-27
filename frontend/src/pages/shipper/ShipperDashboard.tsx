@@ -10,29 +10,24 @@ import {
   PackageSearch,
   DollarSign,
   LogOut,
-  Star,
   RefreshCw,
   TrendingUp,
-  MapPin,
-  Clock,
-  ArrowUpRight,
   ShieldCheck,
   AlertTriangle,
   Menu,
-  X,
-  FileText,
   CheckCircle2,
+  X,
 } from "lucide-react";
 import useAuth from "@/hooks/useAuth";
 import { useForm, Controller } from "react-hook-form";
 import * as yup from "yup";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { useTopShops } from "@/hooks/useShops";
 import { useProfile } from "@/hooks/useUser";
 import { userService } from "@/services/userService";
 import { axiosClient } from "@/services/axiosClient";
 import { ShipperReconciliationTab } from "../user/ShipperReconciliationTab";
 import { Link } from "react-router-dom";
+import { shipmentService } from "@/services/shipmentService";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8088";
 const FACEBOOK_DEFAULT_AVATAR = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23a0a0a0"><rect width="24" height="24" fill="%23e4e6eb"/><circle cx="12" cy="8" r="4"/><path d="M12 14c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z"/></svg>`;
@@ -69,6 +64,13 @@ export const ShipperDashboard: React.FC = () => {
   const [failedReason, setFailedReason] = useState("Không liên lạc được người mua");
   const [otherReason, setOtherReason] = useState("");
 
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successProofFile, setSuccessProofFile] = useState<File | null>(null);
+  const [successProofPreview, setSuccessProofPreview] = useState<string | null>(null);
+  const [successNote, setSuccessNote] = useState("");
+  const [isSubmittingSuccess, setIsSubmittingSuccess] = useState(false);
+  const successFileInputRef = useRef<HTMLInputElement>(null);
+
   // Profile update state
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -76,7 +78,6 @@ export const ShipperDashboard: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: profile } = useProfile({ enabled: !!user });
-  const { data: shopsData } = useTopShops(100);
 
   const profileSchema = yup.object({
     full_name: yup.string().required("Tên không được để trống"),
@@ -94,14 +95,13 @@ export const ShipperDashboard: React.FC = () => {
         return new Date(value) <= fiveYearsAgo;
       }),
     gender: yup.string().required("Giới tính không được để trống"),
-    operating_areas: yup.array().of(yup.string()).optional(),
+    operating_areas: yup.array().of(yup.string().required()).optional(),
   });
 
   const {
     control,
     handleSubmit,
     reset,
-    formState: { errors },
   } = useForm<IUpdateProfileData>({
     defaultValues: {
       full_name: (user as any)?.full_name || (user as any)?.fullName || "",
@@ -121,7 +121,7 @@ export const ShipperDashboard: React.FC = () => {
         return [];
       })(),
     },
-    resolver: yupResolver(profileSchema),
+    resolver: yupResolver(profileSchema) as any,
   });
 
   // Sync profile details when loaded
@@ -170,9 +170,14 @@ export const ShipperDashboard: React.FC = () => {
     fetchShipperOrders();
   }, []);
 
-  const handleUpdateStatus = async (orderId: number, status: string, note?: string) => {
+  const handleUpdateStatus = async (orderId: number, status: string, note?: string, proofImageUrl?: string) => {
     try {
-      await axiosClient.patch(`/orders/${orderId}/status`, { status, note });
+      const order = allShipperOrders.find(o => o.id === orderId);
+      if (order && order.shipment) {
+        await shipmentService.updateShipmentStatus(order.shipment.id, { status, note, proof_image_url: proofImageUrl });
+      } else {
+        throw new Error("Không tìm thấy thông tin vận đơn");
+      }
       alert("Cập nhật trạng thái thành công!");
       fetchShipperOrders();
     } catch (error: any) {
@@ -191,6 +196,56 @@ export const ShipperDashboard: React.FC = () => {
     setShowFailedModal(false);
     setSelectedOrderId(null);
     setOtherReason("");
+  };
+
+  const handleSuccessProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSuccessProofFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSuccessProofPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const triggerSuccessFileInput = () => {
+    successFileInputRef.current?.click();
+  };
+
+  const handleSuccessDeliverySubmit = async () => {
+    if (!selectedOrderId) return;
+    if (!successProofFile) {
+      alert("Vui lòng tải lên ảnh bằng chứng giao hàng thành công!");
+      return;
+    }
+
+    setIsSubmittingSuccess(true);
+    try {
+      const formData = new FormData();
+      formData.append("images", successProofFile);
+      const uploadRes = await axiosClient.post("/user/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      
+      const uploadedUrls = uploadRes.data?.data;
+      if (!uploadedUrls || uploadedUrls.length === 0) {
+        throw new Error("Không thể upload ảnh");
+      }
+
+      await handleUpdateStatus(selectedOrderId, "DELIVERED", successNote, uploadedUrls[0]);
+      
+      setShowSuccessModal(false);
+      setSelectedOrderId(null);
+      setSuccessProofFile(null);
+      setSuccessProofPreview(null);
+      setSuccessNote("");
+    } catch (error: any) {
+      alert("Lỗi upload ảnh: " + (error.response?.data?.message || error.message));
+    } finally {
+      setIsSubmittingSuccess(false);
+    }
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -638,10 +693,10 @@ export const ShipperDashboard: React.FC = () => {
                     const clientNote = order.parentOrder?.note || "Không có ghi chú";
 
                     const statusLabels: Record<string, string> = {
-                      READY_FOR_PICKUP: "Chờ shipper nhận",
+                      PENDING_PICKUP: "Chờ shipper nhận",
                       PICKED_UP: "Đã lấy hàng",
                       IN_TRANSIT: "Đang luân chuyển",
-                      DELIVERING: "Đang giao hàng",
+                      OUT_FOR_DELIVERY: "Đang giao hàng",
                       DELIVERED: "Giao thành công",
                       FAILED: "Giao thất bại",
                       RETURN_PENDING: "Chờ chuyển hoàn",
@@ -650,16 +705,18 @@ export const ShipperDashboard: React.FC = () => {
                     };
 
                     const statusColors: Record<string, string> = {
-                      READY_FOR_PICKUP: "bg-blue-100 text-blue-700 border-blue-200",
+                      PENDING_PICKUP: "bg-blue-100 text-blue-700 border-blue-200",
                       PICKED_UP: "bg-cyan-100 text-cyan-700 border-cyan-200",
                       IN_TRANSIT: "bg-purple-100 text-purple-700 border-purple-200",
-                      DELIVERING: "bg-yellow-100 text-yellow-700 border-yellow-200",
+                      OUT_FOR_DELIVERY: "bg-yellow-100 text-yellow-700 border-yellow-200",
                       DELIVERED: "bg-green-100 text-green-700 border-green-200",
                       FAILED: "bg-red-100 text-red-700 border-red-200",
                       RETURN_PENDING: "bg-pink-100 text-pink-700 border-pink-200",
                       RETURNED: "bg-gray-100 text-gray-700 border-gray-200",
                       CANCELLED: "bg-red-100 text-red-700 border-red-200",
                     };
+                    
+                    const shipmentStatus = order.shipment?.status || order.status;
 
                     return (
                       <Card
@@ -673,10 +730,10 @@ export const ShipperDashboard: React.FC = () => {
                           </div>
                           <span
                             className={`px-3 py-1 border text-[10px] font-black uppercase tracking-widest rounded-lg ${
-                              statusColors[order.status] || "bg-gray-100 text-gray-700 border-gray-200"
+                              statusColors[shipmentStatus] || "bg-gray-100 text-gray-700 border-gray-200"
                             }`}
                           >
-                            {statusLabels[order.status] || order.status}
+                            {statusLabels[shipmentStatus] || shipmentStatus}
                           </span>
                         </div>
 
@@ -728,16 +785,16 @@ export const ShipperDashboard: React.FC = () => {
 
                         {/* Action controls */}
                         <div className="flex justify-end gap-3 pt-4 border-t-2 border-dashed border-black/10">
-                          {order.status === "READY_FOR_PICKUP" && !order.shipper_id && (
+                          {shipmentStatus === "PENDING_PICKUP" && !order.shipper_id && (
                             <button
-                              onClick={() => handleUpdateStatus(order.id, "READY_FOR_PICKUP")}
+                              onClick={() => handleUpdateStatus(order.id, "PENDING_PICKUP")}
                               className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-primary text-white hover:bg-black transition-all active:translate-y-[2px]"
                             >
                               Nhận giao hàng
                             </button>
                           )}
 
-                          {order.status === "READY_FOR_PICKUP" && order.shipper_id === user?.id && (
+                          {shipmentStatus === "PENDING_PICKUP" && order.shipper_id === user?.id && (
                             <button
                               onClick={() => handleUpdateStatus(order.id, "PICKED_UP")}
                               className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-cyan-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
@@ -746,7 +803,7 @@ export const ShipperDashboard: React.FC = () => {
                             </button>
                           )}
 
-                          {order.status === "PICKED_UP" && order.shipper_id === user?.id && (
+                          {shipmentStatus === "PICKED_UP" && order.shipper_id === user?.id && (
                             <button
                               onClick={() => handleUpdateStatus(order.id, "IN_TRANSIT")}
                               className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-purple-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
@@ -755,19 +812,22 @@ export const ShipperDashboard: React.FC = () => {
                             </button>
                           )}
 
-                          {order.status === "IN_TRANSIT" && order.shipper_id === user?.id && (
+                          {shipmentStatus === "IN_TRANSIT" && order.shipper_id === user?.id && (
                             <button
-                              onClick={() => handleUpdateStatus(order.id, "DELIVERING")}
+                              onClick={() => handleUpdateStatus(order.id, "OUT_FOR_DELIVERY")}
                               className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-orange-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
                             >
                               Bắt đầu đi giao
                             </button>
                           )}
 
-                          {order.status === "DELIVERING" && order.shipper_id === user?.id && (
+                          {shipmentStatus === "OUT_FOR_DELIVERY" && order.shipper_id === user?.id && (
                             <>
                               <button
-                                onClick={() => handleUpdateStatus(order.id, "DELIVERED")}
+                                onClick={() => {
+                                  setSelectedOrderId(order.id);
+                                  setShowSuccessModal(true);
+                                }}
                                 className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-green-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
                               >
                                 Giao thành công
@@ -784,7 +844,7 @@ export const ShipperDashboard: React.FC = () => {
                             </>
                           )}
 
-                          {order.status === "FAILED" && order.shipper_id === user?.id && (
+                          {shipmentStatus === "FAILED" && order.shipper_id === user?.id && (
                             <button
                               onClick={() => handleUpdateStatus(order.id, "RETURN_PENDING")}
                               className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-pink-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
@@ -800,6 +860,84 @@ export const ShipperDashboard: React.FC = () => {
               )}
             </div>
           )}
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white border-4 border-black rounded-3xl shadow-brutal max-w-md w-full p-6 animate-in zoom-in-95 text-left">
+            <h3 className="font-serif text-2xl font-black uppercase mb-4 border-b-2 border-black pb-2 text-green-600">
+              Xác nhận giao thành công
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">
+                  Ảnh bằng chứng (Bắt buộc)
+                </label>
+                <div 
+                  onClick={triggerSuccessFileInput}
+                  className="border-2 border-dashed border-black/20 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors h-40 relative overflow-hidden"
+                >
+                  {successProofPreview ? (
+                    <img src={successProofPreview} alt="Proof" className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <>
+                      <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center mb-2">
+                        <CheckCircle2 className="text-green-600" size={20} />
+                      </div>
+                      <span className="text-xs font-bold text-gray-500">Nhấn để tải lên ảnh chụp</span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    ref={successFileInputRef}
+                    onChange={handleSuccessProofChange}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">
+                  Ghi chú (Tùy chọn)
+                </label>
+                <Input
+                  placeholder="Người nhận đã kiểm hàng..."
+                  value={successNote}
+                  onChange={(e) => setSuccessNote(e.target.value)}
+                  className="w-full text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end mt-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  setSelectedOrderId(null);
+                  setSuccessProofFile(null);
+                  setSuccessProofPreview(null);
+                  setSuccessNote("");
+                }}
+                disabled={isSubmittingSuccess}
+                className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-white text-black hover:bg-gray-100 transition-all active:translate-y-[2px]"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSuccessDeliverySubmit}
+                disabled={isSubmittingSuccess}
+                className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-green-500 text-white hover:bg-black transition-all active:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isSubmittingSuccess && <RefreshCw size={14} className="animate-spin" />}
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
           {/* TAB 3: AUTOMATED COD RECONCILIATION */}
           {activeTab === "reconciliation" && (

@@ -35,7 +35,6 @@ const OrderHistoryPage = () => {
     return () => clearInterval(timer);
   });
 
-  // Ánh xạ tab sang order_status của BE
   const getStatusQuery = () => {
     switch (activeTab) {
       case "pending":
@@ -45,7 +44,7 @@ const OrderHistoryPage = () => {
       case "preparing":
         return "PREPARING";
       case "shipping":
-        return "DELIVERING";
+        return "SHIPPING";
       case "completed":
         return "DELIVERED";
       case "cancelled":
@@ -144,7 +143,7 @@ const OrderHistoryPage = () => {
     { key: "PENDING", label: "Đơn mới" },
     { key: "CONFIRMED", label: "Đã xác nhận" },
     { key: "PREPARING", label: "Chuẩn bị hàng" },
-    { key: "DELIVERING", label: "Đang giao" },
+    { key: "SHIPPING", label: "Đang giao" },
     { key: "DELIVERED", label: "Thành công" },
   ];
 
@@ -152,8 +151,9 @@ const OrderHistoryPage = () => {
     if (currentStatus === "CANCELLED" || currentStatus === "CANCEL_REQUESTED")
       return null;
 
-    const normalizedStatus =
-      currentStatus === "READY_FOR_PICKUP" ? "PREPARING" : currentStatus;
+    const normalizedStatus = currentStatus === "SHIPPING"
+      ? "SHIPPING"
+      : currentStatus;
     const currentIndex = orderStatuses.findIndex(
       (s) => s.key === normalizedStatus,
     );

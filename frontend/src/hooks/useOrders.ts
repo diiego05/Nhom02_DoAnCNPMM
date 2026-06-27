@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import orderService from "@/services/orderService";
+import { shipmentService } from "@/services/shipmentService";
 import { CreateOrderPayload } from "@/types/order.types";
 import { useAppDispatch } from "@/stores/hooks";
 import { clearCartCount } from "@/stores/slices/cartSlice";
@@ -23,6 +24,14 @@ export const useOrderDetail = (id: number) => {
     queryKey: ["order", id],
     queryFn: () => orderService.getOrderDetail(id),
     enabled: !!id,
+  });
+};
+
+export const useShipmentDetail = (orderId: number) => {
+  return useQuery({
+    queryKey: ["shipment", orderId],
+    queryFn: () => shipmentService.getShipmentByOrderId(orderId),
+    enabled: !!orderId,
   });
 };
 
