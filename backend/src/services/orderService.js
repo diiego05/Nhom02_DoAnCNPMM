@@ -82,12 +82,26 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
     for (const [shopId, code] of Object.entries(shopCoupons)) {
       if (shopsData[shopId]) {
         const coupon = await db.Coupon.findOne({ where: { code, shop_id: shopId } });
-        if (coupon && shopsData[shopId].subtotal >= coupon.min_order_amount) {
-          const discount = coupon.discount_type === 'PERCENT'
-            ? (shopsData[shopId].subtotal * Number(coupon.discount_value) / 100)
-            : Number(coupon.discount_value);
-          shopsData[shopId].shop_discount = coupon.max_discount ? Math.min(discount, Number(coupon.max_discount)) : discount;
-          shopsData[shopId].shop_coupon_id = coupon.id;
+        if (coupon) {
+          if (coupon.usage_limit && coupon.used_count >= coupon.usage_limit) {
+            throw new Error(`Mã giảm giá ${code} đã hết lượt sử dụng`);
+          }
+          
+          // Kiểm tra xem user đã lưu mã này chưa (trừ khi dùng guest/không bắt buộc)
+          const isSaved = await db.UserCoupon.findOne({
+            where: { user_id: userId, coupon_id: coupon.id, is_used: false }
+          });
+          if (!isSaved) {
+            throw new Error(`Bạn chưa lưu mã giảm giá ${code}. Vui lòng lưu mã trước khi sử dụng.`);
+          }
+
+          if (shopsData[shopId].subtotal >= coupon.min_order_amount) {
+            const discount = coupon.discount_type === 'PERCENT'
+              ? (shopsData[shopId].subtotal * Number(coupon.discount_value) / 100)
+              : Number(coupon.discount_value);
+            shopsData[shopId].shop_discount = coupon.max_discount ? Math.min(discount, Number(coupon.max_discount)) : discount;
+            shopsData[shopId].shop_coupon_id = coupon.id;
+          }
         }
       }
     }
@@ -111,6 +125,17 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
   if (platformCouponCode) {
     platformCouponObj = await db.Coupon.findOne({ where: { code: platformCouponCode, shop_id: null } });
     if (platformCouponObj) {
+      if (platformCouponObj.usage_limit && platformCouponObj.used_count >= platformCouponObj.usage_limit) {
+        throw new Error(`Mã giảm giá sàn ${platformCouponCode} đã hết lượt sử dụng`);
+      }
+
+      const isSaved = await db.UserCoupon.findOne({
+        where: { user_id: userId, coupon_id: platformCouponObj.id, is_used: false }
+      });
+      if (!isSaved) {
+        throw new Error(`Bạn chưa lưu mã giảm giá sàn ${platformCouponCode}. Vui lòng lưu mã trước khi sử dụng.`);
+      }
+
       let validSubtotal = parentSubtotal;
 
       // Nếu có giới hạn danh mục
@@ -299,6 +324,38 @@ const createOrder = async (userId, data) => {
       status: "UNPAID",
       message: paymentMethod === "COD" ? "Khởi tạo đơn hàng thanh toán khi nhận hàng" : "Đang chờ thanh toán trực tuyến",
     }, { transaction });
+
+    // Tăng số lần sử dụng cho các mã khuyến mãi (Sàn & Shop)
+    const appliedCouponIds = [];
+    if (calcResult.platformCoupon && calcResult.platformCoupon.id) {
+      appliedCouponIds.push(calcResult.platformCoupon.id);
+    }
+    calcResult.shops.forEach(shop => {
+      if (shop.shop_coupon_id) {
+        appliedCouponIds.push(shop.shop_coupon_id);
+      }
+    });
+
+    if (appliedCouponIds.length > 0) {
+      await db.Coupon.increment("used_count", {
+        by: 1,
+        where: { id: { [db.Sequelize.Op.in]: appliedCouponIds } },
+        transaction
+      });
+
+      // Đánh dấu mã đã sử dụng trong UserCoupon
+      await db.UserCoupon.update(
+        { is_used: true, used_at: new Date() },
+        { 
+          where: { 
+            user_id: userId, 
+            coupon_id: { [db.Sequelize.Op.in]: appliedCouponIds },
+            is_used: false
+          },
+          transaction
+        }
+      );
+    }
 
     await transaction.commit();
 

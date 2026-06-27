@@ -7,6 +7,7 @@ export default (sequelize, DataTypes) => {
       Coupon.hasMany(models.ParentOrder, { foreignKey: "platform_coupon_id", as: "platformOrders" });
       Coupon.hasMany(models.ShopOrder, { foreignKey: "shop_coupon_id", as: "shopOrders" });
       Coupon.belongsTo(models.Category, { foreignKey: "category_id", as: "category" });
+      Coupon.hasMany(models.UserCoupon, { foreignKey: "coupon_id", as: "savedByUsers" });
     }
   }
 

@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { getRoutes } from "./routes";
 import { initAuthThunk } from "@/stores/slices/authSlice";
 import type { AppDispatch, RootState } from "@/stores/store";
+import { Toaster } from "react-hot-toast";
 
 function App() {
   const dispatch = useDispatch<AppDispatch>();
@@ -33,7 +34,12 @@ function App() {
     );
   }
 
-  return routing;
+  return (
+    <>
+      <Toaster position="top-center" reverseOrder={false} />
+      {routing}
+    </>
+  );
 }
 
 export default App;

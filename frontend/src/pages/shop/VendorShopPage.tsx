@@ -5,20 +5,21 @@ import {
   Users, 
   MessageCircle, 
   Plus, 
-  Heart, 
   Share2, 
   Clock, 
   ShieldCheck, 
   Check,
   Search,
-  Filter,
   AlertTriangle,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { vendorService } from '@/services/vendorService';
+import { Link, useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { vendorService } from "@/services/vendorService";
+import { useSaveCoupon } from "@/hooks/useCoupons";
+import { useAppSelector } from "@/stores/hooks";
+import toast from "react-hot-toast";
 import ProductCard from '@/components/ui/ProductCard';
 import { formatPrice } from '@/utils/format';
 
@@ -42,6 +43,10 @@ const VendorShopPage: React.FC = () => {
   const [swiperPromoRef, setSwiperPromoRef] = useState<any>(null);
   const [swiperBestSellerRef, setSwiperBestSellerRef] = useState<any>(null);
   const [swiperFeaturedRef, setSwiperFeaturedRef] = useState<any>(null);
+
+  const { mutate: saveCoupon } = useSaveCoupon();
+  const isAuthenticated = useAppSelector((state) => !!state.auth.accessToken);
+  const navigate = useNavigate();
 
   // 1. Lấy thông tin chi tiết Shop
   const { data: shopProfileRes, isLoading: isLoadingProfile, error: profileError } = useQuery({
@@ -277,11 +282,26 @@ const VendorShopPage: React.FC = () => {
                        type="button" 
                        onClick={(e) => {
                          e.stopPropagation();
-                         alert(`Đã lưu mã giảm giá: ${v.code}`);
+                         if (!isAuthenticated) {
+                           toast.error("Vui lòng đăng nhập để lưu mã");
+                           navigate("/auth/login");
+                           return;
+                         }
+                         if (v.isSaved) {
+                           toast.success("Bạn đã lưu mã này rồi!");
+                           return;
+                         }
+                         saveCoupon(v.id, {
+                           onSuccess: () => toast.success("Đã lưu mã giảm giá thành công!"),
+                           onError: (err: any) => toast.error(err.response?.data?.message || "Lỗi khi lưu mã"),
+                         });
                        }}
-                       className="bg-black text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all group-hover:bg-primary"
+                       disabled={v.isSaved}
+                       className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all ${
+                         v.isSaved ? "bg-gray-200 text-gray-500 cursor-not-allowed" : "bg-black text-white group-hover:bg-primary"
+                       }`}
                      >
-                       Lưu mã
+                       {v.isSaved ? "Đã lưu" : "Lưu mã"}
                      </button>
                   </div>
                 );

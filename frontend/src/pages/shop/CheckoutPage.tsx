@@ -23,7 +23,7 @@ import { useAddresses, useCreateAddress, useUpdateAddress, useDeleteAddress } fr
 import { useCalculateCheckout, useCreateOrder } from "@/hooks/useOrders";
 import { useSystemSettings } from "@/hooks/useSystemSettings";
 import { useProfile } from "@/hooks/useUser";
-import { useValidCoupons } from "@/hooks/useCoupons";
+import { useMySavedCoupons } from "@/hooks/useCoupons";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import * as yup from "yup";
@@ -52,7 +52,7 @@ const CheckoutPage = () => {
   const { data: cart, isLoading: isCartLoading } = useCart();
   const { data: addresses, isLoading: isAddressesLoading } = useAddresses();
   const { data: profile } = useProfile();
-  const { data: validCoupons } = useValidCoupons();
+  const { data: validCoupons } = useMySavedCoupons();
 
   const createOrderMutation = useCreateOrder();
   const createAddressMutation = useCreateAddress();
