@@ -119,10 +119,13 @@ export const adminService = {
   // 4. BÁO CÁO TÀI CHÍNH
   // ============================================================
 
-  getFinancialReport: async (from?: string, to?: string) => {
-    const params: Record<string, string> = {};
+  getFinancialReport: async (from?: string, to?: string, groupBy?: string, shopMonth?: number, shopYear?: number) => {
+    const params: Record<string, any> = {};
     if (from) params.from = from;
     if (to) params.to = to;
+    if (groupBy) params.groupBy = groupBy;
+    if (shopMonth) params.shopMonth = shopMonth;
+    if (shopYear) params.shopYear = shopYear;
     const response = await axiosClient.get("/admin/financial-report", { params });
     return response.data;
   },

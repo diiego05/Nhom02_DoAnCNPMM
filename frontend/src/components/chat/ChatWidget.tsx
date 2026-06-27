@@ -40,6 +40,15 @@ const ChatWidget = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [aiMessages, setAiMessages] = useState<any[]>([
+    {
+      id: "ai-initial",
+      sender_id: 0,
+      body: "Xin chào! Tôi là Trợ Lý AI của UTEShop. Bạn có thắc mắc gì về chính sách đổi trả, phương thức thanh toán hoặc đang tìm kiếm sản phẩm nào không?",
+      sent_at: new Date().toISOString()
+    }
+  ]);
+  const [isAiTyping, setIsAiTyping] = useState(false);
   const [activeShop, setActiveShop] = useState<ActiveShop | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [attachedFile, setAttachedFile] = useState<{ url: string; name: string; type: string } | null>(null);
@@ -140,7 +149,7 @@ const ChatWidget = () => {
 
   // 4. Polling lấy lịch sử tin nhắn khi đang xem chat chi tiết (mỗi 3 giây)
   useEffect(() => {
-    if (!isAuthenticated || !isOpen || isMinimized || view !== "detail" || !activeShop) {
+    if (!isAuthenticated || !isOpen || isMinimized || view !== "detail" || !activeShop || activeShop.id === 0) {
       return;
     }
 
@@ -248,6 +257,40 @@ const ChatWidget = () => {
     if (!content && !attachedFile) return;
     if (!activeShop || !isAuthenticated || isUploading) return;
 
+    if (activeShop.id === 0) {
+      setMessage("");
+      const userMsg = {
+        id: `user-${Date.now()}`,
+        sender_id: user?.id,
+        body: content,
+        sent_at: new Date().toISOString(),
+      };
+      setAiMessages((prev) => [...prev, userMsg]);
+      setIsAiTyping(true);
+
+      try {
+        const res = await chatService.chatWithAI(content);
+        const aiReply = {
+          id: `ai-${Date.now()}`,
+          sender_id: 0,
+          body: res.reply,
+          sent_at: new Date().toISOString(),
+        };
+        setAiMessages((prev) => [...prev, aiReply]);
+      } catch (err: any) {
+        const errorReply = {
+          id: `ai-err-${Date.now()}`,
+          sender_id: 0,
+          body: "Xin lỗi, tôi gặp lỗi kết nối với máy chủ AI. Vui lòng thử lại sau.",
+          sent_at: new Date().toISOString(),
+        };
+        setAiMessages((prev) => [...prev, errorReply]);
+      } finally {
+        setIsAiTyping(false);
+      }
+      return;
+    }
+
     setMessage("");
     const currentAttachment = attachedFile;
     setAttachedFile(null);
@@ -325,17 +368,21 @@ const ChatWidget = () => {
           <div className="relative">
             <div className="w-10 h-10 rounded-full border border-gray-100 bg-primary/10 overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
               {view === "detail" ? (
-                <img
-                  src={activeShop?.logo || DEFAULT_SHOP_LOGO}
-                  alt="Shop"
-                  className="w-full h-full object-cover"
-                />
+                activeShop?.id === 0 ? (
+                  <span className="text-lg">🤖</span>
+                ) : (
+                  <img
+                    src={activeShop?.logo || DEFAULT_SHOP_LOGO}
+                    alt="Shop"
+                    className="w-full h-full object-cover"
+                  />
+                )
               ) : (
                 <MessageSquare size={18} className="text-primary fill-primary/10" />
               )}
             </div>
             {view === "detail" && (
-              <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></div>
+              <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-white rounded-full ${activeShop?.id === 0 ? "bg-purple-500" : "bg-green-500"}`}></div>
             )}
           </div>
           
@@ -344,6 +391,9 @@ const ChatWidget = () => {
               <h4 className="text-xs font-bold uppercase tracking-tight truncate max-w-[150px]">
                 {view === "detail" ? (activeShop?.name || "Cửa hàng") : "Hộp thư hỗ trợ"}
               </h4>
+              {view === "detail" && activeShop?.id === 0 && (
+                <span className="bg-purple-600 text-white text-[7px] font-black uppercase px-1 py-0.5 rounded shadow-sm shrink-0">Trợ lý AI</span>
+              )}
               {view === "detail" && activeShop?.role?.toUpperCase() === 'MANAGER' && (
                 <span className="bg-blue-500 text-white text-[7px] font-black uppercase px-1 py-0.5 rounded shadow-sm shrink-0">Quản lý</span>
               )}
@@ -351,8 +401,8 @@ const ChatWidget = () => {
                 <span className="bg-red-500 text-white text-[7px] font-black uppercase px-1 py-0.5 rounded shadow-sm shrink-0">Admin</span>
               )}
             </div>
-            <p className="text-[8px] font-bold text-green-500 uppercase tracking-widest flex items-center gap-1">
-              {view === "detail" ? "Đang hoạt động" : "Dữ liệu thực tế"}
+            <p className={`text-[8px] font-bold uppercase tracking-widest flex items-center gap-1 ${activeShop?.id === 0 ? "text-purple-500" : "text-green-500"}`}>
+              {view === "detail" ? (activeShop?.id === 0 ? "Sẵn sàng trả lời" : "Đang hoạt động") : "Dữ liệu thực tế"}
             </p>
           </div>
         </div>
@@ -406,16 +456,52 @@ const ChatWidget = () => {
 
               {/* List Conversations */}
               <div className="flex-grow overflow-y-auto p-2 space-y-1.5 scrollbar-thin">
+                {!searchQuery && (
+                  <button
+                    onClick={() => {
+                      setActiveShop({
+                        id: 0,
+                        name: "Trợ Lý AI UTEShop",
+                        logo: null,
+                        role: "AI",
+                      });
+                      setView("detail");
+                    }}
+                    className="w-full flex items-center gap-3 p-2.5 rounded-2xl hover:bg-purple-50/50 transition-all text-left cursor-pointer group active:scale-95 border-2 border-dashed border-purple-200"
+                  >
+                    <div className="relative shrink-0">
+                      <div className="w-10 h-10 rounded-full border border-purple-200 bg-purple-100 overflow-hidden flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                        <span className="text-lg">🤖</span>
+                      </div>
+                    </div>
+                    <div className="flex-grow min-w-0">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-tight text-purple-700">
+                          Trợ lý AI Thông Minh
+                        </span>
+                        <span className="bg-purple-600 text-white text-[7px] font-black uppercase px-1 py-0.5 rounded shadow-sm shrink-0">
+                          AI Bot
+                        </span>
+                      </div>
+                      <p className="text-[10px] truncate text-gray-500 font-semibold">
+                        Hỏi về sản phẩm, chính sách đổi trả...
+                      </p>
+                    </div>
+                  </button>
+                )}
+
                 {filteredConversations.length === 0 ? (
-                  <div className="text-center py-20 flex flex-col items-center justify-center p-6">
-                    <MessageSquare size={36} className="text-gray-300 mb-3" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                      Không có cuộc trò chuyện nào
-                    </span>
-                    <p className="text-[9px] font-bold text-gray-400 mt-2 uppercase text-center max-w-[240px] leading-relaxed">
-                      Hãy ghé qua gian hàng bất kỳ và bấm nút "Chat ngay" để bắt đầu!
-                    </p>
-                  </div>
+                  !searchQuery ? null : (
+                    <div className="text-center py-20 flex flex-col items-center justify-center p-6">
+                      <MessageSquare size={36} className="text-gray-300 mb-3" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                        Không có cuộc trò chuyện nào
+                      </span>
+                      <p className="text-[9px] font-bold text-gray-400 mt-2 uppercase text-center max-w-[240px] leading-relaxed">
+                        Hãy ghé qua gian hàng bất kỳ và bấm nút "Chat ngay" để bắt đầu!
+                      </p>
+                    </div>
+                  )
                 ) : (
                   filteredConversations.map((conv) => (
                     <button
@@ -477,107 +563,129 @@ const ChatWidget = () => {
             <>
               {/* Messages Area */}
               <div className="flex-grow overflow-y-auto p-6 space-y-4 bg-[#F9F9F7] bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] scrollbar-thin">
-                {messages.length === 0 ? (
-                  <div className="text-center py-12 flex flex-col items-center justify-center">
-                    <span className="bg-white border border-gray-100 px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest text-gray-400 shadow-sm">
-                      Mở đầu hộp thư
-                    </span>
-                    <p className="text-[9px] font-bold text-gray-400 mt-3.5 uppercase tracking-wide">
-                      Gửi lời chào đầu tiên đến shop!
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    {messages.map((msg, index) => {
-                      const isMe = String(msg.sender_id) === String(user?.id);
-                      
-                      // Nhóm tin nhắn theo ngày
-                      const showDateSeparator = index === 0 || 
-                        new Date(msg.sent_at).toDateString() !== new Date(messages[index - 1].sent_at).toDateString();
-                      
-                      return (
-                        <React.Fragment key={msg.id}>
-                          {showDateSeparator && (
-                            <div className="flex justify-center my-3 select-none">
-                              <span className="bg-white border border-gray-100 px-3.5 py-1.5 rounded-full text-[8px] font-bold uppercase tracking-widest text-gray-400 shadow-sm">
-                                {new Date(msg.sent_at).toLocaleDateString("vi-VN", {
-                                  weekday: "long",
-                                  day: "numeric",
-                                  month: "long",
-                                })}
-                              </span>
-                            </div>
-                          )}
-                          
-                          <div className={`flex gap-3 max-w-[85%] animate-in fade-in slide-in-from-bottom-1 duration-200 ${isMe ? "ml-auto flex-row-reverse text-right" : ""}`}>
-                            {!isMe && (
-                              <div className="w-8 h-8 rounded-full border border-gray-100 bg-primary/10 overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
-                                <img
-                                  src={activeShop?.logo || DEFAULT_SHOP_LOGO}
-                                  alt="Shop"
-                                  className="w-full h-full object-cover"
-                                />
+                {(() => {
+                  const activeMessages = activeShop?.id === 0 ? aiMessages : messages;
+                  if (activeMessages.length === 0) {
+                    return (
+                      <div className="text-center py-12 flex flex-col items-center justify-center">
+                        <span className="bg-white border border-gray-100 px-4 py-2 rounded-xl text-[9px] font-bold uppercase tracking-widest text-gray-400 shadow-sm">
+                          Mở đầu hộp thư
+                        </span>
+                        <p className="text-[9px] font-bold text-gray-400 mt-3.5 uppercase tracking-wide">
+                          Gửi lời chào đầu tiên đến shop!
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <>
+                      {activeMessages.map((msg, index) => {
+                        const isMe = String(msg.sender_id) === String(user?.id);
+                        
+                        // Nhóm tin nhắn theo ngày
+                        const showDateSeparator = index === 0 || 
+                          new Date(msg.sent_at).toDateString() !== new Date(activeMessages[index - 1].sent_at).toDateString();
+                        
+                        return (
+                          <React.Fragment key={msg.id}>
+                            {showDateSeparator && (
+                              <div className="flex justify-center my-3 select-none">
+                                <span className="bg-white border border-gray-100 px-3.5 py-1.5 rounded-full text-[8px] font-bold uppercase tracking-widest text-gray-400 shadow-sm">
+                                  {new Date(msg.sent_at).toLocaleDateString("vi-VN", {
+                                    weekday: "long",
+                                    day: "numeric",
+                                    month: "long",
+                                  })}
+                                </span>
                               </div>
                             )}
-                            {isMe && (
-                              <div className="w-8 h-8 rounded-full bg-secondary text-white flex items-center justify-center text-[8px] font-bold shrink-0 uppercase shadow-sm">
-                                {user?.profile?.full_name ? user.profile.full_name.substring(0, 2) : "ME"}
+                            
+                            <div className={`flex gap-3 max-w-[85%] animate-in fade-in slide-in-from-bottom-1 duration-200 ${isMe ? "ml-auto flex-row-reverse text-right" : ""}`}>
+                              {!isMe && (
+                                <div className="w-8 h-8 rounded-full border border-gray-100 bg-primary/10 overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
+                                  {activeShop?.id === 0 ? (
+                                    <span className="text-xs">🤖</span>
+                                  ) : (
+                                    <img
+                                      src={activeShop?.logo || DEFAULT_SHOP_LOGO}
+                                      alt="Shop"
+                                      className="w-full h-full object-cover"
+                                    />
+                                  )}
+                                </div>
+                              )}
+                              {isMe && (
+                                <div className="w-8 h-8 rounded-full bg-secondary text-white flex items-center justify-center text-[8px] font-bold shrink-0 uppercase shadow-sm">
+                                  {user?.profile?.full_name ? user.profile.full_name.substring(0, 2) : "ME"}
+                                </div>
+                              )}
+                              <div className="space-y-1 max-w-[calc(100%-2.5rem)]">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  {!isMe && msg.sender?.role?.role_name?.toUpperCase() === 'MANAGER' && (
+                                    <span className="bg-blue-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm">Quản lý</span>
+                                  )}
+                                  {!isMe && msg.sender?.role?.role_name?.toUpperCase() === 'ADMIN' && (
+                                    <span className="bg-red-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm">Admin</span>
+                                  )}
+                                </div>
+                                <div className={`p-3.5 rounded-2xl shadow-sm text-left ${isMe ? "bg-primary text-white rounded-tr-none" : "bg-white text-black rounded-tl-none border border-gray-100"}`}>
+                                  {msg.attachment_url && (
+                                    <div className="mb-2 max-w-full overflow-hidden rounded-xl">
+                                      {msg.attachment_type?.startsWith("image/") ? (
+                                        <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="block hover:opacity-90 transition-opacity">
+                                          <img 
+                                            src={msg.attachment_url} 
+                                            alt={msg.attachment_name || "Attachment"} 
+                                            className="max-w-full max-h-[160px] object-cover rounded-lg"
+                                          />
+                                        </a>
+                                      ) : (
+                                        <a 
+                                          href={msg.attachment_url} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer" 
+                                          className={`flex items-center gap-2 p-2.5 rounded-xl border text-[10px] font-bold transition-all ${isMe ? "bg-primary-dark/30 border-white/20 text-white hover:bg-primary-dark/50" : "bg-gray-50 border-gray-100 text-black hover:bg-gray-100"}`}
+                                        >
+                                          <FileText size={16} className={isMe ? "text-white/80" : "text-primary"} />
+                                          <span className="truncate max-w-[120px]" title={msg.attachment_name || "File"}>
+                                            {msg.attachment_name || "Tệp đính kèm"}
+                                          </span>
+                                          <Download size={14} className="ml-auto opacity-70 shrink-0" />
+                                        </a>
+                                      )}
+                                    </div>
+                                  )}
+                                  {msg.body && (
+                                    <p className="text-[11px] font-medium leading-relaxed break-words">{msg.body}</p>
+                                  )}
+                                </div>
+                                <span className="text-[8px] font-bold text-gray-400 block px-1 select-none">
+                                  {new Date(msg.sent_at).toLocaleTimeString("vi-VN", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
                               </div>
-                            )}
-                            <div className="space-y-1 max-w-[calc(100%-2.5rem)]">
-                              <div className="flex items-center gap-2 mb-0.5">
-                                {!isMe && msg.sender?.role?.role_name?.toUpperCase() === 'MANAGER' && (
-                                  <span className="bg-blue-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm">Quản lý</span>
-                                )}
-                                {!isMe && msg.sender?.role?.role_name?.toUpperCase() === 'ADMIN' && (
-                                  <span className="bg-red-500 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm">Admin</span>
-                                )}
-                              </div>
-                              <div className={`p-3.5 rounded-2xl shadow-sm text-left ${isMe ? "bg-primary text-white rounded-tr-none" : "bg-white text-black rounded-tl-none border border-gray-100"}`}>
-                                {msg.attachment_url && (
-                                  <div className="mb-2 max-w-full overflow-hidden rounded-xl">
-                                    {msg.attachment_type?.startsWith("image/") ? (
-                                      <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="block hover:opacity-90 transition-opacity">
-                                        <img 
-                                          src={msg.attachment_url} 
-                                          alt={msg.attachment_name || "Attachment"} 
-                                          className="max-w-full max-h-[160px] object-cover rounded-lg"
-                                        />
-                                      </a>
-                                    ) : (
-                                      <a 
-                                        href={msg.attachment_url} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer" 
-                                        className={`flex items-center gap-2 p-2.5 rounded-xl border text-[10px] font-bold transition-all ${isMe ? "bg-primary-dark/30 border-white/20 text-white hover:bg-primary-dark/50" : "bg-gray-50 border-gray-100 text-black hover:bg-gray-100"}`}
-                                      >
-                                        <FileText size={16} className={isMe ? "text-white/80" : "text-primary"} />
-                                        <span className="truncate max-w-[120px]" title={msg.attachment_name || "File"}>
-                                          {msg.attachment_name || "Tệp đính kèm"}
-                                        </span>
-                                        <Download size={14} className="ml-auto opacity-70 shrink-0" />
-                                      </a>
-                                    )}
-                                  </div>
-                                )}
-                                {msg.body && (
-                                  <p className="text-[11px] font-medium leading-relaxed break-words">{msg.body}</p>
-                                )}
-                              </div>
-                              <span className="text-[8px] font-bold text-gray-400 block px-1 select-none">
-                                {new Date(msg.sent_at).toLocaleTimeString("vi-VN", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
                             </div>
+                          </React.Fragment>
+                        );
+                      })}
+                      {isAiTyping && (
+                        <div className="flex gap-3 max-w-[85%] animate-in fade-in slide-in-from-bottom-1 duration-200">
+                          <div className="w-8 h-8 rounded-full border border-purple-100 bg-purple-100 overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
+                            <span className="text-xs">🤖</span>
                           </div>
-                        </React.Fragment>
-                      );
-                    })}
-                    <div ref={messagesEndRef} />
-                  </>
-                )}
+                          <div className="bg-white border border-gray-100 p-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                          </div>
+                        </div>
+                      )}
+                      <div ref={messagesEndRef} />
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Input Area */}

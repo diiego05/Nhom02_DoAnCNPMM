@@ -289,8 +289,8 @@ const deleteCategory = async (req, res) => {
 
 const getFinancialReport = async (req, res) => {
   try {
-    const { from, to } = req.query;
-    const report = await adminService.getFinancialReport(from, to);
+    const { from, to, groupBy, shopMonth, shopYear } = req.query;
+    const report = await adminService.getFinancialReport(from, to, groupBy, shopMonth, shopYear);
     return res.status(200).json({ message: "Success", data: report });
   } catch (error) {
     console.error("Error getting financial report:", error);

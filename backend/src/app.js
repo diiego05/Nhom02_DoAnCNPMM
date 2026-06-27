@@ -22,6 +22,8 @@ import managerRouter from "./routes/managerRoute.js";
 import notificationRouter from "./routes/notificationRoute.js";
 import paymentRouter from "./routes/paymentRoute.js";
 import returnRouter from "./routes/returnRoute.js";
+import blogRouter from "./routes/blogRoute.js";
+import aiChatRouter from "./routes/aiChatRoute.js";
 import shipmentRouter from "./routes/shipmentRoutes.js";
 import cron from "node-cron";
 import orderService from "./services/orderService.js";
@@ -66,6 +68,8 @@ app.use("/notifications", notificationRouter);
 app.use("/payment", paymentRouter);
 app.use("/system", systemRouter);
 app.use("/returns", returnRouter);
+app.use("/", blogRouter);
+app.use("/", aiChatRouter);
 app.use("/shipments", shipmentRouter);
 
 app.get("/brands", (req, res) => {

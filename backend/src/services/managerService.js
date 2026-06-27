@@ -370,8 +370,15 @@ const restoreReview = async (id) => {
   return true;
 };
 
-const getReportOverview = async () => {
+const getReportOverview = async (month, year) => {
   const { Op } = db.Sequelize;
+
+  const now = new Date();
+  const activeMonth = month ? parseInt(month) : (now.getMonth() + 1);
+  const activeYear = year ? parseInt(year) : now.getFullYear();
+
+  const startDate = new Date(activeYear, activeMonth - 1, 1, 0, 0, 0, 0);
+  const endDate = new Date(activeYear, activeMonth, 0, 23, 59, 59, 999);
 
   // 1. Lấy toàn bộ shop để lập báo cáo
   const shops = await db.Shop.findAll({
@@ -391,7 +398,16 @@ const getReportOverview = async () => {
       {
         model: db.ShopOrder,
         as: "shopOrder",
-        where: { status: { [Op.ne]: "CANCELLED" } },
+        where: {
+          status: { [Op.ne]: "CANCELLED" },
+          [Op.or]: [
+            { delivered_at: { [Op.between]: [startDate, endDate] } },
+            {
+              delivered_at: null,
+              updated_at: { [Op.between]: [startDate, endDate] }
+            }
+          ]
+        },
         attributes: ["shop_id", "status"],
         required: true,
       },
@@ -408,7 +424,16 @@ const getReportOverview = async () => {
 
   // 3. Tính số đơn hàng và tổng hoa hồng của từng shop (không tính CANCELLED)
   const shopOrderCounts = await db.ShopOrder.findAll({
-    where: { status: { [Op.ne]: "CANCELLED" } },
+    where: {
+      status: { [Op.ne]: "CANCELLED" },
+      [Op.or]: [
+        { delivered_at: { [Op.between]: [startDate, endDate] } },
+        {
+          delivered_at: null,
+          updated_at: { [Op.between]: [startDate, endDate] }
+        }
+      ]
+    },
     attributes: [
       "shop_id",
       [db.sequelize.fn("COUNT", db.sequelize.col("id")), "orderCount"],
@@ -427,7 +452,10 @@ const getReportOverview = async () => {
 
   // 4. Lấy lịch sử rút tiền đã duyệt (COMPLETED)
   const completedPayouts = await db.ShopPayout.findAll({
-    where: { status: "COMPLETED" },
+    where: {
+      status: "COMPLETED",
+      created_at: { [Op.between]: [startDate, endDate] },
+    },
     attributes: ["shop_id", "amount"],
   });
   const paidPayoutMap = {};
@@ -438,7 +466,10 @@ const getReportOverview = async () => {
 
   // 5. Lấy lịch sử rút tiền đang chờ duyệt (PENDING, PROCESSING)
   const pendingPayouts = await db.ShopPayout.findAll({
-    where: { status: { [Op.in]: ["PENDING", "PROCESSING"] } },
+    where: {
+      status: { [Op.in]: ["PENDING", "PROCESSING"] },
+      created_at: { [Op.between]: [startDate, endDate] },
+    },
     attributes: ["shop_id", "amount"],
   });
   const pendingPayoutMap = {};
@@ -492,7 +523,16 @@ const getReportOverview = async () => {
       {
         model: db.ShopOrder,
         as: "shopOrder",
-        where: { status: { [Op.ne]: "CANCELLED" } },
+        where: {
+          status: { [Op.ne]: "CANCELLED" },
+          [Op.or]: [
+            { delivered_at: { [Op.between]: [startDate, endDate] } },
+            {
+              delivered_at: null,
+              updated_at: { [Op.between]: [startDate, endDate] }
+            }
+          ]
+        },
         required: true,
         attributes: ["id"],
       },
@@ -501,6 +541,16 @@ const getReportOverview = async () => {
         as: "variant",
         required: true,
         attributes: ["product_id", "price"],
+        include: [{
+          model: db.Product,
+          as: "product",
+          attributes: ["id", "name"],
+          include: [{
+            model: db.Category,
+            as: "category",
+            attributes: ["name"],
+          }]
+        }]
       }
     ],
     attributes: ["quantity", "unit_price"],
@@ -510,6 +560,7 @@ const getReportOverview = async () => {
   const revenueMap = {};
   const priceSumMap = {};
   const priceCountMap = {};
+  const categoryRevenueMap = {};
 
   allSales.forEach((item) => {
     const prodId = item.variant?.product_id;
@@ -529,8 +580,22 @@ const getReportOverview = async () => {
       }
       priceSumMap[prodId] += price;
       priceCountMap[prodId] += 1;
+
+      // Doanh thu theo danh mục
+      const catName = item.variant?.product?.category?.name || "Khác";
+      if (!categoryRevenueMap[catName]) {
+        categoryRevenueMap[catName] = {
+          category_name: catName,
+          total_revenue: 0,
+          units_sold: 0,
+        };
+      }
+      categoryRevenueMap[catName].total_revenue += qty * price;
+      categoryRevenueMap[catName].units_sold += qty;
     }
   });
+
+  const categoryRevenues = Object.values(categoryRevenueMap).sort((a, b) => b.total_revenue - a.total_revenue);
 
   // 9. Lập danh sách sản phẩm
   const productStats = products.map((product) => {
@@ -575,6 +640,7 @@ const getReportOverview = async () => {
     shopReports,
     bestSellers,
     slowSellers,
+    categoryRevenues,
   };
 };
 
