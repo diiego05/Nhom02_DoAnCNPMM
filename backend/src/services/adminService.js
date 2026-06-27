@@ -492,7 +492,7 @@ const deleteCategory = async (id) => {
 // 4. BÁO CÁO TÀI CHÍNH TỔNG & DÒNG TIỀN
 // ============================================================
 
-const getFinancialReport = async (dateFrom, dateTo) => {
+const getFinancialReport = async (dateFrom, dateTo, groupBy, shopMonth, shopYear) => {
   // Lấy cấu hình tỷ lệ từ system_settings
   const settings = await db.SystemSetting.findAll();
   const settingsMap = {};
@@ -502,19 +502,46 @@ const getFinancialReport = async (dateFrom, dateTo) => {
   const gatewayFee = parseFloat(settingsMap.payment_gateway_fee || "5.00");
   const taxRate = parseFloat(settingsMap.tax_rate || "1.50");
 
-  // Query tất cả đơn DELIVERED trong khoảng thời gian
-  const dateFilter = {};
-  if (dateFrom) dateFilter[Op.gte] = new Date(dateFrom);
-  if (dateTo) {
-    const endDate = new Date(dateTo);
-    endDate.setHours(23, 59, 59, 999);
-    dateFilter[Op.lte] = endDate;
+  // Xác định khoảng thời gian thực tế để query tối ưu hiệu năng
+  let start, end;
+  if (dateFrom || dateTo) {
+    if (dateFrom) {
+      const [year, month, day] = dateFrom.split("-").map(Number);
+      start = new Date(year, month - 1, day, 0, 0, 0, 0);
+    } else {
+      start = new Date(2020, 0, 1, 0, 0, 0, 0);
+    }
+    
+    if (dateTo) {
+      const [year, month, day] = dateTo.split("-").map(Number);
+      end = new Date(year, month - 1, day, 23, 59, 59, 999);
+    } else {
+      end = new Date();
+      end.setHours(23, 59, 59, 999);
+    }
+  } else {
+    // Mặc định là tháng hiện tại nếu không lọc
+    const now = new Date();
+    start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
   }
 
-  const shopOrderWhere = { status: { [Op.notIn]: ["CANCELLED", "FAILED", "RETURN_PENDING", "RETURNED"] } };
-  if (Object.keys(dateFilter).length > 0) {
-    shopOrderWhere.updated_at = dateFilter;
-  }
+  const dateFilter = {
+    [Op.gte]: start,
+    [Op.lte]: end
+  };
+
+  const shopOrderWhere = { status: "DELIVERED" };
+  // Lọc theo ngày giao thành công (delivered_at), dùng updated_at làm fallback nếu dữ liệu cũ chưa cập nhật cột này
+  shopOrderWhere[Op.or] = [
+    {
+      delivered_at: dateFilter
+    },
+    {
+      delivered_at: null,
+      updated_at: dateFilter
+    }
+  ];
 
   // Lấy tất cả shop_orders DELIVERED kèm parent_order (để biết payment_method)
   const deliveredOrders = await db.ShopOrder.findAll({
@@ -561,10 +588,17 @@ const getFinancialReport = async (dateFrom, dateTo) => {
         shop_name: order.shop?.shop_name || "N/A",
         total_revenue: 0,
         order_count: 0,
+        cod_revenue: 0,
+        online_revenue: 0,
       };
     }
     shopRevenueMap[shopId].total_revenue += amount;
     shopRevenueMap[shopId].order_count++;
+    if (isCOD) {
+      shopRevenueMap[shopId].cod_revenue += amount;
+    } else {
+      shopRevenueMap[shopId].online_revenue += amount;
+    }
   }
 
   // Tính khấu trừ COD: chiết khấu sàn 10% + thuế 1.5% = 11.5%
@@ -602,28 +636,236 @@ const getFinancialReport = async (dateFrom, dateTo) => {
     .sort((a, b) => b.total_revenue - a.total_revenue)
     .slice(0, 10);
 
-  // Doanh thu 7 ngày gần nhất
-  const dailyRevenue = [];
-  const today = new Date();
-  for (let i = 6; i >= 0; i--) {
-    const dayStart = new Date(today);
-    dayStart.setDate(today.getDate() - i);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setHours(23, 59, 59, 999);
+  // Xác định kiểu group tự động dựa trên khoảng cách ngày nếu không truyền lên
+  let activeGroupBy = groupBy;
+  if (!activeGroupBy) {
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays <= 10) {
+      activeGroupBy = "day";
+    } else if (diffDays <= 31) {
+      activeGroupBy = "day"; // Mặc định hiển thị theo ngày khi chọn tháng
+    } else {
+      activeGroupBy = "month";
+    }
+  }
 
-    let dayTotal = 0;
-    for (const order of deliveredOrders) {
-      const orderDate = new Date(order.updated_at);
-      if (orderDate >= dayStart && orderDate <= dayEnd) {
-        dayTotal += parseFloat(order.final_amount || 0);
+  const dailyRevenue = [];
+
+  if (activeGroupBy === "day") {
+    const current = new Date(start);
+    while (current <= end) {
+      const dayStart = new Date(current);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(current);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      let dayTotal = 0;
+      for (const order of deliveredOrders) {
+        const orderDate = new Date(order.delivered_at || order.updated_at);
+        if (orderDate >= dayStart && orderDate <= dayEnd) {
+          dayTotal += parseFloat(order.final_amount || 0);
+        }
+      }
+
+      // Format label: "Thứ X (DD/MM)" cho từng ngày
+      const daysOfWeek = ["Chủ Nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
+      const label = `${daysOfWeek[current.getDay()]} (${current.getDate().toString().padStart(2, '0')}/${(current.getMonth() + 1).toString().padStart(2, '0')})`;
+      dailyRevenue.push({
+        date: label,
+        revenue: dayTotal,
+      });
+
+      current.setDate(current.getDate() + 1);
+    }
+  } else if (activeGroupBy === "week") {
+    // Chia tuần: Nếu start và end thuộc cùng một tháng và là trọn tháng (ngày 1 -> ngày cuối tháng)
+    const isFullMonth = start.getDate() === 1 && (end.getDate() >= 28 && end.getDate() <= 31);
+
+    if (isFullMonth) {
+      const year = start.getFullYear();
+      const month = start.getMonth();
+      const lastDay = end.getDate();
+
+      const weeks = [
+        { label: "Tuần 1", start: new Date(year, month, 1, 0, 0, 0, 0), end: new Date(year, month, 7, 23, 59, 59, 999) },
+        { label: "Tuần 2", start: new Date(year, month, 8, 0, 0, 0, 0), end: new Date(year, month, 14, 23, 59, 59, 999) },
+        { label: "Tuần 3", start: new Date(year, month, 15, 0, 0, 0, 0), end: new Date(year, month, 21, 23, 59, 59, 999) },
+        { label: "Tuần 4", start: new Date(year, month, 22, 0, 0, 0, 0), end: new Date(year, month, lastDay, 23, 59, 59, 999) },
+      ];
+
+      for (const w of weeks) {
+        let revenue = 0;
+        for (const order of deliveredOrders) {
+          const orderDate = new Date(order.delivered_at || order.updated_at);
+          if (orderDate >= w.start && orderDate <= w.end) {
+            revenue += parseFloat(order.final_amount || 0);
+          }
+        }
+        dailyRevenue.push({
+          date: w.label,
+          revenue: revenue
+        });
+      }
+    } else {
+      // Chia 7 ngày bắt đầu từ ngày start
+      const current = new Date(start);
+      let weekNum = 1;
+      while (current <= end) {
+        const wStart = new Date(current);
+        wStart.setHours(0, 0, 0, 0);
+
+        const wEnd = new Date(current);
+        wEnd.setDate(current.getDate() + 6);
+        if (wEnd > end) {
+          wEnd.setTime(end.getTime());
+        }
+        wEnd.setHours(23, 59, 59, 999);
+
+        let revenue = 0;
+        for (const order of deliveredOrders) {
+          const orderDate = new Date(order.delivered_at || order.updated_at);
+          if (orderDate >= wStart && orderDate <= wEnd) {
+            revenue += parseFloat(order.final_amount || 0);
+          }
+        }
+
+        const label = `Tuần ${weekNum}`;
+        dailyRevenue.push({
+          date: label,
+          revenue: revenue
+        });
+
+        weekNum++;
+        current.setDate(current.getDate() + 7);
       }
     }
-    dailyRevenue.push({
-      date: dayStart.toISOString().slice(0, 10),
-      revenue: dayTotal,
-    });
+  } else if (activeGroupBy === "month") {
+    const current = new Date(start);
+    current.setDate(1);
+
+    while (current <= end) {
+      const mStart = new Date(current.getFullYear(), current.getMonth(), 1, 0, 0, 0, 0);
+      const mEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      let revenue = 0;
+      for (const order of deliveredOrders) {
+        const orderDate = new Date(order.delivered_at || order.updated_at);
+        if (orderDate >= mStart && orderDate <= mEnd) {
+          revenue += parseFloat(order.final_amount || 0);
+        }
+      }
+
+      const label = `Tháng ${current.getMonth() + 1}`;
+      dailyRevenue.push({
+        date: label,
+        revenue: revenue
+      });
+
+      current.setMonth(current.getMonth() + 1);
+    }
+  } else if (activeGroupBy === "year") {
+    const current = new Date(start);
+    while (current.getFullYear() <= end.getFullYear()) {
+      const yStart = new Date(current.getFullYear(), 0, 1, 0, 0, 0, 0);
+      const yEnd = new Date(current.getFullYear(), 11, 31, 23, 59, 59, 999);
+
+      let revenue = 0;
+      for (const order of deliveredOrders) {
+        const orderDate = new Date(order.delivered_at || order.updated_at);
+        if (orderDate >= yStart && orderDate <= yEnd) {
+          revenue += parseFloat(order.final_amount || 0);
+        }
+      }
+
+      dailyRevenue.push({
+        date: `Năm ${current.getFullYear()}`,
+        revenue: revenue
+      });
+
+      current.setFullYear(current.getFullYear() + 1);
+    }
   }
+
+
+
+  // --- Tính toán shop_reports theo tháng/năm được chọn ---
+  const now = new Date();
+  const activeShopMonth = shopMonth ? parseInt(shopMonth) : (now.getMonth() + 1);
+  const activeShopYear = shopYear ? parseInt(shopYear) : now.getFullYear();
+
+  const shopRangeStart = new Date(activeShopYear, activeShopMonth - 1, 1, 0, 0, 0, 0);
+  const shopRangeEnd = new Date(activeShopYear, activeShopMonth, 0, 23, 59, 59, 999);
+
+  const shopOrders = await db.ShopOrder.findAll({
+    where: {
+      status: "DELIVERED",
+      [Op.or]: [
+        {
+          delivered_at: { [Op.between]: [shopRangeStart, shopRangeEnd] }
+        },
+        {
+          delivered_at: null,
+          updated_at: { [Op.between]: [shopRangeStart, shopRangeEnd] }
+        }
+      ]
+    },
+    include: [{
+      model: db.ParentOrder,
+      as: "parentOrder",
+      attributes: ["id", "payment_method"],
+    }, {
+      model: db.Shop,
+      as: "shop",
+      attributes: ["id", "shop_name"],
+    }],
+  });
+
+  const localMap = {};
+  for (const order of shopOrders) {
+    const amount = parseFloat(order.final_amount || 0);
+    const isCOD = order.parentOrder?.payment_method === "COD";
+    const sId = order.shop_id;
+    if (!localMap[sId]) {
+      localMap[sId] = {
+        shop_id: sId,
+        shop_name: order.shop?.shop_name || "N/A",
+        total_revenue: 0,
+        order_count: 0,
+        cod_revenue: 0,
+        online_revenue: 0,
+      };
+    }
+    localMap[sId].total_revenue += amount;
+    localMap[sId].order_count++;
+    if (isCOD) {
+      localMap[sId].cod_revenue += amount;
+    } else {
+      localMap[sId].online_revenue += amount;
+    }
+  }
+
+  const shopReports = Object.values(localMap).map((shop) => {
+    const codComm = shop.cod_revenue * (commissionRate / 100);
+    const codTx = shop.cod_revenue * (taxRate / 100);
+    const codPayout = shop.cod_revenue - (codComm + codTx);
+
+    const onlineComm = shop.online_revenue * (commissionRate / 100);
+    const onlineGate = shop.online_revenue * (gatewayFee / 100);
+    const onlineTx = shop.online_revenue * (taxRate / 100);
+    const onlinePayout = shop.online_revenue - (onlineComm + onlineGate + onlineTx);
+
+    return {
+      shop_id: shop.shop_id,
+      shop_name: shop.shop_name,
+      order_count: shop.order_count,
+      total_revenue: shop.total_revenue,
+      commission: codComm + onlineComm,
+      gateway_fee: onlineGate,
+      tax: codTx + onlineTx,
+      payout: codPayout + onlinePayout,
+    };
+  }).sort((a, b) => b.total_revenue - a.total_revenue);
 
   return {
     // Tỷ lệ cấu hình
@@ -672,6 +914,7 @@ const getFinancialReport = async (dateFrom, dateTo) => {
     orders_by_status: ordersByStatus,
     top_shops: topShops,
     daily_revenue: dailyRevenue,
+    shop_reports: shopReports,
   };
 };
 

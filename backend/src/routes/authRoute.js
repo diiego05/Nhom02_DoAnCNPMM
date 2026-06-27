@@ -6,10 +6,10 @@ import { verifyRecaptcha } from "../middleware/recaptcha.js";
 
 const authLimiter = rateLimit({
   windowMs: 1000 * 60 * 5,
-  max: 6,
+  max: 1000000,
   handler: (req, res, next, options) => {
     res.status(options.statusCode).json({
-      message: "Bạn đã nhập sai quá 6 lần. Vui lòng thử lại sau 5 phút."
+      message: "Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau 5 phút."
     });
   },
 });
@@ -19,7 +19,6 @@ router.post("/verify-otp", authController.verifyOTP);
 router.post("/login", authLimiter, authController.login);
 router.post("/refresh", authController.refresh);
 router.post("/logout", authController.logout);
-// Từ nhánh di: Google OAuth route
 router.post("/google", authController.googleLogin);
 
 export default router;

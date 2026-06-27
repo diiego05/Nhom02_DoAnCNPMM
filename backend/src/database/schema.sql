@@ -702,9 +702,34 @@ CREATE TABLE `payment_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
+-- ************************************************************
+-- PHẦN 19: BLOGS (TIN TỨC & XU HƯỚNG)
+-- ************************************************************
+
+CREATE TABLE `blogs` (
+  `id`            BIGINT        NOT NULL AUTO_INCREMENT,
+  `title`         VARCHAR(255)  NOT NULL,
+  `slug`          VARCHAR(255)  NOT NULL,
+  `summary`       TEXT          DEFAULT NULL,
+  `content`       TEXT          NOT NULL COMMENT 'Lưu chuỗi JSON các khối nội dung của blog',
+  `thumbnail_url` TEXT          DEFAULT NULL,
+  `category`      VARCHAR(100)  NOT NULL,
+  `status`        ENUM('DRAFT','PUBLISHED') NOT NULL DEFAULT 'DRAFT',
+  `author_id`     BIGINT        NOT NULL,
+  `views_count`   INT           NOT NULL DEFAULT 0,
+  `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at`    DATETIME      DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_blog_slug` (`slug`),
+  CONSTRAINT `fk_blog_author`
+    FOREIGN KEY (`author_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================
 -- END OF SCHEMA
--- Total tables: 27
+-- Total tables: 28
 -- ============================================================

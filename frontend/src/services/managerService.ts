@@ -78,9 +78,43 @@ export const managerService = {
     const response = await axiosClient.delete(`/manager/reviews/${id}`);
     return response.data.data;
   },
-  getReportOverview: async () => {
-    const response = await axiosClient.get("/manager/reports/overview");
+  getReportOverview: async (month?: number, year?: number) => {
+    const response = await axiosClient.get("/manager/reports/overview", {
+      params: { month, year }
+    });
     return response.data.data;
+  },
+  getBlogs: async (params?: { category?: string; search?: string }) => {
+    const response = await axiosClient.get("/blogs", { params });
+    return response.data.data;
+  },
+  getBlogBySlug: async (slug: string) => {
+    const response = await axiosClient.get(`/blogs/${slug}`);
+    return response.data.data;
+  },
+  getManagerBlogs: async () => {
+    const response = await axiosClient.get("/manager/blogs");
+    return response.data.data;
+  },
+  createBlog: async (payload: any) => {
+    const response = await axiosClient.post("/manager/blogs", payload);
+    return response.data.data;
+  },
+  updateBlog: async (id: number | string, payload: any) => {
+    const response = await axiosClient.put(`/manager/blogs/${id}`, payload);
+    return response.data.data;
+  },
+  deleteBlog: async (id: number | string) => {
+    const response = await axiosClient.delete(`/manager/blogs/${id}`);
+    return response.data;
+  },
+  uploadBlogImage: async (file: File) => {
+    const formData = new FormData();
+    formData.append("image", file);
+    const response = await axiosClient.post("/manager/blogs/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data;
   },
 };
 export default managerService;

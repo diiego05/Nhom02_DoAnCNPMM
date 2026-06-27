@@ -17,25 +17,106 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import * as XLSX from 'xlsx';
 import { adminService } from '@/services/adminService';
 
+const getDefaultDates = () => {
+   const today = new Date();
+   const y = today.getFullYear();
+   const m = today.getMonth();
+   const lastDay = new Date(y, m + 1, 0).getDate();
+   const fStr = `${y}-${(m + 1).toString().padStart(2, '0')}-01`;
+   const lStr = `${y}-${(m + 1).toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
+   return { from: fStr, to: lStr, group: "week" as const };
+};
+
 export const FinanceTab = () => {
+   const def = getDefaultDates();
    const [report, setReport] = useState<any>(null);
    const [loading, setLoading] = useState(true);
-   const [dateFrom, setDateFrom] = useState("");
-   const [dateTo, setDateTo] = useState("");
-
+   const [dateFrom, setDateFrom] = useState(def.from);
+   const [dateTo, setDateTo] = useState(def.to);
+   const [groupBy, setGroupBy] = useState<"day" | "week" | "month">(def.group);
+   const [shopMonth, setShopMonth] = useState<number>(new Date().getMonth() + 1);
+   const [shopYear, setShopYear] = useState<number>(new Date().getFullYear());
+ 
    const fetchReport = useCallback(async () => {
       setLoading(true);
       try {
-         const res = await adminService.getFinancialReport(dateFrom || undefined, dateTo || undefined);
+         const res = await adminService.getFinancialReport(
+            dateFrom || undefined, 
+            dateTo || undefined,
+            groupBy,
+            shopMonth,
+            shopYear
+         );
          setReport(res.data);
       } catch (e) {
          console.error(e);
       } finally {
          setLoading(false);
       }
-   }, [dateFrom, dateTo]);
-
+   }, [dateFrom, dateTo, groupBy, shopMonth, shopYear]);
+ 
    useEffect(() => { fetchReport(); }, [fetchReport]);
+
+   const autoAdjustGroupBy = (fromVal: string, toVal: string) => {
+      if (!fromVal || !toVal) {
+         setGroupBy("day");
+         return;
+      }
+      const start = new Date(fromVal);
+      const end = new Date(toVal);
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays <= 10) {
+         setGroupBy("day");
+      } else if (diffDays <= 31) {
+         setGroupBy("week"); // Chọn tháng thì chuyển sang tuần
+      } else {
+         setGroupBy("month"); // Chọn năm thì chuyển sang tháng
+      }
+   };
+
+   const handleDateFromChange = (val: string) => {
+      setDateFrom(val);
+      autoAdjustGroupBy(val, dateTo);
+   };
+
+   const handleDateToChange = (val: string) => {
+      setDateTo(val);
+      autoAdjustGroupBy(dateFrom, val);
+   };
+
+   const handleReset = () => {
+      const defDates = getDefaultDates();
+      setDateFrom(defDates.from);
+      setDateTo(defDates.to);
+      setGroupBy(defDates.group);
+      setShopMonth(new Date().getMonth() + 1);
+      setShopYear(new Date().getFullYear());
+   };
+
+   const handleChartGroupChange = (mode: "day" | "week" | "month") => {
+      const today = new Date();
+      const y = today.getFullYear();
+      const m = today.getMonth();
+
+      if (mode === "day") {
+         const start = new Date(today);
+         start.setDate(today.getDate() - 6);
+         setDateFrom(start.toISOString().split('T')[0]);
+         setDateTo(today.toISOString().split('T')[0]);
+         setGroupBy("day");
+      } else if (mode === "week") {
+         const lastDay = new Date(y, m + 1, 0).getDate();
+         setDateFrom(`${y}-${(m + 1).toString().padStart(2, '0')}-01`);
+         setDateTo(`${y}-${(m + 1).toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`);
+         setGroupBy("week");
+      } else if (mode === "month") {
+         setDateFrom(`${y}-01-01`);
+         setDateTo(`${y}-12-31`);
+         setGroupBy("month");
+      }
+   };
 
    const fmt = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0));
 
@@ -111,7 +192,7 @@ export const FinanceTab = () => {
       XLSX.writeFile(wb, fileName);
    };
 
-   if (loading) {
+   if (loading && !report) {
       return (
          <div className="flex items-center justify-center py-32">
             <Loader2 size={32} className="animate-spin text-gray-400" />
@@ -122,25 +203,30 @@ export const FinanceTab = () => {
    if (!report) return null;
 
    return (
-      <div className="space-y-10">
+      <div className={`space-y-10 transition-opacity duration-200 ${loading ? "opacity-50 pointer-events-none" : ""}`}>
          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
             <div>
-               <h1 className="text-3xl font-serif font-black tracking-tighter uppercase">Báo cáo tài chính tổng</h1>
+               <div className="flex items-center gap-3">
+                  <h1 className="text-3xl font-serif font-black tracking-tighter uppercase">Báo cáo tài chính tổng</h1>
+                  <span className="bg-red-100 text-red-700 border-2 border-black rounded-xl px-3 py-1 text-xs font-black uppercase tracking-wider select-none shrink-0">
+                     Tháng hiện tại: {new Date().getMonth() + 1}/{new Date().getFullYear()}
+                  </span>
+               </div>
                <p className="text-gray-400 font-medium text-sm mt-1 italic">Theo dõi doanh thu, công nợ và dòng tiền COD/Thẻ</p>
             </div>
             <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
                <div className="flex-1 min-w-[140px]">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">Từ ngày</label>
-                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-full border-2 border-black rounded-xl px-4 py-2 font-bold text-sm text-black" />
+                  <input type="date" value={dateFrom} onChange={e => handleDateFromChange(e.target.value)} className="w-full border-2 border-black rounded-xl px-4 py-2 font-bold text-sm text-black" />
                </div>
                <div className="flex-1 min-w-[140px]">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">Đến ngày</label>
-                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-full border-2 border-black rounded-xl px-4 py-2 font-bold text-sm text-black" />
+                  <input type="date" value={dateTo} onChange={e => handleDateToChange(e.target.value)} className="w-full border-2 border-black rounded-xl px-4 py-2 font-bold text-sm text-black" />
                </div>
-               <button onClick={fetchReport} className="mt-5 p-3 border-2 border-black rounded-xl hover:bg-gray-50 transition-all active:translate-y-1 shrink-0" title="Làm mới">
+               <button type="button" onClick={handleReset} className="mt-5 p-3 border-2 border-black rounded-xl hover:bg-gray-50 transition-all active:translate-y-1 shrink-0" title="Reset bộ lọc">
                   <RefreshCw size={18} />
                </button>
-               <button onClick={handleExportExcel} className="mt-5 px-5 py-2.5 border-2 border-black bg-[#A3E635] text-black font-black text-xs uppercase tracking-widest rounded-xl hover:bg-black hover:text-white transition-all shadow-subtle active:translate-y-1 flex items-center justify-center gap-2 w-full sm:w-auto shrink-0">
+               <button type="button" onClick={handleExportExcel} className="mt-5 px-5 py-2.5 border-2 border-black bg-[#A3E635] text-black font-black text-xs uppercase tracking-widest rounded-xl hover:bg-black hover:text-white transition-all shadow-subtle active:translate-y-1 flex items-center justify-center gap-2 w-full sm:w-auto shrink-0">
                   <FileDown size={16} /> Xuất Excel
                </button>
             </div>
@@ -287,20 +373,44 @@ export const FinanceTab = () => {
             </div>
          </div>
 
-         {/* Top shops + Biểu đồ doanh thu 7 ngày */}
+         {/* Top shops + Biểu đồ doanh thu */}
          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Doanh thu 7 ngày */}
+            {/* Doanh thu */}
             <div className="bg-white border-2 border-black rounded-[2rem] p-8 shadow-sm">
-               <h3 className="text-lg font-black uppercase tracking-tighter mb-8">Doanh thu 7 ngày gần nhất</h3>
+               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                  <h3 className="text-lg font-black uppercase tracking-tighter">
+                     Biến động doanh thu ({groupBy === "day" ? "Tuần" : groupBy === "week" ? "Tháng" : "Năm"})
+                  </h3>
+                  <div className="flex bg-gray-100 p-1 border-2 border-black rounded-xl select-none shrink-0">
+                     {[
+                        { label: "Tuần", value: "day" },
+                        { label: "Tháng", value: "week" },
+                        { label: "Năm", value: "month" }
+                     ].map((g) => (
+                        <button
+                           type="button"
+                           key={g.value}
+                           onClick={() => handleChartGroupChange(g.value as any)}
+                           className={`px-3 py-1 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all ${
+                              groupBy === g.value
+                                 ? "bg-black text-white"
+                                 : "text-gray-400 hover:text-black"
+                           }`}
+                        >
+                           {g.label}
+                        </button>
+                     ))}
+                  </div>
+               </div>
                <div className="h-64 w-full">
                   <ResponsiveContainer width="100%" height={250} minWidth={0}>
                      <LineChart data={report.daily_revenue} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                        <XAxis dataKey="date" tickFormatter={(val) => val?.slice(5) || ""} stroke="#9ca3af" fontSize={10} fontWeight="bold" tickLine={false} axisLine={false} />
+                        <XAxis dataKey="date" stroke="#9ca3af" fontSize={10} fontWeight="bold" tickLine={false} axisLine={false} />
                         <YAxis stroke="#9ca3af" fontSize={10} fontWeight="bold" tickFormatter={(val) => `${val / 1000}k`} tickLine={false} axisLine={false} />
                         <Tooltip
                            formatter={(value: any) => [`${fmt(value)}₫`, "Doanh thu"]}
-                           labelFormatter={(label) => `Ngày: ${label}`}
+                           labelFormatter={(label) => `${label}`}
                            contentStyle={{ border: '2px solid black', borderRadius: '12px', fontWeight: 'bold' }}
                         />
                         <Line type="monotone" dataKey="revenue" stroke="#dc2626" strokeWidth={4} activeDot={{ r: 8, fill: "#000" }} dot={{ r: 4, fill: "#dc2626", strokeWidth: 2, stroke: "#fff" }} />
@@ -363,6 +473,73 @@ export const FinanceTab = () => {
                      </div>
                   );
                })}
+            </div>
+         </div>
+
+         {/* Tổng hợp đơn hàng và doanh thu các shop */}
+         <div className="bg-white border-2 border-black rounded-[2rem] p-8 shadow-sm">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+               <h3 className="text-lg font-black uppercase tracking-tighter flex items-center gap-3">
+                  <Store size={20} /> Tổng hợp đơn hàng và doanh thu các shop
+               </h3>
+               <div className="flex items-center gap-2 select-none shrink-0">
+                  <div className="flex items-center gap-1">
+                     <span className="text-[10px] font-black uppercase text-gray-400">Tháng</span>
+                     <select
+                        value={shopMonth}
+                        onChange={(e) => setShopMonth(parseInt(e.target.value))}
+                        className="border-2 border-black rounded-xl px-3 py-1.5 font-bold text-xs bg-white text-black focus:outline-none"
+                     >
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                           <option key={m} value={m}>Tháng {m}</option>
+                        ))}
+                     </select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                     <span className="text-[10px] font-black uppercase text-gray-400">Năm</span>
+                     <select
+                        value={shopYear}
+                        onChange={(e) => setShopYear(parseInt(e.target.value))}
+                        className="border-2 border-black rounded-xl px-3 py-1.5 font-bold text-xs bg-white text-black focus:outline-none"
+                     >
+                        {[2024, 2025, 2026, 2027].map((y) => (
+                           <option key={y} value={y}>Năm {y}</option>
+                        ))}
+                     </select>
+                  </div>
+               </div>
+            </div>
+            <div className="overflow-x-auto">
+               <table className="w-full text-left">
+                  <thead>
+                     <tr className="border-b-2 border-black/10 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                        <th className="px-6 py-4">Tên Shop</th>
+                        <th className="px-6 py-4 text-center">Số đơn giao thành công</th>
+                        <th className="px-6 py-4 text-right">Doanh thu gốc</th>
+                        <th className="px-6 py-4 text-right">Chiết khấu sàn</th>
+                        <th className="px-6 py-4 text-right">Thuế & Phí cổng</th>
+                        <th className="px-6 py-4 text-right">Shop nhận về</th>
+                     </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/5 text-xs font-bold text-black">
+                     {report.shop_reports?.length > 0 ? (
+                        report.shop_reports.map((shop: any) => (
+                           <tr key={shop.shop_id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 font-black">{shop.shop_name}</td>
+                              <td className="px-6 py-4 text-center font-black">{shop.order_count} đơn</td>
+                              <td className="px-6 py-4 text-right text-sm font-black">{fmt(shop.total_revenue)}₫</td>
+                              <td className="px-6 py-4 text-right text-red-500">-{fmt(shop.commission)}₫</td>
+                              <td className="px-6 py-4 text-right text-blue-500">-{fmt(shop.tax + shop.gateway_fee)}₫</td>
+                              <td className="px-6 py-4 text-right text-sm font-black text-green-700">{fmt(shop.payout)}₫</td>
+                           </tr>
+                        ))
+                     ) : (
+                        <tr>
+                           <td colSpan={6} className="px-6 py-8 text-center text-gray-400 uppercase tracking-widest text-[10px]">Chưa có dữ liệu giao dịch cho các shop</td>
+                        </tr>
+                     )}
+                  </tbody>
+               </table>
             </div>
          </div>
       </div>
