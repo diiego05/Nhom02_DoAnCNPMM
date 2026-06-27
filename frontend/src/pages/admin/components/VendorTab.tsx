@@ -9,6 +9,7 @@ import {
    Eye,
    Landmark,
 } from 'lucide-react';
+import { getShopStatusLabel } from '@/utils/statusUtils';
 import { adminService } from '@/services/adminService';
 
 interface VendorTabProps {
@@ -70,12 +71,7 @@ export const VendorTab = ({ showToast, showConfirm }: VendorTabProps) => {
       BANNED: 'bg-gray-200 text-gray-600',
    };
 
-   const statusLabels: Record<string, string> = {
-      PENDING: 'Chờ duyệt',
-      APPROVED: 'Đã duyệt',
-      REJECTED: 'Từ chối',
-      BANNED: 'Bị cấm',
-   };
+
 
    return (
       <div className="space-y-8">
@@ -146,7 +142,7 @@ export const VendorTab = ({ showToast, showConfirm }: VendorTabProps) => {
                            </td>
                            <td className="px-8 py-6">
                               <span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-full border-2 border-black ${statusColors[s.status] || 'bg-gray-100'}`}>
-                                 {statusLabels[s.status] || s.status}
+                                 {getShopStatusLabel(s.status)}
                               </span>
                            </td>
                            <td className="px-8 py-6 text-xs font-bold text-gray-400">
@@ -196,7 +192,7 @@ export const VendorTab = ({ showToast, showConfirm }: VendorTabProps) => {
                      </div>
                      <h4 className="text-xl font-black uppercase text-black">{selectedShop.shop_name}</h4>
                      <span className={`mt-2 text-[9px] font-black uppercase px-3 py-1.5 rounded-full border-2 border-black ${statusColors[selectedShop.status] || 'bg-gray-100'}`}>
-                        {statusLabels[selectedShop.status] || selectedShop.status}
+                        {getShopStatusLabel(selectedShop.status)}
                      </span>
                   </div>
 

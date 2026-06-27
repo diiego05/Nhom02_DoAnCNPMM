@@ -33,6 +33,7 @@ import {
   Save,
   Paperclip
 } from 'lucide-react';
+import { getOrderStatusLabel } from '@/utils/statusUtils';
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -3271,21 +3272,7 @@ const VendorDashboard = () => {
                                                         "bg-red-50 text-red-600 border-red-100"
                                       }`}
                                   >
-                                    {order.status === "PENDING"
-                                      ? "Chờ xác nhận"
-                                      : order.status === "CONFIRMED"
-                                        ? "Đã xác nhận"
-                                        : order.status === "PREPARING"
-                                          ? "Đang chuẩn bị"
-                                          : order.status === "SHIPPING"
-                                            ? "Đang giao hàng"
-                                            : order.status === "DELIVERED" || order.status === "COMPLETED"
-                                                    ? "Hoàn tất"
-                                                    : order.status === "RETURN_PENDING"
-                                                      ? "Đang hoàn hàng"
-                                                      : order.status === "RETURNED"
-                                                        ? "Đã hoàn hàng"
-                                                        : "Đã hủy"}
+                                    {getOrderStatusLabel(order.status)}
                                   </span>
                                 </td>
                                 <td className="px-8 py-4 text-right">

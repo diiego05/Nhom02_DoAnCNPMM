@@ -433,7 +433,9 @@ const getUserOrderCounts = async (userId) => {
     PREPARING: 0,
     READY_FOR_PICKUP: 0,
     SHIPPING: 0,
+    DELIVERING: 0,
     DELIVERED: 0,
+    COMPLETED: 0,
     CANCELLED: 0,
     RETURN_PENDING: 0,
     RETURNED: 0,
@@ -441,9 +443,12 @@ const getUserOrderCounts = async (userId) => {
   };
 
   counts.forEach(c => {
-    if (c.status === 'SHIPPING') {
+    if (c.status === 'SHIPPING' || c.status === 'DELIVERED') {
       countMap.DELIVERING += Number(c.count);
       countMap.ALL += Number(c.count);
+      if (countMap[c.status] !== undefined) {
+        countMap[c.status] += Number(c.count);
+      }
     } else if (countMap[c.status] !== undefined) {
       countMap[c.status] += Number(c.count);
       countMap.ALL += Number(c.count);
@@ -638,6 +643,11 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
     wallet.balance = Number(wallet.balance) + netShopAmount;
     wallet.total_earned = Number(wallet.total_earned) + netShopAmount;
     await wallet.save();
+
+    // Mark parentOrder as PAID if COD and not paid yet
+    if (shopOrder.parentOrder?.payment_method === "COD" && shopOrder.parentOrder?.payment_status !== "PAID") {
+      await shopOrder.parentOrder.update({ payment_status: "PAID" });
+    }
   }
 
   await shopOrder.update(updateData);

@@ -14,6 +14,7 @@ import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { useAddToCart } from '@/hooks/useCart';
 import { ReturnOrderModal } from '@/components/modals/ReturnOrderModal';
 import orderService from '@/services/orderService';
+import { getOrderStatusLabel, getShipmentStatusLabel } from '@/utils/statusUtils';
 
 const OrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -174,27 +175,13 @@ const OrderDetailPage = () => {
     { key: "CONFIRMED", label: "Đã xác nhận" },
     { key: "PREPARING", label: "Chuẩn bị hàng" },
     { key: "SHIPPING", label: "Đang giao" },
-    { key: "DELIVERED", label: "Thành công" },
+    { key: "COMPLETED", label: "Hoàn thành" },
   ];
 
-  const getStatusLabel = (status: OrderStatus) => {
-    const labels: Record<string, string> = {
-      'PENDING': 'Chờ xác nhận',
-      'CONFIRMED': 'Đã xác nhận',
-      'PREPARING': 'Đang chuẩn bị',
-      'SHIPPING': 'Đang đi giao',
-      'DELIVERED': 'Giao thành công',
-      'CANCEL_REQUESTED': 'Yêu cầu hủy',
-      'CANCELLED': 'Đã hủy',
-      'FAILED': 'Giao thất bại',
-      'RETURN_PENDING': 'Đang chuyển hoàn',
-      'RETURNED': 'Đã hoàn hàng'
-    };
-    return labels[status] || status;
-  };
+
 
   const getStatusColor = (status: OrderStatus) => {
-    if (['DELIVERED'].includes(status)) return 'bg-green-50 text-green-600 border-green-200';
+    if (['DELIVERED', 'COMPLETED'].includes(status)) return 'bg-green-50 text-green-600 border-green-200';
     if (['SHIPPING'].includes(status)) return 'bg-blue-50 text-blue-600 border-blue-200';
     if (['CANCELLED', 'CANCEL_REQUESTED', 'FAILED'].includes(status)) return 'bg-red-50 text-red-600 border-red-200';
     if (['RETURN_PENDING', 'RETURNED'].includes(status)) return 'bg-pink-50 text-pink-600 border-pink-200';
@@ -238,7 +225,8 @@ const OrderDetailPage = () => {
       );
     }
 
-    const currentIndex = orderStatuses.findIndex(s => s.key === currentStatus);
+    const effectiveStatus = currentStatus === "DELIVERED" ? "SHIPPING" : currentStatus;
+    const currentIndex = orderStatuses.findIndex(s => s.key === effectiveStatus);
 
     return (
       <div className="flex flex-row w-full mt-8 px-4 relative">
@@ -304,13 +292,7 @@ const OrderDetailPage = () => {
                 <div className={`absolute -left-6 top-1 w-6 h-6 rounded-full border-4 border-white ${idx === 0 ? 'bg-primary shadow-[0_0_10px_rgba(var(--color-primary),0.5)]' : 'bg-gray-300'}`}></div>
                 <div className="flex-1">
                   <p className={`font-bold ${idx === 0 ? 'text-black' : 'text-gray-500'}`}>
-                    {h.status === 'PENDING_PICKUP' ? 'Đang chờ lấy hàng' :
-                     h.status === 'PICKED_UP' ? 'Đã lấy hàng' :
-                     h.status === 'IN_TRANSIT' ? 'Đang luân chuyển' :
-                     h.status === 'OUT_FOR_DELIVERY' ? 'Đang đi giao' :
-                     h.status === 'DELIVERED' ? 'Giao thành công' :
-                     h.status === 'FAILED' ? 'Giao thất bại' :
-                     h.status === 'RETURNED' ? 'Đã hoàn hàng' : h.status}
+                    {getShipmentStatusLabel(h.status)}
                   </p>
                   {h.location && (
                     <p className="text-sm font-medium text-gray-600 mt-1 flex items-center gap-1">
@@ -358,6 +340,16 @@ const OrderDetailPage = () => {
       </div>
     );
   }
+
+  const canReturn = (() => {
+    if (order.status === 'DELIVERED') return true;
+    if (order.status === 'COMPLETED') {
+      const completedDate = new Date(order.updated_at);
+      const daysSinceCompleted = (new Date().getTime() - completedDate.getTime()) / (1000 * 3600 * 24);
+      return daysSinceCompleted <= 15;
+    }
+    return false;
+  })();
 
   return (
     <div className="min-h-screen bg-[#F4F4F0] pt-24 pb-32 px-6">
@@ -416,17 +408,41 @@ const OrderDetailPage = () => {
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               <div className={`px-6 py-3 rounded-full border-2 font-black text-xs uppercase tracking-widest shadow-subtle ${getStatusColor(order.status)}`}>
-                {getStatusLabel(order.status)}
+                {getOrderStatusLabel(order.status)}
               </div>
-              {order.status === 'DELIVERED' && (
-                <button
-                  onClick={handleConfirmReceipt}
-                  disabled={isConfirming}
-                  className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-black text-xs uppercase tracking-widest rounded-full border-2 border-black shadow-subtle hover:shadow-none transition-all active:translate-y-[2px]"
-                >
-                  {isConfirming ? 'Đang xử lý...' : 'Đã nhận hàng & Hoàn tất'}
-                </button>
-              )}
+              
+              <div className="flex flex-row flex-wrap items-center gap-3">
+                {order.status === 'DELIVERED' && (
+                  <button
+                    onClick={handleConfirmReceipt}
+                    disabled={isConfirming}
+                    className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-black text-xs uppercase tracking-widest rounded-full border-2 border-black shadow-subtle hover:shadow-none transition-all active:translate-y-[2px]"
+                  >
+                    {isConfirming ? 'Đang xử lý...' : 'Đã nhận hàng'}
+                  </button>
+                )}
+                {canReturn && (
+                  order.returnRequests && order.returnRequests.length > 0 ? (
+                    <div className="flex flex-col items-start sm:items-end gap-1">
+                      <span className="text-xs font-black text-red-500 uppercase tracking-widest bg-red-50 px-3 py-2 rounded-full border border-red-100">
+                        Đã yêu cầu trả hàng
+                      </span>
+                      {order.returnRequests[0].status === "RESOLVED_BY_ADMIN" && (
+                        <span className="text-[10px] font-bold text-gray-500 max-w-[200px] text-right leading-tight hidden sm:block">
+                          Đã bị từ chối và không thể yêu cầu lại.
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setReturnModalOpen(true)}
+                      className="px-6 py-3 bg-white text-red-600 border-2 border-red-200 rounded-full font-black text-xs uppercase tracking-widest hover:bg-red-50 hover:border-red-300 transition-all shadow-subtle hover:shadow-none active:translate-y-[2px]"
+                    >
+                      Trả hàng / Hoàn tiền
+                    </button>
+                  )
+                )}
+              </div>
             </div>
           </div>
 
@@ -481,10 +497,17 @@ const OrderDetailPage = () => {
                     Trạng thái
                   </span>
                   <span
-                    className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${(order.parentOrder?.payment_status || order.payment_status) === "PAID" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}
+                    className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
+                      (order.parentOrder?.payment_status || order.payment_status) === "PAID" ||
+                      ((order.parentOrder?.payment_method || order.payment_method) === "COD" &&
+                        ["DELIVERED", "COMPLETED"].includes(order.status))
+                        ? "bg-green-100 text-green-700"
+                        : "bg-orange-100 text-orange-700"
+                    }`}
                   >
-                    {(order.parentOrder?.payment_status ||
-                      order.payment_status) === "PAID"
+                    {(order.parentOrder?.payment_status || order.payment_status) === "PAID" ||
+                    ((order.parentOrder?.payment_method || order.payment_method) === "COD" &&
+                      ["DELIVERED", "COMPLETED"].includes(order.status))
                       ? "Đã thanh toán"
                       : "Chưa thanh toán"}
                   </span>
@@ -583,7 +606,7 @@ const OrderDetailPage = () => {
                           </p>
                         </div>
 
-                        {order.status === "DELIVERED" &&
+                        {(order.status === "DELIVERED" || order.status === "COMPLETED") &&
                           (() => {
                             const existingReview = order.reviews?.find(
                               (r: any) =>
@@ -695,30 +718,7 @@ const OrderDetailPage = () => {
               </button>
             </div>
           )}
-          {order.status === "DELIVERED" && (
-            <div className="p-8 bg-white border-t-2 border-black/5 flex justify-end">
-              {order.returnRequests && order.returnRequests.length > 0 ? (
-                <div className="flex flex-col items-end gap-2">
-                  <span className="text-sm font-black text-red-500 uppercase tracking-widest bg-red-50 px-4 py-2 rounded-xl border border-red-100">
-                    Đã yêu cầu trả hàng
-                  </span>
-                  {order.returnRequests[0].status === "RESOLVED_BY_ADMIN" && (
-                    <span className="text-xs font-bold text-gray-500">
-                      Yêu cầu trả hàng của bạn đã bị từ chối và không thể yêu
-                      cầu lại.
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={() => setReturnModalOpen(true)}
-                  className="flex items-center gap-2 px-8 py-4 bg-white text-red-600 border-2 border-red-200 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-red-50 hover:border-red-300 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 active:translate-y-1"
-                >
-                  Yêu cầu Trả hàng / Hoàn tiền
-                </button>
-              )}
-            </div>
-          )}
+
         </div>
       </div>
 

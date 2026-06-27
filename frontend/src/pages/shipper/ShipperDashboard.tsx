@@ -13,11 +13,12 @@ import {
   RefreshCw,
   TrendingUp,
   ShieldCheck,
-  AlertTriangle,
   Menu,
+  AlertTriangle,
   CheckCircle2,
   X,
 } from "lucide-react";
+import { getShipmentStatusLabel } from "@/utils/statusUtils";
 import useAuth from "@/hooks/useAuth";
 import { useForm, Controller } from "react-hook-form";
 import * as yup from "yup";
@@ -692,18 +693,6 @@ export const ShipperDashboard: React.FC = () => {
                     const paymentMethod = order.parentOrder?.payment_method || "COD";
                     const clientNote = order.parentOrder?.note || "Không có ghi chú";
 
-                    const statusLabels: Record<string, string> = {
-                      PENDING_PICKUP: "Chờ shipper nhận",
-                      PICKED_UP: "Đã lấy hàng",
-                      IN_TRANSIT: "Đang luân chuyển",
-                      OUT_FOR_DELIVERY: "Đang giao hàng",
-                      DELIVERED: "Giao thành công",
-                      FAILED: "Giao thất bại",
-                      RETURN_PENDING: "Chờ chuyển hoàn",
-                      RETURNED: "Đã chuyển hoàn",
-                      CANCELLED: "Đã hủy",
-                    };
-
                     const statusColors: Record<string, string> = {
                       PENDING_PICKUP: "bg-blue-100 text-blue-700 border-blue-200",
                       PICKED_UP: "bg-cyan-100 text-cyan-700 border-cyan-200",
@@ -733,7 +722,7 @@ export const ShipperDashboard: React.FC = () => {
                               statusColors[shipmentStatus] || "bg-gray-100 text-gray-700 border-gray-200"
                             }`}
                           >
-                            {statusLabels[shipmentStatus] || shipmentStatus}
+                            {getShipmentStatusLabel(shipmentStatus)}
                           </span>
                         </div>
 

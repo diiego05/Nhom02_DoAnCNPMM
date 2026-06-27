@@ -108,12 +108,33 @@ const addShipmentHistory = async (shipmentId, status, location, note, proofImage
                         : status === 'FAILED' ? 'FAILED' 
                         : 'RETURN_PENDING';
                         
-      const shopOrder = await db.ShopOrder.findByPk(shipment.shop_order_id, { transaction });
+      const shopOrder = await db.ShopOrder.findByPk(shipment.shop_order_id, {
+        include: [{ model: db.ParentOrder, as: "parentOrder" }],
+        transaction
+      });
       if (shopOrder) {
         const orderUpdateData = { status: orderStatus };
         if (shopOrder.shipper_id === null && updateData.shipper_id) {
           orderUpdateData.shipper_id = updateData.shipper_id;
         }
+
+        // If DELIVERED and COD, update parentOrder payment status to PAID when all orders are completed/delivered
+        if (shopOrder.parentOrder && shopOrder.parentOrder.payment_method === "COD" && orderStatus === "DELIVERED") {
+          orderUpdateData.cod_amount_collected = shopOrder.final_amount;
+          orderUpdateData.cod_status = "HELD_BY_SHIPPER";
+          
+          const allShopOrders = await db.ShopOrder.findAll({
+            where: { parent_order_id: shopOrder.parent_order_id },
+            transaction
+          });
+          const allCompleted = allShopOrders.every(o =>
+            (o.id === shopOrder.id) ? true : ["DELIVERED", "CANCELLED", "RETURN_PENDING", "RETURNED", "COMPLETED"].includes(o.status)
+          );
+          if (allCompleted) {
+            await shopOrder.parentOrder.update({ payment_status: "PAID" }, { transaction });
+          }
+        }
+
         await shopOrder.update(orderUpdateData, { transaction });
         
         // Ghi log vào ShopOrderStatusHistory

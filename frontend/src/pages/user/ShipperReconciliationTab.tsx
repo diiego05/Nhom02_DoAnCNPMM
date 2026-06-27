@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/Card";
 import { DollarSign, Info, RefreshCw } from "lucide-react";
+import { getReconciliationStatusLabel } from "@/utils/statusUtils";
 import { useAppSelector } from "@/stores/hooks";
 import orderService from "@/services/orderService";
 
@@ -182,11 +183,7 @@ export const ShipperReconciliationTab: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-black/5 font-medium text-gray-700">
                     {reconciliationHistory.map((history) => {
-                      const statusLabels: Record<string, string> = {
-                        PENDING: "Chờ xác nhận",
-                        APPROVED: "Đã hoàn tất",
-                        REJECTED: "Thiếu tiền / Đã khóa",
-                      };
+
                       const statusColors: Record<string, string> = {
                         PENDING: "bg-yellow-100 text-yellow-700 border-yellow-200",
                         APPROVED: "bg-green-100 text-green-700 border-green-200",
@@ -207,7 +204,7 @@ export const ShipperReconciliationTab: React.FC = () => {
                                 statusColors[history.status] || "bg-gray-100 text-gray-700"
                               }`}
                             >
-                              {statusLabels[history.status] || history.status}
+                              {getReconciliationStatusLabel(history.status)}
                             </span>
                           </td>
                           <td className="py-4 max-w-xs truncate">{history.note || "-"}</td>
