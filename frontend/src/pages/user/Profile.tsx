@@ -276,6 +276,7 @@ const Profile = () => {
           setUser({
             ...user!,
             fullName: updatedProfile.fullName,
+            phone: updatedProfile.phone,
             dateOfBirth: updatedProfile.dateOfBirth,
             gender: updatedProfile.gender,
             avatarUrl: updatedProfile.avatarUrl,

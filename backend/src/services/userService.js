@@ -36,6 +36,15 @@ const updateUserProfile = (data) => {
   return new Promise(async (resolve, reject) => {
     try {
       console.log("data.user_id:", data.user_id);
+      
+      // Update User table for phone number
+      if (data.phone !== undefined) {
+        let userAccount = await db.User.findByPk(data.user_id);
+        if (userAccount) {
+          await userAccount.update({ phone: data.phone || null });
+        }
+      }
+
       let userProfile = await db.UserProfile.findOne({
         where: { user_id: data.user_id },
       });
@@ -48,6 +57,8 @@ const updateUserProfile = (data) => {
           shipper_shop_id: data.shipper_shop_id !== undefined ? (data.shipper_shop_id || null) : userProfile.shipper_shop_id,
           operating_areas: data.operating_areas !== undefined ? data.operating_areas : userProfile.operating_areas,
         });
+        
+        userProfile.dataValues.phone = data.phone; // Attach phone to response
         resolve(userProfile);
       } else {
         // If not found, create one
@@ -60,6 +71,8 @@ const updateUserProfile = (data) => {
           shipper_shop_id: data.shipper_shop_id || null,
           operating_areas: data.operating_areas || null,
         });
+        
+        userProfile.dataValues.phone = data.phone; // Attach phone to response
         resolve(userProfile);
       }
     } catch (error) {

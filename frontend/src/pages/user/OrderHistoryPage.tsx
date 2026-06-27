@@ -22,6 +22,7 @@ import {
   useRetryPayment,
 } from "@/hooks/useOrders";
 import { useAddToCart } from "@/hooks/useCart";
+import { getOrderStatusLabel } from '@/utils/statusUtils';
 import { OrderStatus } from "@/types/order.types";
 
 const OrderHistoryPage = () => {
@@ -35,7 +36,6 @@ const OrderHistoryPage = () => {
     return () => clearInterval(timer);
   });
 
-  // Ánh xạ tab sang order_status của BE
   const getStatusQuery = () => {
     switch (activeTab) {
       case "pending":
@@ -45,9 +45,9 @@ const OrderHistoryPage = () => {
       case "preparing":
         return "PREPARING";
       case "shipping":
-        return "DELIVERING";
+        return "SHIPPING,DELIVERED";
       case "completed":
-        return "DELIVERED";
+        return "COMPLETED";
       case "cancelled":
         return "CANCELLED";
       case "returns":
@@ -144,8 +144,8 @@ const OrderHistoryPage = () => {
     { key: "PENDING", label: "Đơn mới" },
     { key: "CONFIRMED", label: "Đã xác nhận" },
     { key: "PREPARING", label: "Chuẩn bị hàng" },
-    { key: "DELIVERING", label: "Đang giao" },
-    { key: "DELIVERED", label: "Thành công" },
+    { key: "SHIPPING", label: "Đang giao" },
+    { key: "COMPLETED", label: "Hoàn thành" },
   ];
 
   const renderTimeline = (currentStatus: string) => {
@@ -153,7 +153,9 @@ const OrderHistoryPage = () => {
       return null;
 
     const normalizedStatus =
-      currentStatus === "READY_FOR_PICKUP" ? "PREPARING" : currentStatus;
+      currentStatus === "DELIVERED"
+        ? "SHIPPING"
+        : currentStatus;
     const currentIndex = orderStatuses.findIndex(
       (s) => s.key === normalizedStatus,
     );
@@ -226,7 +228,7 @@ const OrderHistoryPage = () => {
       id: "completed",
       label: "Hoàn thành",
       icon: <CheckCircle size={16} />,
-      countKey: "DELIVERED",
+      countKey: "COMPLETED",
     },
     {
       id: "returns",
@@ -242,22 +244,7 @@ const OrderHistoryPage = () => {
     },
   ];
 
-  const getStatusLabel = (status: OrderStatus) => {
-    const labels: Record<string, string> = {
-      PENDING: "Chờ xác nhận",
-      CONFIRMED: "Đã xác nhận",
-      PREPARING: "Đang chuẩn bị",
-      READY_FOR_PICKUP: "Sẵn sàng giao",
-      DELIVERING: "Đang giao hàng",
-      SHIPPING: "Đang giao hàng",
-      DELIVERED: "Giao thành công",
-      CANCEL_REQUESTED: "Yêu cầu hủy",
-      CANCELLED: "Đã hủy",
-      RETURN_PENDING: "Yêu cầu trả hàng",
-      RETURNED: "Đã trả hàng",
-    };
-    return labels[status] || status;
-  };
+
 
   const getStatusColor = (status: OrderStatus) => {
     if (["DELIVERED"].includes(status))
@@ -379,7 +366,7 @@ const OrderHistoryPage = () => {
                   <div
                     className={`px-4 py-2 rounded-full border-2 font-black text-[10px] uppercase tracking-widest shadow-subtle ${getStatusColor(order.status)}`}
                   >
-                    {getStatusLabel(order.status)}
+                    {getOrderStatusLabel(order.status)}
                   </div>
                 </div>
 

@@ -14,7 +14,8 @@ export type OrderStatus =
   | "CANCELLED"
   | "FAILED"
   | "RETURN_PENDING"
-  | "RETURNED";
+  | "RETURNED"
+  | "COMPLETED";
 
 export type PaymentMethod = "COD" | "VNPAY" | "MOMO";
 export type PaymentStatus = "UNPAID" | "PAID" | "REFUNDED";

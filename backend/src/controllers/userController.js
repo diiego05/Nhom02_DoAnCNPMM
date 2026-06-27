@@ -67,6 +67,7 @@ const updateUserProfile = async (req, res) => {
         avatarUrl: user.avatar_url,
         shipper_shop_id: user.shipper_shop_id,
         operating_areas: user.operating_areas,
+        phone: data.phone, // Use data.phone directly from the request payload
       },
     });
   } catch (error) {

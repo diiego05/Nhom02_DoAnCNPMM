@@ -24,6 +24,7 @@ import paymentRouter from "./routes/paymentRoute.js";
 import returnRouter from "./routes/returnRoute.js";
 import blogRouter from "./routes/blogRoute.js";
 import aiChatRouter from "./routes/aiChatRoute.js";
+import shipmentRouter from "./routes/shipmentRoutes.js";
 import cron from "node-cron";
 import orderService from "./services/orderService.js";
 import morgan from "morgan";
@@ -69,6 +70,8 @@ app.use("/system", systemRouter);
 app.use("/returns", returnRouter);
 app.use("/", blogRouter);
 app.use("/", aiChatRouter);
+app.use("/shipments", shipmentRouter);
+
 app.get("/brands", (req, res) => {
   return res.status(200).json({
     message: "Success",

@@ -33,6 +33,7 @@ import {
   Save,
   Paperclip
 } from 'lucide-react';
+import { getOrderStatusLabel } from '@/utils/statusUtils';
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -1171,11 +1172,11 @@ const VendorDashboard = () => {
     });
   };
 
-  // Sẵn sàng giao
+  // Đang giao hàng hàng
   const handleReadyOrder = async (orderId: number) => {
     setConfirmModal({
       isOpen: true,
-      title: "Sẵn sàng giao",
+      title: "Đang giao hàng hàng",
       message:
         "Bạn có chắc chắn muốn chuyển trạng thái đơn hàng sang sẵn sàng giao?",
       onConfirm: async () => {
@@ -1224,7 +1225,7 @@ const VendorDashboard = () => {
       targetStatus = "PREPARING";
       actionText = "chuẩn bị tất cả";
     } else if (status === "PREPARING") {
-      targetStatus = "READY_FOR_PICKUP";
+      targetStatus = "SHIPPING";
       actionText = "sẵn sàng giao tất cả";
     } else {
       return;
@@ -3136,8 +3137,7 @@ const VendorDashboard = () => {
                   "PENDING",
                   "CONFIRMED",
                   "PREPARING",
-                  "READY_FOR_PICKUP",
-                  "DELIVERING",
+                  "SHIPPING",
                   "DELIVERED",
                   "CANCELLED",
                 ].map((status) => (
@@ -3154,13 +3154,11 @@ const VendorDashboard = () => {
                           ? "Đã xác nhận"
                           : status === "PREPARING"
                             ? "Đang chuẩn bị"
-                            : status === "READY_FOR_PICKUP"
-                              ? "Sẵn sàng giao"
-                              : status === "DELIVERING"
-                                ? "Đang giao"
-                                : status === "DELIVERED"
-                                  ? "Hoàn tất"
-                                  : "Đã hủy"}
+                            : status === "SHIPPING"
+                              ? "Đang giao hàng"
+                              : status === "DELIVERED"
+                                ? "Hoàn tất"
+                                : "Đã hủy"}
                   </button>
                 ))}
               </div>
@@ -3264,37 +3262,17 @@ const VendorDashboard = () => {
                                     className={`text-[9px] font-black uppercase px-2 py-1 rounded border ${order.status === "PENDING" ? "bg-orange-50 text-orange-600 border-orange-100" :
                                       order.status === "CONFIRMED" ? "bg-blue-50 text-blue-600 border-blue-100" :
                                         order.status === "PREPARING" ? "bg-indigo-50 text-indigo-600 border-indigo-100" :
-                                          order.status === "READY_FOR_PICKUP" ? "bg-purple-50 text-purple-600 border-purple-100" :
-                                            order.status === "PICKED_UP" ? "bg-cyan-50 text-cyan-600 border-cyan-100" :
-                                              order.status === "IN_TRANSIT" ? "bg-pink-50 text-pink-600 border-pink-100" :
-                                                order.status === "DELIVERING" ? "bg-yellow-50 text-yellow-600 border-yellow-100" :
+                                          order.status === "SHIPPING" ? "bg-purple-50 text-purple-600 border-purple-100" :
+                                            order.status === "SHIPPING" ? "bg-cyan-50 text-cyan-600 border-cyan-100" :
+                                              order.status === "SHIPPING" ? "bg-pink-50 text-pink-600 border-pink-100" :
+                                                order.status === "SHIPPING" ? "bg-yellow-50 text-yellow-600 border-yellow-100" :
                                                   order.status === "DELIVERED" || order.status === "COMPLETED" ? "bg-green-50 text-green-600 border-green-100" :
                                                     order.status === "RETURN_PENDING" ? "bg-pink-50 text-pink-700 border-pink-200" :
                                                       order.status === "RETURNED" ? "bg-gray-50 text-gray-600 border-gray-100" :
                                                         "bg-red-50 text-red-600 border-red-100"
                                       }`}
                                   >
-                                    {order.status === "PENDING"
-                                      ? "Chờ xác nhận"
-                                      : order.status === "CONFIRMED"
-                                        ? "Đã xác nhận"
-                                        : order.status === "PREPARING"
-                                          ? "Đang chuẩn bị"
-                                          : order.status === "READY_FOR_PICKUP"
-                                            ? "Sẵn sàng giao"
-                                            : order.status === "PICKED_UP"
-                                              ? "Đã lấy hàng"
-                                              : order.status === "IN_TRANSIT"
-                                                ? "Đang luân chuyển"
-                                                : order.status === "DELIVERING"
-                                                  ? "Đang giao"
-                                                  : order.status === "DELIVERED" || order.status === "COMPLETED"
-                                                    ? "Hoàn tất"
-                                                    : order.status === "RETURN_PENDING"
-                                                      ? "Đang hoàn hàng"
-                                                      : order.status === "RETURNED"
-                                                        ? "Đã hoàn hàng"
-                                                        : "Đã hủy"}
+                                    {getOrderStatusLabel(order.status)}
                                   </span>
                                 </td>
                                 <td className="px-8 py-4 text-right">
@@ -3323,7 +3301,7 @@ const VendorDashboard = () => {
                                       onClick={() => handleReadyOrder(order.id)}
                                       className="px-4 py-2 bg-primary text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-black hover:text-white transition-all shadow-subtle active:translate-y-0.5 active:shadow-none"
                                     >
-                                      Sẵn sàng giao
+                                      Đang giao hàng hàng
                                     </button>
                                   )}
                                   {order.status === "RETURN_PENDING" && (

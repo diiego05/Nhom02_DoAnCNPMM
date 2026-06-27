@@ -7,17 +7,19 @@ import {
   Star, X, Store
 } from 'lucide-react';
 import PaymentCountdownButton from '@/components/ui/PaymentCountdownButton';
-import { useOrderDetail, useRetryPayment } from '@/hooks/useOrders';
+import { useOrderDetail, useRetryPayment, useShipmentDetail } from '@/hooks/useOrders';
 import { useCreateReview, useUpdateReview } from '@/hooks/useReviews';
 import { OrderStatus } from '@/types/order.types';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { useAddToCart } from '@/hooks/useCart';
 import { ReturnOrderModal } from '@/components/modals/ReturnOrderModal';
 import orderService from '@/services/orderService';
+import { getOrderStatusLabel, getShipmentStatusLabel } from '@/utils/statusUtils';
 
 const OrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const { data: order, isLoading, isError } = useOrderDetail(Number(id));
+  const { data: shipment, isLoading: isShipmentLoading } = useShipmentDetail(Number(id));
   const { data: systemSettings } = useSystemSettings() as any;
   const navigate = useNavigate();
 
@@ -172,33 +174,15 @@ const OrderDetailPage = () => {
     { key: "PENDING", label: "Đơn mới" },
     { key: "CONFIRMED", label: "Đã xác nhận" },
     { key: "PREPARING", label: "Chuẩn bị hàng" },
-    { key: "DELIVERING", label: "Đang giao" },
-    { key: "DELIVERED", label: "Thành công" },
+    { key: "SHIPPING", label: "Đang giao" },
+    { key: "COMPLETED", label: "Hoàn thành" },
   ];
 
-  const getStatusLabel = (status: OrderStatus) => {
-    const labels: Record<string, string> = {
-      'PENDING': 'Chờ xác nhận',
-      'CONFIRMED': 'Đã xác nhận',
-      'PREPARING': 'Đang chuẩn bị',
-      'READY_FOR_PICKUP': 'Chờ lấy hàng',
-      'PICKED_UP': 'Shipper đã lấy hàng thành công',
-      'IN_TRANSIT': 'Đang luân chuyển',
-      'DELIVERING': 'Shipper đang đi giao',
-      'SHIPPING': 'Shipper đang đi giao',
-      'DELIVERED': 'Giao thành công',
-      'CANCEL_REQUESTED': 'Yêu cầu hủy',
-      'CANCELLED': 'Đã hủy',
-      'FAILED': 'Giao thất bại',
-      'RETURN_PENDING': 'Đang chuyển hoàn',
-      'RETURNED': 'Đã hoàn hàng'
-    };
-    return labels[status] || status;
-  };
+
 
   const getStatusColor = (status: OrderStatus) => {
-    if (['DELIVERED'].includes(status)) return 'bg-green-50 text-green-600 border-green-200';
-    if (['DELIVERING', 'SHIPPING', 'IN_TRANSIT', 'PICKED_UP', 'READY_FOR_PICKUP'].includes(status)) return 'bg-blue-50 text-blue-600 border-blue-200';
+    if (['DELIVERED', 'COMPLETED'].includes(status)) return 'bg-green-50 text-green-600 border-green-200';
+    if (['SHIPPING'].includes(status)) return 'bg-blue-50 text-blue-600 border-blue-200';
     if (['CANCELLED', 'CANCEL_REQUESTED', 'FAILED'].includes(status)) return 'bg-red-50 text-red-600 border-red-200';
     if (['RETURN_PENDING', 'RETURNED'].includes(status)) return 'bg-pink-50 text-pink-600 border-pink-200';
     return 'bg-orange-50 text-orange-600 border-orange-200';
@@ -241,10 +225,8 @@ const OrderDetailPage = () => {
       );
     }
 
-    const normalizedStatus = ['READY_FOR_PICKUP', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERING'].includes(currentStatus)
-      ? 'DELIVERING'
-      : currentStatus;
-    const currentIndex = orderStatuses.findIndex(s => s.key === normalizedStatus);
+    const effectiveStatus = currentStatus === "DELIVERED" ? "SHIPPING" : currentStatus;
+    const currentIndex = orderStatuses.findIndex(s => s.key === effectiveStatus);
 
     return (
       <div className="flex flex-row w-full mt-8 px-4 relative">
@@ -270,7 +252,72 @@ const OrderDetailPage = () => {
     );
   };
 
-  if (isLoading) {
+  const renderShipmentHistory = () => {
+    if (!shipment || !shipment.histories || shipment.histories.length === 0) return null;
+
+    return (
+      <div className="mt-8 border-t-2 border-gray-100 pt-8">
+        <h3 className="text-xl font-black uppercase mb-6 flex items-center gap-2">
+          <MapPin className="text-primary" size={24} /> Hành trình giao hàng
+        </h3>
+        
+        {shipment.shipper && (
+          <div className="bg-gray-50 p-4 rounded-xl border-2 border-gray-200 mb-6 flex items-center gap-4">
+            {shipment.shipper.avatar_url ? (
+              <img src={shipment.shipper.avatar_url} alt="Shipper" className="w-12 h-12 rounded-full border-2 border-primary object-cover" />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center font-bold text-lg">
+                {shipment.shipper.full_name[0]}
+              </div>
+            )}
+            <div>
+              <p className="text-sm font-black text-gray-500 uppercase tracking-widest mb-1">Tài xế giao hàng</p>
+              <p className="font-bold">{shipment.shipper.full_name}</p>
+              <p className="text-sm font-medium text-gray-600">{shipment.shipper.phone}</p>
+            </div>
+            {shipment.tracking_number && (
+              <div className="ml-auto text-right">
+                <p className="text-sm font-black text-gray-500 uppercase tracking-widest mb-1">Mã vận đơn</p>
+                <p className="font-bold text-primary">{shipment.tracking_number}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="relative pl-6">
+          <div className="absolute left-[11px] top-4 bottom-4 w-[2px] bg-gray-200"></div>
+          <div className="space-y-6">
+            {shipment.histories.map((h, idx) => (
+              <div key={h.id} className="relative flex gap-4">
+                <div className={`absolute -left-6 top-1 w-6 h-6 rounded-full border-4 border-white ${idx === 0 ? 'bg-primary shadow-[0_0_10px_rgba(var(--color-primary),0.5)]' : 'bg-gray-300'}`}></div>
+                <div className="flex-1">
+                  <p className={`font-bold ${idx === 0 ? 'text-black' : 'text-gray-500'}`}>
+                    {getShipmentStatusLabel(h.status)}
+                  </p>
+                  {h.location && (
+                    <p className="text-sm font-medium text-gray-600 mt-1 flex items-center gap-1">
+                      <MapPin size={14} /> {h.location}
+                    </p>
+                  )}
+                  {h.note && (
+                    <p className="text-sm text-gray-500 mt-1">{h.note}</p>
+                  )}
+                  {h.proof_image_url && (
+                    <img src={h.proof_image_url} alt="Proof" className="mt-3 rounded-lg border border-gray-200 max-w-[200px] h-auto object-cover" />
+                  )}
+                  <p className="text-xs font-bold text-gray-400 mt-2">
+                    {new Date(h.created_at).toLocaleString('vi-VN')}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (isLoading || isShipmentLoading) {
     return (
       <div className="min-h-screen bg-[#F4F4F0] flex items-center justify-center">
         <Loader2 className="animate-spin text-primary" size={48} />
@@ -293,6 +340,16 @@ const OrderDetailPage = () => {
       </div>
     );
   }
+
+  const canReturn = (() => {
+    if (order.status === 'DELIVERED') return true;
+    if (order.status === 'COMPLETED') {
+      const completedDate = new Date(order.updated_at);
+      const daysSinceCompleted = (new Date().getTime() - completedDate.getTime()) / (1000 * 3600 * 24);
+      return daysSinceCompleted <= 15;
+    }
+    return false;
+  })();
 
   return (
     <div className="min-h-screen bg-[#F4F4F0] pt-24 pb-32 px-6">
@@ -351,22 +408,47 @@ const OrderDetailPage = () => {
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               <div className={`px-6 py-3 rounded-full border-2 font-black text-xs uppercase tracking-widest shadow-subtle ${getStatusColor(order.status)}`}>
-                {getStatusLabel(order.status)}
+                {getOrderStatusLabel(order.status)}
               </div>
-              {order.status === 'DELIVERED' && (
-                <button
-                  onClick={handleConfirmReceipt}
-                  disabled={isConfirming}
-                  className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-black text-xs uppercase tracking-widest rounded-full border-2 border-black shadow-subtle hover:shadow-none transition-all active:translate-y-[2px]"
-                >
-                  {isConfirming ? 'Đang xử lý...' : 'Đã nhận hàng & Hoàn tất'}
-                </button>
-              )}
+              
+              <div className="flex flex-row flex-wrap items-center gap-3">
+                {order.status === 'DELIVERED' && (
+                  <button
+                    onClick={handleConfirmReceipt}
+                    disabled={isConfirming}
+                    className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-black text-xs uppercase tracking-widest rounded-full border-2 border-black shadow-subtle hover:shadow-none transition-all active:translate-y-[2px]"
+                  >
+                    {isConfirming ? 'Đang xử lý...' : 'Đã nhận hàng'}
+                  </button>
+                )}
+                {canReturn && (
+                  order.returnRequests && order.returnRequests.length > 0 ? (
+                    <div className="flex flex-col items-start sm:items-end gap-1">
+                      <span className="text-xs font-black text-red-500 uppercase tracking-widest bg-red-50 px-3 py-2 rounded-full border border-red-100">
+                        Đã yêu cầu trả hàng
+                      </span>
+                      {order.returnRequests[0].status === "RESOLVED_BY_ADMIN" && (
+                        <span className="text-[10px] font-bold text-gray-500 max-w-[200px] text-right leading-tight hidden sm:block">
+                          Đã bị từ chối và không thể yêu cầu lại.
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setReturnModalOpen(true)}
+                      className="px-6 py-3 bg-white text-red-600 border-2 border-red-200 rounded-full font-black text-xs uppercase tracking-widest hover:bg-red-50 hover:border-red-300 transition-all shadow-subtle hover:shadow-none active:translate-y-[2px]"
+                    >
+                      Trả hàng / Hoàn tiền
+                    </button>
+                  )
+                )}
+              </div>
             </div>
           </div>
 
           <div className="p-8 border-b-2 border-black/5">
             {renderTimeline(order.status)}
+            {renderShipmentHistory()}
           </div>
 
           <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 bg-gray-50/30 border-b-2 border-black/5">
@@ -415,10 +497,17 @@ const OrderDetailPage = () => {
                     Trạng thái
                   </span>
                   <span
-                    className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${(order.parentOrder?.payment_status || order.payment_status) === "PAID" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}
+                    className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
+                      (order.parentOrder?.payment_status || order.payment_status) === "PAID" ||
+                      ((order.parentOrder?.payment_method || order.payment_method) === "COD" &&
+                        ["DELIVERED", "COMPLETED"].includes(order.status))
+                        ? "bg-green-100 text-green-700"
+                        : "bg-orange-100 text-orange-700"
+                    }`}
                   >
-                    {(order.parentOrder?.payment_status ||
-                      order.payment_status) === "PAID"
+                    {(order.parentOrder?.payment_status || order.payment_status) === "PAID" ||
+                    ((order.parentOrder?.payment_method || order.payment_method) === "COD" &&
+                      ["DELIVERED", "COMPLETED"].includes(order.status))
                       ? "Đã thanh toán"
                       : "Chưa thanh toán"}
                   </span>
@@ -517,7 +606,7 @@ const OrderDetailPage = () => {
                           </p>
                         </div>
 
-                        {order.status === "DELIVERED" &&
+                        {(order.status === "DELIVERED" || order.status === "COMPLETED") &&
                           (() => {
                             const existingReview = order.reviews?.find(
                               (r: any) =>
@@ -629,30 +718,7 @@ const OrderDetailPage = () => {
               </button>
             </div>
           )}
-          {order.status === "DELIVERED" && (
-            <div className="p-8 bg-white border-t-2 border-black/5 flex justify-end">
-              {order.returnRequests && order.returnRequests.length > 0 ? (
-                <div className="flex flex-col items-end gap-2">
-                  <span className="text-sm font-black text-red-500 uppercase tracking-widest bg-red-50 px-4 py-2 rounded-xl border border-red-100">
-                    Đã yêu cầu trả hàng
-                  </span>
-                  {order.returnRequests[0].status === "RESOLVED_BY_ADMIN" && (
-                    <span className="text-xs font-bold text-gray-500">
-                      Yêu cầu trả hàng của bạn đã bị từ chối và không thể yêu
-                      cầu lại.
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={() => setReturnModalOpen(true)}
-                  className="flex items-center gap-2 px-8 py-4 bg-white text-red-600 border-2 border-red-200 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-red-50 hover:border-red-300 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 active:translate-y-1"
-                >
-                  Yêu cầu Trả hàng / Hoàn tiền
-                </button>
-              )}
-            </div>
-          )}
+
         </div>
       </div>
 

@@ -184,9 +184,9 @@ export const vendorService = {
     return response.data;
   },
 
-  // Sẵn sàng giao hàng (PREPARING -> READY_FOR_PICKUP)
+  // Sẵn sàng giao hàng (PREPARING -> SHIPPING)
   readyOrder: async (orderId: number | string) => {
-    const response = await axiosClient.patch(`/orders/${orderId}/status`, { status: "READY_FOR_PICKUP" });
+    const response = await axiosClient.patch(`/orders/${orderId}/status`, { status: "SHIPPING" });
     return response.data;
   },
 
