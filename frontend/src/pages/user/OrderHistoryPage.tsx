@@ -11,9 +11,11 @@ import {
   Loader2,
   Store,
   RefreshCcw,
+  MapPin,
 } from "lucide-react";
 import PaymentCountdownButton from "@/components/ui/PaymentCountdownButton";
 import { useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   useMyOrders,
@@ -23,6 +25,9 @@ import {
 } from "@/hooks/useOrders";
 import { useAddToCart } from "@/hooks/useCart";
 import { getOrderStatusLabel } from '@/utils/statusUtils';
+import { ReturnOrderModal } from "@/components/modals/ReturnOrderModal";
+import { useQueryClient } from "@tanstack/react-query";
+import orderService from "@/services/orderService";
 import { OrderStatus } from "@/types/order.types";
 
 const OrderHistoryPage = () => {
@@ -45,9 +50,9 @@ const OrderHistoryPage = () => {
       case "preparing":
         return "PREPARING";
       case "shipping":
-        return "SHIPPING,DELIVERED";
+        return "READY_FOR_PICKUP,PICKED_UP,IN_TRANSIT,DELIVERING,SHIPPING";
       case "completed":
-        return "COMPLETED";
+        return "DELIVERED,COMPLETED";
       case "cancelled":
         return "CANCELLED";
       case "returns":
@@ -80,6 +85,31 @@ const OrderHistoryPage = () => {
     id: number;
     status: string;
   } | null>(null);
+
+  const [returnModalOpen, setReturnModalOpen] = useState(false);
+  const [selectedOrderForReturn, setSelectedOrderForReturn] = useState<any>(null);
+  const [isConfirming, setIsConfirming] = useState<number | null>(null);
+  const queryClient = useQueryClient();
+
+  const handleOpenReturnModal = (order: any) => {
+    setSelectedOrderForReturn(order);
+    setReturnModalOpen(true);
+  };
+
+  const handleConfirmReceipt = async (orderId: number) => {
+    if (!window.confirm("Bạn xác nhận đã nhận đầy đủ hàng và muốn hoàn tất đơn hàng?")) return;
+    setIsConfirming(orderId);
+    try {
+      await orderService.updateOrderStatus(orderId, 'COMPLETED');
+      alert("Xác nhận nhận hàng và hoàn tất đơn hàng thành công!");
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["orderCounts"] });
+    } catch (error: any) {
+      alert("Lỗi: " + (error.response?.data?.message || error.message));
+    } finally {
+      setIsConfirming(null);
+    }
+  };
 
   const handleOpenCancelModal = (id: number, status: string) => {
     setOrderToCancel({ id, status });
@@ -148,12 +178,106 @@ const OrderHistoryPage = () => {
     { key: "COMPLETED", label: "Hoàn thành" },
   ];
 
-  const renderTimeline = (currentStatus: string) => {
+  const renderReturnTimeline = (currentStatus: string) => {
+    const returnStatuses = [
+      { key: "FAILED", label: "Giao thất bại" },
+      { key: "RETURN_PENDING", label: "Đang chuyển hoàn" },
+      { key: "RETURNED", label: "Đã hoàn hàng" },
+    ];
+
+    const currentIndex = returnStatuses.findIndex(s => s.key === currentStatus);
+    if (currentIndex === -1) return null;
+
+    return (
+      <div className="flex flex-row w-full mt-8 px-4 relative">
+        {returnStatuses.map((s, idx) => {
+          const isCompleted = idx < currentIndex;
+          const isActive = idx <= currentIndex;
+
+          return (
+            <div key={s.key} className="flex-1 flex flex-col items-center relative group">
+              {idx < returnStatuses.length - 1 && (
+                <div className={`absolute top-5 left-1/2 w-full h-[3px] ${isActive ? 'bg-pink-500' : 'bg-gray-200'} -z-10 transition-all`}></div>
+              )}
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center border-[3px] text-sm transition-all duration-300 ${isActive ? 'bg-pink-500 border-pink-500 text-white shadow-[0_0_15px_rgba(236,72,153,0.3)] scale-110' : 'bg-white border-gray-300 text-gray-400 font-bold'}`}>
+                {isCompleted ? <CheckCircle size={20} /> : idx + 1}
+              </div>
+              <p className={`text-[11px] mt-4 font-black uppercase tracking-wider text-center transition-all ${isActive ? 'text-pink-600 translate-y-1' : 'text-gray-400'}`}>
+                {s.label}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderReturnRequestTimeline = (retReq: any) => {
+    const steps = [
+      { key: "PENDING", label: "Đang chờ duyệt" },
+      { key: "APPROVED", label: "Yêu cầu được chấp nhận" },
+      { key: "SHIPPING", label: "Chờ lấy hàng" },
+      { key: "COMPLETED", label: "Hoàn tất" }
+    ];
+
+    let currentIndex = 0;
+    if (retReq.status === "PENDING") {
+      currentIndex = 0;
+    } else if (retReq.status === "REJECTED") {
+      steps[1] = { key: "REJECTED", label: "Bị từ chối (Chờ Admin)" };
+      currentIndex = 1;
+    } else if (retReq.status === "APPROVED_BY_SHOP" || retReq.status === "RESOLVED_BY_ADMIN") {
+      currentIndex = 2;
+    } else if (retReq.status === "COMPLETED") {
+      currentIndex = 3;
+    }
+
+    return (
+      <div className="flex flex-row w-full mt-8 px-4 relative">
+        {steps.map((s, idx) => {
+          const isCompleted = idx < currentIndex;
+          const isActive = idx <= currentIndex;
+
+          let stepColor = 'bg-pink-500 border-pink-500';
+          let textColor = 'text-pink-600';
+          let shadowColor = 'rgba(236,72,153,0.3)';
+
+          if (s.key === "REJECTED") {
+            stepColor = 'bg-red-500 border-red-500';
+            textColor = 'text-red-600';
+            shadowColor = 'rgba(239,68,68,0.3)';
+          }
+
+          return (
+            <div key={s.key} className="flex-1 flex flex-col items-center relative group">
+              {idx < steps.length - 1 && (
+                <div className={`absolute top-5 left-1/2 w-full h-[3px] ${isActive && s.key !== "REJECTED" ? 'bg-pink-500' : 'bg-gray-200'} -z-10 transition-all`}></div>
+              )}
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center border-[3px] text-sm transition-all duration-300 ${isActive ? `${stepColor} text-white shadow-[0_0_15px_${shadowColor}] scale-110` : 'bg-white border-gray-300 text-gray-400 font-bold'}`}>
+                {isCompleted ? <CheckCircle size={20} /> : idx + 1}
+              </div>
+              <p className={`text-[11px] mt-4 font-black uppercase tracking-wider text-center transition-all ${isActive ? `${textColor} translate-y-1` : 'text-gray-400'}`}>
+                {s.label}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderTimeline = (currentStatus: string, order?: any) => {
+    if (order && order.returnRequests && order.returnRequests.length > 0) {
+      return renderReturnRequestTimeline(order.returnRequests[0]);
+    }
+    if (["FAILED", "RETURN_PENDING", "RETURNED"].includes(currentStatus)) {
+      return renderReturnTimeline(currentStatus);
+    }
     if (currentStatus === "CANCELLED" || currentStatus === "CANCEL_REQUESTED")
       return null;
 
     const normalizedStatus =
-      currentStatus === "DELIVERED"
+      ["READY_FOR_PICKUP", "PICKED_UP", "IN_TRANSIT", "DELIVERING", "SHIPPING", "DELIVERED"].includes(currentStatus)
         ? "SHIPPING"
         : currentStatus;
     const currentIndex = orderStatuses.findIndex(
@@ -247,14 +371,14 @@ const OrderHistoryPage = () => {
 
 
   const getStatusColor = (status: OrderStatus) => {
-    if (["DELIVERED"].includes(status))
+    if (["DELIVERED", "COMPLETED"].includes(status))
       return "bg-green-50 text-green-600 border-green-200";
-    if (["DELIVERING", "SHIPPING"].includes(status))
+    if (["DELIVERING", "SHIPPING", "READY_FOR_PICKUP", "PICKED_UP", "IN_TRANSIT"].includes(status))
       return "bg-blue-50 text-blue-600 border-blue-200";
     if (["CANCELLED", "CANCEL_REQUESTED"].includes(status))
       return "bg-red-50 text-red-600 border-red-200";
     if (["RETURN_PENDING", "RETURNED"].includes(status))
-      return "bg-purple-50 text-purple-600 border-purple-200";
+      return "bg-pink-50 text-pink-600 border-pink-200";
     return "bg-orange-50 text-orange-600 border-orange-200";
   };
 
@@ -296,13 +420,25 @@ const OrderHistoryPage = () => {
               <span className="text-[11px] uppercase tracking-wider mt-[2px]">
                 {tab.label}
               </span>
-              {counts && counts[tab.countKey] !== undefined && (
-                <span
-                  className={`ml-1 px-2 py-0.5 rounded-full text-[10px] ${activeTab === tab.id ? "bg-white text-primary" : "bg-gray-100 text-gray-500"}`}
-                >
-                  {counts[tab.countKey]}
-                </span>
-              )}
+              {(() => {
+                const getTabCount = (countKey: string) => {
+                  if (!counts) return 0;
+                  if (countKey === "COMPLETED") {
+                    return (counts.DELIVERED || 0) + (counts.COMPLETED || 0);
+                  }
+                  if (countKey === "DELIVERING") {
+                    return (counts.DELIVERING || 0) + (counts.SHIPPING || 0) + (counts.READY_FOR_PICKUP || 0) + (counts.PICKED_UP || 0) + (counts.IN_TRANSIT || 0);
+                  }
+                  return counts[countKey] || 0;
+                };
+                return counts && (
+                  <span
+                    className={`ml-1 px-2 py-0.5 rounded-full text-[10px] ${activeTab === tab.id ? "bg-white text-primary" : "bg-gray-100 text-gray-500"}`}
+                  >
+                    {getTabCount(tab.countKey)}
+                  </span>
+                );
+              })()}
             </button>
           ))}
         </div>
@@ -325,245 +461,279 @@ const OrderHistoryPage = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {orderResponse?.orders.map((order) => (
-              <div
-                key={order.id}
-                className="bg-white border-2 border-black rounded-[2.5rem] overflow-hidden shadow-sm hover:shadow-subtle transition-all group"
-              >
-                {/* Card Header */}
-                <div className="bg-gray-50/50 border-b-2 border-black/5 p-8 flex flex-col md:flex-row justify-between items-center gap-4">
-                  <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2 border-r-2 border-gray-200 pr-6">
-                      <Store size={24} className="text-primary" />
+            {[...(orderResponse?.orders || [])]
+              .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+              .map((order) => (
+                <div
+                  key={order.id}
+                  className="bg-white border-2 border-black rounded-[2.5rem] overflow-hidden shadow-sm hover:shadow-subtle transition-all group"
+                >
+                  {/* Card Header */}
+                  <div className="bg-gray-50/50 border-b-2 border-black/5 p-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-6">
+                      <div className="flex items-center gap-2 border-r-2 border-gray-200 pr-6">
+                        <Store size={24} className="text-primary" />
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
+                            Shop
+                          </span>
+                          <span className="font-black text-sm text-black uppercase">
+                            {order.shop?.shop_name || order.shop?.name || "UTEShop Official"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col hidden md:flex">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
+                          <Hash size={12} /> Mã đơn hàng
+                        </span>
+                        <span className="font-mono font-black text-sm text-black">
+                          {order.shop_order_code || order.order_code}
+                        </span>
+                      </div>
+                      <div className="w-[2px] h-10 bg-gray-200 hidden md:block"></div>
                       <div className="flex flex-col">
                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
-                          Shop
+                          <Calendar size={12} /> Ngày đặt
                         </span>
-                        <span className="font-black text-sm text-black uppercase">
-                          {order.shop?.name || "UTEShop Official"}
+                        <span className="font-bold text-sm text-black">
+                          {new Date(order.created_at).toLocaleDateString("vi-VN")}
                         </span>
                       </div>
                     </div>
-                    <div className="flex flex-col hidden md:flex">
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
-                        <Hash size={12} /> Mã đơn hàng
-                      </span>
-                      <span className="font-mono font-black text-sm text-black">
-                        {order.shop_order_code || order.order_code}
-                      </span>
-                    </div>
-                    <div className="w-[2px] h-10 bg-gray-200 hidden md:block"></div>
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-1">
-                        <Calendar size={12} /> Ngày đặt
-                      </span>
-                      <span className="font-bold text-sm text-black">
-                        {new Date(order.created_at).toLocaleDateString("vi-VN")}
-                      </span>
+
+                    <div
+                      className={`px-4 py-2 rounded-full border-2 font-black text-[10px] uppercase tracking-widest shadow-subtle ${getStatusColor(order.status)}`}
+                    >
+                      {getOrderStatusLabel(order.status)}
                     </div>
                   </div>
 
-                  <div
-                    className={`px-4 py-2 rounded-full border-2 font-black text-[10px] uppercase tracking-widest shadow-subtle ${getStatusColor(order.status)}`}
-                  >
-                    {getOrderStatusLabel(order.status)}
-                  </div>
-                </div>
+                  {/* Card Body */}
+                  <div className="p-8">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-8">
+                      <div className="flex flex-col gap-4 flex-grow max-w-xl">
+                        {order.items?.slice(0, 2).map((item, idx) => {
+                          const product = item.variant?.product || item.product;
+                          const imageUrl =
+                            item.product_image_url ||
+                            product?.images?.find((img: any) => img.is_primary)
+                              ?.image_url ||
+                            product?.images?.[0]?.image_url ||
+                            "/placeholder.jpg";
 
-                {/* Card Body */}
-                <div className="p-8">
-                  <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-                    <div className="flex flex-col gap-4 flex-grow max-w-xl">
-                      {order.items?.slice(0, 2).map((item, idx) => {
-                        const product = item.variant?.product || item.product;
-                        const imageUrl =
-                          item.product_image_url ||
-                          product?.images?.find((img: any) => img.is_primary)
-                            ?.image_url ||
-                          product?.images?.[0]?.image_url ||
-                          "/placeholder.jpg";
-
-                        return (
-                          <div
-                            key={idx}
-                            onClick={() =>
-                              navigate(
-                                `/products/${product?.slug || product?.id || item.product_id}`,
-                              )
-                            }
-                            className="flex items-center gap-4 cursor-pointer group/item"
-                          >
-                            <div className="w-20 h-24 bg-gray-50 rounded-xl overflow-hidden border-2 border-black/5 group-hover/item:border-primary transition-all relative shrink-0">
-                              <img
-                                src={
-                                  imageUrl.startsWith("http") ||
-                                  imageUrl.startsWith("data:")
-                                    ? imageUrl
-                                    : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${imageUrl}`
-                                }
-                                alt={item.product_name || product?.name}
-                                className="w-full h-full object-cover"
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/item:opacity-100 flex items-center justify-center transition-all">
-                                <ChevronRight
-                                  className="text-white"
-                                  size={20}
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() =>
+                                navigate(
+                                  `/products/${product?.slug || product?.id || item.product_id}`,
+                                )
+                              }
+                              className="flex items-center gap-4 cursor-pointer group/item"
+                            >
+                              <div className="w-20 h-24 bg-gray-50 rounded-xl overflow-hidden border-2 border-black/5 group-hover/item:border-primary transition-all relative shrink-0">
+                                <img
+                                  src={
+                                    imageUrl.startsWith("http") ||
+                                      imageUrl.startsWith("data:")
+                                      ? imageUrl
+                                      : `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8088"}${imageUrl}`
+                                  }
+                                  alt={item.product_name || product?.name}
+                                  className="w-full h-full object-cover"
                                 />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/item:opacity-100 flex items-center justify-center transition-all">
+                                  <ChevronRight
+                                    className="text-white"
+                                    size={20}
+                                  />
+                                </div>
                               </div>
-                            </div>
-                            <div className="flex flex-col">
-                              <p className="text-sm font-black uppercase tracking-tight group-hover/item:text-primary transition-colors line-clamp-2">
-                                {item.product_name || product?.name}
-                              </p>
-                              {item.size || item.color ? (
-                                <p className="text-[10px] font-bold text-gray-400 mt-1 uppercase">
-                                  Phân loại: {item.size || "Mặc định"}{" "}
-                                  {item.color ? `/ ${item.color}` : ""}
+                              <div className="flex flex-col">
+                                <p className="text-sm font-black uppercase tracking-tight group-hover/item:text-primary transition-colors line-clamp-2">
+                                  {item.product_name || product?.name}
                                 </p>
-                              ) : null}
-                              <div className="flex items-center gap-3 mt-2">
-                                <span className="text-sm font-black text-primary">
-                                  {Number(item.unit_price).toLocaleString()}₫
-                                </span>
-                                <span className="text-[10px] font-black text-gray-400">
-                                  x{item.quantity}
-                                </span>
+                                {item.size || item.color ? (
+                                  <p className="text-[10px] font-bold text-gray-400 mt-1 uppercase">
+                                    Phân loại: {item.size || "Mặc định"}{" "}
+                                    {item.color ? `/ ${item.color}` : ""}
+                                  </p>
+                                ) : null}
+                                <div className="flex items-center gap-3 mt-2">
+                                  <span className="text-sm font-black text-primary">
+                                    {Number(item.unit_price).toLocaleString()}₫
+                                  </span>
+                                  <span className="text-[10px] font-black text-gray-400">
+                                    x{item.quantity}
+                                  </span>
+                                </div>
                               </div>
                             </div>
+                          );
+                        })}
+                        {(order.items?.length || 0) > 2 && (
+                          <div
+                            className="flex items-center gap-4 pl-2 cursor-pointer"
+                            onClick={() => navigate(`/orders/${order.id}`)}
+                          >
+                            <div className="w-10 h-10 bg-gray-50 rounded-full border-2 border-dashed border-black/20 flex items-center justify-center text-xs font-black text-gray-500">
+                              +{(order.items?.length || 0) - 2}
+                            </div>
+                            <span className="text-xs font-black text-gray-500 uppercase hover:text-primary transition-colors hover:underline">
+                              Xem thêm sản phẩm
+                            </span>
                           </div>
-                        );
-                      })}
-                      {(order.items?.length || 0) > 2 && (
-                        <div
-                          className="flex items-center gap-4 pl-2 cursor-pointer"
-                          onClick={() => navigate(`/orders/${order.id}`)}
-                        >
-                          <div className="w-10 h-10 bg-gray-50 rounded-full border-2 border-dashed border-black/20 flex items-center justify-center text-xs font-black text-gray-500">
-                            +{(order.items?.length || 0) - 2}
-                          </div>
-                          <span className="text-xs font-black text-gray-500 uppercase hover:text-primary transition-colors hover:underline">
-                            Xem thêm sản phẩm
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
 
-                    <div className="text-center md:text-right">
-                      <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">
-                        Tổng thanh toán
-                      </p>
-                      <p className="text-3xl font-black text-black tracking-tighter">
-                        {Number(
-                          order.final_amount || order.total_amount || 0,
-                        ).toLocaleString()}
-                        ₫
-                      </p>
-                      {Number(order.points_earned) > 0 && (
-                        <p className="text-[10px] font-bold text-green-500 mt-1 uppercase tracking-widest">
-                          +{order.points_earned} điểm
+                      <div className="text-center md:text-right">
+                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">
+                          Tổng thanh toán
                         </p>
-                      )}
-                      {Number(order.points_used) > 0 && (
-                        <p className="text-[10px] font-bold text-red-400 mt-1 uppercase tracking-widest">
-                          Đã dùng: {order.points_used} điểm
+                        <p className="text-3xl font-black text-black tracking-tighter">
+                          {Number(
+                            order.final_amount || order.total_amount || 0,
+                          ).toLocaleString()}
+                          ₫
                         </p>
-                      )}
+                        {Number(order.points_earned) > 0 && (
+                          <p className="text-[10px] font-bold text-green-500 mt-1 uppercase tracking-widest">
+                            +{order.points_earned} điểm
+                          </p>
+                        )}
+                        {Number(order.points_used) > 0 && (
+                          <p className="text-[10px] font-bold text-red-400 mt-1 uppercase tracking-widest">
+                            Đã dùng: {order.points_used} điểm
+                          </p>
+                        )}
+                      </div>
                     </div>
+                    {/* Status Timeline */}
+                    {renderTimeline(order.status, order)}
                   </div>
-                  {/* Status Timeline */}
-                  {renderTimeline(order.status)}
-                </div>
 
-                {/* Card Footer */}
-                <div className="px-8 py-6 bg-gray-50/30 flex flex-col sm:flex-row justify-end items-center gap-4 border-t-2 border-black/5">
-                  {(() => {
-                    const isUnpaidVNPay =
-                      order.parentOrder?.payment_method === "VNPAY" &&
-                      order.parentOrder?.payment_status === "UNPAID" &&
-                      order.status !== "CANCELLED" &&
-                      (new Date().getTime() -
-                        new Date(order.created_at).getTime()) /
+                  {/* Card Footer */}
+                  <div className="px-8 py-6 bg-gray-50/30 flex flex-col sm:flex-row justify-end items-center gap-4 border-t-2 border-black/5">
+                    {(() => {
+                      const isUnpaidVNPay =
+                        order.parentOrder?.payment_method === "VNPAY" &&
+                        order.parentOrder?.payment_status === "UNPAID" &&
+                        order.status !== "CANCELLED" &&
+                        (new Date().getTime() -
+                          new Date(order.created_at).getTime()) /
                         (1000 * 60 * 60) <=
                         24;
-                    if (isUnpaidVNPay) {
-                      return (
-                        <PaymentCountdownButton
-                          createdAt={order.created_at}
-                          onRetryPayment={() =>
-                            handleRetryPayment(order.parentOrder!.id)
-                          }
-                          className="flex items-center justify-center min-w-[140px] px-6 py-3 border-2 border-primary text-white bg-primary rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:border-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 active:translate-y-1"
-                        />
-                      );
-                    }
-                  })()}
-                  {(() => {
-                    const diffMins =
-                      (currentTime - new Date(order.created_at).getTime()) /
-                      1000 /
-                      60;
-                    const canCancel =
-                      diffMins <= 30 &&
-                      ["PENDING", "CONFIRMED", "PREPARING"].includes(
-                        order.status,
-                      );
+                      if (isUnpaidVNPay) {
+                        return (
+                          <PaymentCountdownButton
+                            createdAt={order.created_at}
+                            onRetryPayment={() =>
+                              handleRetryPayment(order.parentOrder!.id)
+                            }
+                            className="flex items-center justify-center min-w-[140px] px-6 py-3 border-2 border-primary text-white bg-primary rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:border-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 active:translate-y-1"
+                          />
+                        );
+                      }
+                    })()}
+                    {(() => {
+                      const diffMins =
+                        (currentTime - new Date(order.created_at).getTime()) /
+                        1000 /
+                        60;
+                      const canCancel =
+                        diffMins <= 30 &&
+                        ["PENDING", "CONFIRMED", "PREPARING"].includes(
+                          order.status,
+                        );
 
-                    if (canCancel) {
-                      const isRequest = order.status === "PREPARING";
-                      return (
+                      if (canCancel) {
+                        const isRequest = order.status === "PREPARING";
+                        return (
+                          <button
+                            onClick={() =>
+                              handleOpenCancelModal(order.id, order.status)
+                            }
+                            disabled={cancelOrderMutation.isPending}
+                            className="flex items-center gap-2 px-6 py-3 border-2 border-red-200 text-red-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 transition-all active:translate-y-1 disabled:opacity-50"
+                          >
+                            <XCircle size={14} />{" "}
+                            {isRequest ? "Gửi yêu cầu hủy" : "Hủy đơn hàng"}
+                          </button>
+                        );
+                      }
+                      return null;
+                    })()}
+                    {order.status === "DELIVERED" ? (
+                      <div className="flex gap-2">
+                        {order.returnRequests && order.returnRequests.length > 0 ? (
+                          <span className="text-[10px] font-black text-red-500 uppercase tracking-widest bg-red-50 px-4 py-2 rounded-xl border border-red-100">
+                            {order.returnRequests[0].status === "PENDING"
+                              ? "Đã yêu cầu trả hàng"
+                              : order.returnRequests[0].status === "APPROVED_BY_SHOP"
+                                ? "Yêu cầu trả hàng đã duyệt"
+                                : order.returnRequests[0].status === "REJECTED"
+                                  ? "Trả hàng bị từ chối (Chờ Admin)"
+                                  : order.returnRequests[0].status === "RESOLVED_BY_ADMIN"
+                                    ? "Admin đã xử lý trả hàng"
+                                    : "Hoàn thành trả hàng"}
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleOpenReturnModal(order)}
+                              className="flex items-center gap-2 px-6 py-3 bg-white text-red-600 border-2 border-red-200 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:border-red-300 transition-all active:translate-y-1"
+                            >
+                              Trả hàng / Hoàn tiền
+                            </button>
+                            <button
+                              onClick={() => handleConfirmReceipt(order.id)}
+                              disabled={isConfirming !== null}
+                              className="flex items-center gap-2 px-6 py-3 bg-green-500 text-white border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-green-600 transition-all active:translate-y-1 shadow-subtle hover:shadow-none disabled:opacity-50"
+                            >
+                              {isConfirming === order.id ? "Đang xử lý..." : "Đã nhận hàng"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : order.status === "COMPLETED" ? (
+                      <button
+                        onClick={() => navigate(`/orders/${order.id}`)}
+                        className="flex items-center gap-2 px-6 py-3 bg-black text-white border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all active:translate-y-1 shadow-subtle hover:shadow-none"
+                      >
+                        <Star
+                          size={14}
+                          className="text-yellow-400 fill-yellow-400"
+                        />{" "}
+                        Đánh giá sản phẩm
+                      </button>
+                    ) : order.status === "CANCELLED" ||
+                      order.status === "CANCEL_REQUESTED" ? (
+                      <>
                         <button
-                          onClick={() =>
-                            handleOpenCancelModal(order.id, order.status)
-                          }
-                          disabled={cancelOrderMutation.isPending}
-                          className="flex items-center gap-2 px-6 py-3 border-2 border-red-200 text-red-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 transition-all active:translate-y-1 disabled:opacity-50"
+                          onClick={() => navigate(`/orders/${order.id}`)}
+                          className="flex items-center gap-2 px-6 py-3 bg-white text-black border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:text-white transition-all active:translate-y-1"
                         >
-                          <XCircle size={14} />{" "}
-                          {isRequest ? "Gửi yêu cầu hủy" : "Hủy đơn hàng"}
+                          Xem chi tiết đơn
                         </button>
-                      );
-                    }
-                    return null;
-                  })()}
-                  {order.status === "DELIVERED" ? (
-                    <button
-                      onClick={() => navigate(`/orders/${order.id}`)}
-                      className="flex items-center gap-2 px-6 py-3 bg-black text-white border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all active:translate-y-1 shadow-subtle hover:shadow-none"
-                    >
-                      <Star
-                        size={14}
-                        className="text-yellow-400 fill-yellow-400"
-                      />{" "}
-                      Đánh giá sản phẩm
-                    </button>
-                  ) : order.status === "CANCELLED" ||
-                    order.status === "CANCEL_REQUESTED" ? (
-                    <>
+                        <button
+                          onClick={() => handleRepurchase(order.items || [])}
+                          disabled={addToCartMutation.isPending}
+                          className="flex items-center gap-2 px-6 py-3 bg-primary text-white border-2 border-primary rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:border-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 active:translate-y-1 disabled:opacity-50"
+                        >
+                          Mua lại
+                        </button>
+                      </>
+                    ) : (
                       <button
                         onClick={() => navigate(`/orders/${order.id}`)}
                         className="flex items-center gap-2 px-6 py-3 bg-white text-black border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:text-white transition-all active:translate-y-1"
                       >
                         Xem chi tiết đơn
                       </button>
-                      <button
-                        onClick={() => handleRepurchase(order.items || [])}
-                        disabled={addToCartMutation.isPending}
-                        className="flex items-center gap-2 px-6 py-3 bg-primary text-white border-2 border-primary rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:border-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] hover:shadow-none hover:translate-x-1 hover:translate-y-1 active:translate-y-1 disabled:opacity-50"
-                      >
-                        Mua lại
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => navigate(`/orders/${order.id}`)}
-                      className="flex items-center gap-2 px-6 py-3 bg-white text-black border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:text-white transition-all active:translate-y-1"
-                    >
-                      Xem chi tiết đơn
-                    </button>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </div>
@@ -615,6 +785,16 @@ const OrderHistoryPage = () => {
             </button>
           </div>
         </div>
+      )}
+      {returnModalOpen && selectedOrderForReturn && (
+        <ReturnOrderModal
+          isOpen={returnModalOpen}
+          onClose={() => {
+            setReturnModalOpen(false);
+            setSelectedOrderForReturn(null);
+          }}
+          order={selectedOrderForReturn}
+        />
       )}
     </div>
   );

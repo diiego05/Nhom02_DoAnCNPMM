@@ -220,6 +220,32 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
 
   const finalTotalAmount = parentSubtotal + totalShippingFee - totalShopDiscount - platformDiscount - pointsDiscount;
 
+  // Check if user is blocked from COD payment (bom hàng >= 3 lần trong 1 tháng)
+  const oneMonthAgo = new Date();
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+  const bomCount = await db.ShopOrderStatusHistory.count({
+    where: {
+      note: {
+        [db.Sequelize.Op.like]: "BOM:%"
+      },
+      changed_at: {
+        [db.Sequelize.Op.gte]: oneMonthAgo
+      }
+    },
+    include: [{
+      model: db.ShopOrder,
+      as: "shopOrder",
+      required: true,
+      include: [{
+        model: db.ParentOrder,
+        as: "parentOrder",
+        required: true,
+        where: { user_id: userId }
+      }]
+    }]
+  });
+  const isCodBlocked = bomCount >= 3;
+
   return {
     shops: Object.values(shopsData),
     parentSubtotal,
@@ -231,7 +257,8 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
     totalAmount: finalTotalAmount > 0 ? finalTotalAmount : 0,
     isCartCheckout,
     earnRate,
-    redeemRate
+    redeemRate,
+    isCodBlocked
   };
 };
 
@@ -239,6 +266,11 @@ const createOrder = async (userId, data) => {
   const { paymentMethod = "COD", addressId, platformCouponCode, shopCoupons, items, usePoints, note } = data;
 
   const calcResult = await calculateCheckout(userId, { items, platformCouponCode, shopCoupons, usePoints });
+  
+  if (paymentMethod === "COD" && calcResult.isCodBlocked) {
+    throw new Error("Tính năng thanh toán COD của bạn đã bị khóa tạm thời do từ chối nhận hàng (bom hàng) quá 3 lần trong vòng 30 ngày qua. Vui lòng thanh toán trực tuyến.");
+  }
+
   const address = await db.UserAddress.findByPk(addressId);
   if (!address) throw new Error("Địa chỉ không hợp lệ");
 
@@ -274,7 +306,9 @@ const createOrder = async (userId, data) => {
       // Get commission rate
       const platformComm = await db.PlatformCommission.findOne({ where: { shop_id: shop.shop_id } });
       const commissionRate = platformComm ? Number(platformComm.commission_rate) : 10.0;
-      const commissionAmount = (shop.final_amount * commissionRate) / 100;
+      // Chiết khấu/hoa hồng chỉ tính trên tiền sản phẩm sau khi trừ giảm giá của shop (không tính trên phí vận chuyển)
+      const commissionBase = Math.max(0, shop.subtotal - shop.shop_discount);
+      const commissionAmount = (commissionBase * commissionRate) / 100;
 
       // Distribute points_used (assign to first shop, or distribute proportionally)
       // Here we just distribute it proportionally based on final amount, or simpler: give all remaining to the last shop.
@@ -1187,7 +1221,7 @@ const cancelOrder = async (shopOrderId, userId, reason) => {
 const autoCompleteDeliveredOrders = async () => {
   try {
     const setting = await db.SystemSetting.findOne({ where: { setting_key: 'order_confirm_period_days' } });
-    const periodDays = setting ? parseFloat(setting.setting_value) : 3; // default 3 days if customer doesn't respond
+    const periodDays = setting ? parseFloat(setting.setting_value) : 15; // default 15 days if customer doesn't respond
 
     const deliveredOrders = await db.ShopOrder.findAll({
       where: { status: 'DELIVERED' },

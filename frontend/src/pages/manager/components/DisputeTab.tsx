@@ -33,6 +33,18 @@ export const DisputeTab: React.FC<DisputeTabProps> = ({ addNotification }) => {
     rejectNote: "",
   });
 
+  const [approveModal, setApproveModal] = useState<{
+    isOpen: boolean;
+    returnId: number | null;
+    orderCode: string;
+    resolveNote: string;
+  }>({
+    isOpen: false,
+    returnId: null,
+    orderCode: "",
+    resolveNote: "",
+  });
+
   const { data: disputes, isLoading: isDisputesLoading } = useDisputes();
   const resolveDisputeMutation = useResolveDispute();
 
@@ -42,27 +54,33 @@ export const DisputeTab: React.FC<DisputeTabProps> = ({ addNotification }) => {
     approved: boolean,
   ) => {
     if (approved) {
-      if (!confirm(`Bạn có chắc chắn muốn hoàn tiền cho đơn ${orderCode}?`))
-        return;
-      const resolveNote = prompt("Nhập ghi chú xử lý (Tùy chọn):") || "";
-      resolveDisputeMutation.mutate(
-        { id, approved, resolveNote },
-        {
-          onSuccess: () => {
-            addNotification(`Đồng ý hoàn tiền cho đơn khiếu nại ${orderCode}.`);
-            setRejectModal({
-              isOpen: false,
-              returnId: null,
-              orderCode: "",
-              rejectNote: "",
-            });
-          },
-        },
-      );
+      setApproveModal({ isOpen: true, returnId: id, orderCode, resolveNote: "" });
     } else {
       // Use Modal for Reject
       setRejectModal({ isOpen: true, returnId: id, orderCode, rejectNote: "" });
     }
+  };
+
+  const handleSubmitApprove = () => {
+    if (!approveModal.returnId) return;
+    resolveDisputeMutation.mutate(
+      {
+        id: approveModal.returnId,
+        approved: true,
+        resolveNote: approveModal.resolveNote,
+      },
+      {
+        onSuccess: () => {
+          addNotification(`Đồng ý hoàn tiền cho đơn khiếu nại ${approveModal.orderCode}.`);
+          setApproveModal({
+            isOpen: false,
+            returnId: null,
+            orderCode: "",
+            resolveNote: "",
+          });
+        },
+      },
+    );
   };
 
   const handleSubmitReject = () => {
@@ -397,6 +415,59 @@ export const DisputeTab: React.FC<DisputeTabProps> = ({ addNotification }) => {
                 className="flex-1 py-3 bg-red-600 text-white border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest hover:bg-black transition-colors shadow-subtle active:translate-y-0.5 disabled:opacity-50"
               >
                 {resolveDisputeMutation.isPending ? "Đang xử lý..." : "Xác nhận từ chối"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Approve Return Modal */}
+      {approveModal.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border-2 border-black rounded-[2rem] max-w-md w-full p-8 shadow-brutal animate-in zoom-in-95 duration-200">
+            <h3 className="text-2xl font-serif font-black uppercase tracking-tight mb-2">
+              Chấp nhận khiếu nại (Hoàn tiền)
+            </h3>
+            <p className="text-[10px] font-black uppercase tracking-widest text-green-600 mb-6">
+              Đồng ý hoàn tiền cho đơn hàng #{approveModal.orderCode}
+            </p>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                  Ghi chú xử lý (Tùy chọn)
+                </label>
+                <textarea
+                  value={approveModal.resolveNote}
+                  onChange={(e) =>
+                    setApproveModal({
+                      ...approveModal,
+                      resolveNote: e.target.value,
+                    })
+                  }
+                  placeholder="Nhập ghi chú xử lý hoàn tiền..."
+                  className="w-full bg-gray-50 border-2 border-black rounded-xl p-4 text-xs font-bold focus:outline-none focus:ring-4 focus:ring-primary/20 transition-all min-h-[100px]"
+                />
+              </div>
+            </div>
+            <div className="mt-8 flex gap-3">
+              <button
+                onClick={() =>
+                  setApproveModal({
+                    isOpen: false,
+                    returnId: null,
+                    orderCode: "",
+                    resolveNote: "",
+                  })
+                }
+                className="flex-1 py-3 border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-50 transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleSubmitApprove}
+                disabled={resolveDisputeMutation.isPending}
+                className="flex-grow py-3 bg-primary text-black border-2 border-black rounded-xl font-black text-xs uppercase tracking-widest hover:bg-black hover:text-white transition-colors shadow-subtle active:translate-y-0.5 disabled:opacity-50"
+              >
+                {resolveDisputeMutation.isPending ? "Đang xử lý..." : "Xác nhận hoàn tiền"}
               </button>
             </div>
           </div>

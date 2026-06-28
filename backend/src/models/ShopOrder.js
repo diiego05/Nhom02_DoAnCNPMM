@@ -49,6 +49,7 @@ export default (sequelize, DataTypes) => {
         defaultValue: "PENDING",
       },
       delivered_at: { type: DataTypes.DATE, allowNull: true },
+      delivery_attempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     },
     {
       sequelize,

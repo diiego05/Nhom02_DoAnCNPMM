@@ -23,10 +23,12 @@ export const useCreateReturnRequest = () => {
   
   return useMutation({
     mutationFn: (payload: CreateReturnPayload) => returnService.createReturnRequest(payload),
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       toast.success("Đã gửi yêu cầu trả hàng thành công");
       queryClient.invalidateQueries({ queryKey: ["my-returns"] });
-      queryClient.invalidateQueries({ queryKey: ["my-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["orderCounts"] });
+      queryClient.invalidateQueries({ queryKey: ["order", variables.shopOrderId] });
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Có lỗi xảy ra khi tạo yêu cầu trả hàng");

@@ -4,7 +4,6 @@ const getCollectedCOD = async (shipperId) => {
   return await db.ShopOrder.findAll({
     where: {
       shipper_id: shipperId,
-      status: "DELIVERED",
       cod_status: "HELD_BY_SHIPPER"
     },
     include: [
@@ -36,7 +35,6 @@ const submitCODReconciliation = async (shipperId, orderIds, note = null) => {
       where: {
         id: orderIds,
         shipper_id: shipperId,
-        status: "DELIVERED",
         cod_status: "HELD_BY_SHIPPER"
       },
       include: [
@@ -53,10 +51,10 @@ const submitCODReconciliation = async (shipperId, orderIds, note = null) => {
       throw new Error("Một số đơn hàng đã chọn không hợp lệ hoặc đã được đối soát trước đó");
     }
 
-    // 2. Sum up final amounts
+    // 2. Sum up collected COD amounts
     let totalSum = 0;
     orders.forEach(order => {
-      totalSum += Number(order.final_amount);
+      totalSum += Number(order.cod_amount_collected || 0);
     });
 
     // 3. Create ShipperReconciliation record

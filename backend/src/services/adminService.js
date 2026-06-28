@@ -1000,6 +1000,76 @@ const getPaymentReconciliation = async () => {
   return result;
 };
 
+const getShopWalletBreakdown = async () => {
+  const shops = await db.Shop.findAll({
+    where: { status: "APPROVED" },
+    attributes: ["id", "shop_name", "shop_logo"],
+    include: [
+      {
+        model: db.ShopWallet,
+        as: "wallet"
+      }
+    ],
+    order: [["shop_name", "ASC"]]
+  });
+
+  const result = [];
+  for (const shop of shops) {
+    // Đếm số lượng đơn hàng của shop ở trạng thái giao hàng thành công (DELIVERED hoặc COMPLETED)
+    const orders = await db.ShopOrder.findAll({
+      where: {
+        shop_id: shop.id,
+        status: ["DELIVERED", "COMPLETED"]
+      }
+    });
+
+    const orderCount = orders.length;
+    const totalRevenue = orders.reduce((sum, o) => sum + parseFloat(o.final_amount || 0), 0);
+    const totalShippingFee = orders.reduce((sum, o) => sum + parseFloat(o.shipping_fee || 0), 0);
+    const commissionAmount = orders.reduce((sum, o) => sum + parseFloat(o.commission_amount || 0), 0);
+
+    const availableBalance = shop.wallet ? parseFloat(shop.wallet.balance || 0) : 0;
+    const pendingBalance = shop.wallet ? parseFloat(shop.wallet.pending_balance || 0) : 0;
+
+    result.push({
+      shop_id: shop.id,
+      shop_name: shop.shop_name,
+      shop_logo: shop.shop_logo,
+      order_count: orderCount,
+      total_revenue: totalRevenue,
+      total_shipping_fee: totalShippingFee,
+      commission_amount: commissionAmount,
+      pending_balance: pendingBalance,
+      available_balance: availableBalance,
+    });
+  }
+  return result;
+};
+
+const disburseShopWallet = async (shopId) => {
+  const transaction = await db.sequelize.transaction();
+  try {
+    const wallet = await db.ShopWallet.findOne({ where: { shop_id: shopId }, transaction });
+    if (!wallet) throw new Error("Không tìm thấy ví của shop");
+
+    const pending = parseFloat(wallet.pending_balance || 0);
+    if (pending <= 0) {
+      throw new Error("Không có số dư đóng băng nào để giải ngân");
+    }
+
+    await wallet.update({
+      pending_balance: 0,
+      balance: parseFloat(wallet.balance || 0) + pending
+    }, { transaction });
+
+    await transaction.commit();
+    return wallet;
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+};
+
 const approveShopPayout = async (adminId, payoutId) => {
   const payout = await db.ShopPayout.findByPk(payoutId);
   if (!payout) throw new Error("Không tìm thấy lệnh thanh toán");
@@ -1527,6 +1597,8 @@ export default {
   getFinancialReport,
   // Reconciliation
   getPaymentReconciliation,
+  getShopWalletBreakdown,
+  disburseShopWallet,
   approveShopPayout,
   rejectShopPayout,
 

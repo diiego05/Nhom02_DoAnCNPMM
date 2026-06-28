@@ -313,6 +313,27 @@ const getPaymentReconciliation = async (req, res) => {
   }
 };
 
+const getShopWalletBreakdown = async (req, res) => {
+  try {
+    const data = await adminService.getShopWalletBreakdown();
+    return res.status(200).json({ message: "Success", data });
+  } catch (error) {
+    console.error("Error getting shop wallet breakdown:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const disburseShopWallet = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const wallet = await adminService.disburseShopWallet(id);
+    return res.status(200).json({ message: "Giải ngân thành công", data: wallet });
+  } catch (error) {
+    console.error("Error disbursing shop wallet:", error);
+    return res.status(400).json({ message: error.message || "Lỗi giải ngân" });
+  }
+};
+
 const approveShopPayout = async (req, res) => {
   try {
     const adminId = req.user.id;
@@ -462,6 +483,8 @@ export default {
   deleteCategory,
   getFinancialReport,
   getPaymentReconciliation,
+  getShopWalletBreakdown,
+  disburseShopWallet,
   approveShopPayout,
   rejectShopPayout,
   getPendingShipperReconciliations,

@@ -19,6 +19,12 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- ************************************************************
 -- PHẦN 1: XOÁ BẢNG (DROP TABLES — đúng thứ tự phụ thuộc)
 -- ************************************************************
+DROP TABLE IF EXISTS `user_viewed_products`;
+DROP TABLE IF EXISTS `activity_logs`;
+DROP TABLE IF EXISTS `notifications`;
+DROP TABLE IF EXISTS `shipment_histories`;
+DROP TABLE IF EXISTS `shipments`;
+DROP TABLE IF EXISTS `shipper_reconciliations`;
 DROP TABLE IF EXISTS `payment_logs`;
 DROP TABLE IF EXISTS `campaign_products`;
 DROP TABLE IF EXISTS `campaigns`;
@@ -46,6 +52,9 @@ DROP TABLE IF EXISTS `categories`;
 DROP TABLE IF EXISTS `shops`;
 DROP TABLE IF EXISTS `user_profiles`;
 DROP TABLE IF EXISTS `system_settings`;
+DROP TABLE IF EXISTS `refresh_tokens`;
+DROP TABLE IF EXISTS `otp_verifications`;
+DROP TABLE IF EXISTS `login_logs`;
 DROP TABLE IF EXISTS `users`;
 DROP TABLE IF EXISTS `roles`;
 
@@ -95,6 +104,7 @@ CREATE TABLE `user_profiles` (
   `gender`     ENUM('MALE','FEMALE','OTHER') DEFAULT NULL,
   `birthday`   DATE         DEFAULT NULL,
   `shipper_shop_id` BIGINT       DEFAULT NULL,
+  `operating_areas` JSON DEFAULT NULL,
   PRIMARY KEY (`user_id`),
   CONSTRAINT `fk_profiles_user`
     FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
@@ -149,7 +159,9 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`) VA
   ('platform_name',           'FashionHub',  'Tên thương hiệu sàn thương mại'),
   ('min_payout_amount',       '100000',      'Số tiền tối thiểu Vendor được rút (VNĐ)'),
   ('payment_gateway_fee',     '5.00',        'Phí cổng thanh toán trực tuyến (%)'),
-  ('tax_rate',                '1.50',        'Thuế giao dịch thành công (%)');
+  ('tax_rate',                '1.50',        'Thuế giao dịch thành công (%)'),
+  ('LOYALTY_POINT_EARN_RATE', '100',         'Tỷ lệ tích điểm: mỗi 100đ chi tiêu = 1 điểm'),
+  ('LOYALTY_POINT_REDEEM_RATE','100',        'Tỷ lệ quy đổi điểm: 1 điểm = 100đ khi thanh toán');
 
 -- ============================================================
 -- Chiết khấu riêng theo từng Shop (ghi đè default_commission_rate)
@@ -282,6 +294,7 @@ CREATE TABLE `product_variants` (
   `sale_price` DECIMAL(15,2) DEFAULT NULL,
   `stock_quantity` INT       NOT NULL DEFAULT 0,
   `is_active`  TINYINT(1)    NOT NULL DEFAULT 1,
+  `image_url`  TEXT          DEFAULT NULL,
   `deleted_at` DATETIME      DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_pv_sku` (`sku`),
@@ -363,6 +376,7 @@ CREATE TABLE `coupons` (
   `used_count`       INT           NOT NULL DEFAULT 0,
   `start_date`       DATETIME      NOT NULL,
   `end_date`         DATETIME      NOT NULL,
+  `category_id`      BIGINT        DEFAULT NULL,
   `deleted_at`       DATETIME      DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_coupon_code` (`code`),
@@ -469,6 +483,20 @@ CREATE TABLE `parent_orders` (
     ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `shipper_reconciliations` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `shipper_id` BIGINT NOT NULL,
+  `amount_submitted` DECIMAL(15,2) NOT NULL,
+  `status` ENUM('PENDING', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
+  `confirmed_by` BIGINT DEFAULT NULL,
+  `note` TEXT DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_sr_shipper` FOREIGN KEY (`shipper_id`) REFERENCES `users`(`id`) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT `fk_sr_processor` FOREIGN KEY (`confirmed_by`) REFERENCES `users`(`id`) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================
 -- Đơn hàng con — mỗi Shop 1 đơn, Shipper nhận đơn này
 -- FIX: Thêm cod_amount_collected cho tính năng đối soát COD
@@ -487,23 +515,28 @@ CREATE TABLE `shop_orders` (
                          COMMENT 'Tỷ lệ chiết khấu áp dụng tại thời điểm đặt hàng (snapshot)',
   `commission_amount`    DECIMAL(15,2) NOT NULL DEFAULT 0
                          COMMENT 'Số tiền chiết khấu thực tế = final_amount * commission_rate / 100',
-  -- FIX: Thêm cột này để Shipper ghi nhận tiền COD thu được
   `cod_amount_collected` DECIMAL(15,2) DEFAULT NULL
                          COMMENT 'Số tiền COD Shipper thực thu từ khách. NULL nếu chưa thu hoặc không phải COD.',
+  `cod_status`           ENUM('NOT_COD', 'HELD_BY_SHIPPER', 'SUBMITTED', 'CONFIRMED', 'MISMATCH') NOT NULL DEFAULT 'NOT_COD',
+  `shipper_reconciliation_id` BIGINT DEFAULT NULL,
   `shop_coupon_id`       BIGINT        DEFAULT NULL COMMENT 'Mã giảm giá của Shop áp dụng cho đơn con này',
   `points_used`          INT           NOT NULL DEFAULT 0 COMMENT 'Số điểm tiêu thụ cho đơn nhỏ này',
   `points_earned`        INT           NOT NULL DEFAULT 0 COMMENT 'Số điểm sẽ được cộng khi giao thành công',
   `status`               ENUM(
-                           'PENDING',           -- Chờ Shop xác nhận
-                           'PREPARING',         -- Shop đang đóng gói
-                           'READY_FOR_PICKUP',  -- Hàng sẵn sàng, chờ Shipper đến lấy
-                           'PICKED_UP',         -- Shipper đã lấy hàng
-                           'DELIVERING',        -- Đang giao hàng
-                           'DELIVERED',         -- Giao thành công
-                           'CANCELLED',         -- Đã hủy
-                           'RETURN_PENDING',    -- Đang xử lý hoàn hàng
-                           'RETURNED'           -- Đã hoàn hàng
+                           'PENDING',
+                           'CONFIRMED',
+                           'PREPARING',
+                           'SHIPPING',
+                           'DELIVERED',
+                           'COMPLETED',
+                           'CANCEL_REQUESTED',
+                           'CANCELLED',
+                           'FAILED',
+                           'RETURN_PENDING',
+                           'RETURNED'
                          ) NOT NULL DEFAULT 'PENDING',
+  `delivered_at`         DATETIME      DEFAULT NULL,
+  `delivery_attempts`    INT           NOT NULL DEFAULT 0,
   `created_at`           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -517,6 +550,8 @@ CREATE TABLE `shop_orders` (
     FOREIGN KEY (`shop_id`)         REFERENCES `shops`(`id`)         ON DELETE RESTRICT,
   CONSTRAINT `fk_so_shipper`
     FOREIGN KEY (`shipper_id`)      REFERENCES `users`(`id`)         ON DELETE SET NULL,
+  CONSTRAINT `fk_so_reconciliation`
+    FOREIGN KEY (`shipper_reconciliation_id`) REFERENCES `shipper_reconciliations`(`id`) ON UPDATE CASCADE ON DELETE SET NULL,
   CONSTRAINT `fk_so_shop_coupon`
     FOREIGN KEY (`shop_coupon_id`)  REFERENCES `coupons`(`id`)       ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -632,6 +667,7 @@ CREATE TABLE `shop_payouts` (
   `amount`       DECIMAL(15,2) NOT NULL,
   `bank_name`    VARCHAR(100)  DEFAULT NULL,
   `bank_account` VARCHAR(255)  NOT NULL,
+  `bank_account_name` VARCHAR(200) DEFAULT NULL,
   `status`       ENUM('PENDING','PROCESSING','COMPLETED','REJECTED') NOT NULL DEFAULT 'PENDING',
   `processed_by` BIGINT        DEFAULT NULL COMMENT 'Admin/Manager duyệt',
   `reject_reason` VARCHAR(255) DEFAULT NULL,
@@ -670,6 +706,9 @@ CREATE TABLE `messages` (
   `conversation_id` BIGINT   NOT NULL,
   `sender_id`       BIGINT   NOT NULL COMMENT 'Có thể là User hoặc Vendor (user_id của tài khoản Vendor)',
   `body`            TEXT     NOT NULL,
+  `attachment_url`  TEXT     DEFAULT NULL,
+  `attachment_name` VARCHAR(255) DEFAULT NULL,
+  `attachment_type` VARCHAR(100) DEFAULT NULL,
   `is_read`         TINYINT(1) NOT NULL DEFAULT 0,
   `sent_at`         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -726,10 +765,154 @@ CREATE TABLE `blogs` (
     FOREIGN KEY (`author_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ************************************************************
+-- PHẦN 20: THÔNG BÁO (NOTIFICATIONS)
+-- ************************************************************
+
+CREATE TABLE `notifications` (
+  `id`         BIGINT       NOT NULL AUTO_INCREMENT,
+  `user_id`    BIGINT       NOT NULL,
+  `title`      VARCHAR(255) NOT NULL,
+  `content`    TEXT         NOT NULL,
+  `type`       VARCHAR(50)  NOT NULL,
+  `is_read`    TINYINT(1)   NOT NULL DEFAULT 0,
+  `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_notif_user` (`user_id`),
+  CONSTRAINT `fk_notif_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ************************************************************
+-- PHẦN 20: VẬN CHUYỂN (SHIPMENTS & SHIPMENT HISTORIES)
+-- ************************************************************
+
+CREATE TABLE `shipments` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `shop_order_id` BIGINT NOT NULL,
+  `shipper_id` BIGINT DEFAULT NULL,
+  `tracking_number` VARCHAR(100) DEFAULT NULL,
+  `status` ENUM(
+    'PENDING_PICKUP',
+    'PICKED_UP',
+    'IN_TRANSIT',
+    'OUT_FOR_DELIVERY',
+    'DELIVERED',
+    'FAILED',
+    'RETURNED'
+  ) DEFAULT 'PENDING_PICKUP',
+  `shipping_fee` DECIMAL(10, 2) DEFAULT 0,
+  `estimated_delivery_date` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_shipment_tracking` (`tracking_number`),
+  CONSTRAINT `fk_shipment_order` FOREIGN KEY (`shop_order_id`) REFERENCES `shop_orders`(`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_shipment_shipper` FOREIGN KEY (`shipper_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `shipment_histories` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `shipment_id` BIGINT NOT NULL,
+  `status` VARCHAR(50) NOT NULL,
+  `location` VARCHAR(255) DEFAULT NULL,
+  `note` VARCHAR(500) DEFAULT NULL,
+  `proof_image_url` VARCHAR(1000) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_sh_shipment` FOREIGN KEY (`shipment_id`) REFERENCES `shipments`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ************************************************************
+-- PHẦN 21: REFRESH TOKENS
+-- ************************************************************
+
+CREATE TABLE `refresh_tokens` (
+  `id`         BIGINT       NOT NULL AUTO_INCREMENT,
+  `user_id`    BIGINT       NOT NULL,
+  `token`      VARCHAR(512) NOT NULL,
+  `expires_at` DATETIME     NOT NULL,
+  `is_revoked` TINYINT(1)   NOT NULL DEFAULT 0,
+  `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_rt_user` (`user_id`),
+  CONSTRAINT `fk_rt_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ************************************************************
+-- PHẦN 22: OTP VERIFICATIONS
+-- ************************************************************
+
+CREATE TABLE `otp_verifications` (
+  `id`           BIGINT      NOT NULL AUTO_INCREMENT,
+  `user_id`      BIGINT      NOT NULL,
+  `otp_code`     VARCHAR(10) NOT NULL,
+  `type`         ENUM('PASSWORD_RECOVERY','ACCOUNT_ACTIVATION') NOT NULL,
+  `expired_at`   DATETIME    NOT NULL,
+  `attempts`     INT         NOT NULL DEFAULT 0,
+  `is_used`      TINYINT(1)  NOT NULL DEFAULT 0,
+  `locked_until` DATETIME    DEFAULT NULL,
+  `created_at`   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_otp_user` (`user_id`),
+  CONSTRAINT `fk_otp_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ************************************************************
+-- PHẦN 23: LOGIN LOGS
+-- ************************************************************
+
+CREATE TABLE `login_logs` (
+  `id`             BIGINT      NOT NULL AUTO_INCREMENT,
+  `email_or_phone` VARCHAR(150) NOT NULL,
+  `ip_address`     VARCHAR(45) DEFAULT NULL,
+  `status`         ENUM('SUCCESS','FAILED') NOT NULL,
+  `attempted_at`   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ************************************************************
+-- PHẦN 24: ACTIVITY LOGS
+-- ************************************************************
+
+CREATE TABLE `activity_logs` (
+  `id`          BIGINT       NOT NULL AUTO_INCREMENT,
+  `user_id`     BIGINT       DEFAULT NULL,
+  `email`       VARCHAR(150) DEFAULT NULL,
+  `action_type` VARCHAR(50)  NOT NULL,
+  `entity_type` VARCHAR(50)  DEFAULT NULL,
+  `entity_id`   VARCHAR(50)  DEFAULT NULL,
+  `description` TEXT         NOT NULL,
+  `details`     TEXT         DEFAULT NULL,
+  `ip_address`  VARCHAR(45)  DEFAULT NULL,
+  `user_agent`  VARCHAR(255) DEFAULT NULL,
+  `created_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_al_user` (`user_id`),
+  CONSTRAINT `fk_al_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ************************************************************
+-- PHẦN 25: USER VIEWED PRODUCTS
+-- ************************************************************
+
+CREATE TABLE `user_viewed_products` (
+  `id`         BIGINT   NOT NULL AUTO_INCREMENT,
+  `user_id`    BIGINT   NOT NULL,
+  `product_id` BIGINT   NOT NULL,
+  `viewed_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_uvp_user` (`user_id`),
+  KEY `idx_uvp_product` (`product_id`),
+  CONSTRAINT `fk_uvp_user`    FOREIGN KEY (`user_id`)    REFERENCES `users`(`id`)    ON DELETE CASCADE,
+  CONSTRAINT `fk_uvp_product` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================
 -- END OF SCHEMA
--- Total tables: 28
+-- Total tables: 39
 -- ============================================================

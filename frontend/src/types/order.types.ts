@@ -80,6 +80,7 @@ export interface Order {
   points_used?: number;
   points_earned?: number;
   final_amount?: number;
+  delivery_attempts?: number;
 }
 
 export interface CreateOrderPayload {

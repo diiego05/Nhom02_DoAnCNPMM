@@ -25,11 +25,26 @@ const Login = () => {
     password: "",
   });
 
-  // Nếu đã đăng nhập từ trước → chuyển trang
+  // Nếu đã đăng nhập từ trước → chuyển trang theo vai trò
   useEffect(() => {
     const isAuth = store.getState().auth.isAuthenticated;
     if (isAuth) {
-      navigate("/", { replace: true });
+      const user = store.getState().auth.user;
+      const roleName = typeof user?.role === "string"
+        ? user.role.toLowerCase()
+        : user?.role?.role_name?.toLowerCase();
+
+      if (roleName === "admin") {
+        navigate("/admin", { replace: true });
+      } else if (roleName === "manager") {
+        navigate("/manager", { replace: true });
+      } else if (roleName === "vendor") {
+        navigate("/vendor", { replace: true });
+      } else if (roleName === "shipper") {
+        navigate("/shipper", { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
     }
   }, [navigate]);
 
@@ -54,6 +69,7 @@ const Login = () => {
     if (roleName === "admin") return "/admin";
     if (roleName === "manager") return "/manager";
     if (roleName === "vendor") return "/vendor";
+    if (roleName === "shipper") return "/shipper";
 
     return payload.redirectUrl || "/";
   };

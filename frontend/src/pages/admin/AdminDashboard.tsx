@@ -15,6 +15,9 @@ import {
    Landmark,
    Activity,
    ClipboardList,
+   AlertCircle,
+   Wallet,
+   Ticket,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
@@ -33,6 +36,9 @@ import { FinanceTab } from './components/FinanceTab';
 import { ReconciliationTab } from './components/ReconciliationTab';
 import { WithdrawalLogTab } from './components/WithdrawalLogTab';
 import { SystemLogTab } from './components/SystemLogTab';
+import { DisputeTab } from '../manager/components/DisputeTab';
+import { ShopWalletTab } from './components/ShopWalletTab';
+import { MarketingTab } from '../manager/components/MarketingTab';
 
 // ============================================================
 // ADMIN DASHBOARD
@@ -151,6 +157,9 @@ const AdminDashboard = () => {
    const sidebarItems = [
       { id: "users", label: "Quản lý Tài khoản", icon: <Users size={20} /> },
       { id: "vendors", label: "Duyệt gian hàng", icon: <Store size={20} /> },
+      { id: "disputes", label: "Giải quyết khiếu nại", icon: <AlertCircle size={20} /> },
+      { id: "marketing", label: "Chiến dịch Marketing", icon: <Ticket size={20} /> },
+      { id: "shop_wallets", label: "Quản lý ví Shop", icon: <Wallet size={20} /> },
       { id: "settings", label: "Cấu hình hệ thống", icon: <Settings size={20} /> },
       { id: "finance", label: "Báo cáo tài chính", icon: <BarChart3 size={20} /> },
       { id: "reconciliation", label: "Đối soát thanh toán", icon: <Landmark size={20} /> },
@@ -298,6 +307,9 @@ const AdminDashboard = () => {
                {activeTab === "reconciliation" && <ReconciliationTab showToast={showToast} showConfirm={showConfirm} />}
                {activeTab === "withdrawal_logs" && <WithdrawalLogTab showToast={showToast} showConfirm={showConfirm} />}
                {activeTab === "system_logs" && <SystemLogTab showToast={showToast} showConfirm={showConfirm} />}
+               {activeTab === "disputes" && <DisputeTab addNotification={(msg) => showToast(msg, "success")} />}
+               {activeTab === "marketing" && <MarketingTab addNotification={(msg) => showToast(msg, "success")} />}
+               {activeTab === "shop_wallets" && <ShopWalletTab showToast={showToast} showConfirm={showConfirm} />}
 
             </div>
          </main>

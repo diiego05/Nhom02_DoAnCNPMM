@@ -1173,11 +1173,11 @@ const VendorDashboard = () => {
     });
   };
 
-  // Đang giao hàng hàng
+  // Đang giao hàng 
   const handleReadyOrder = async (orderId: number) => {
     setConfirmModal({
       isOpen: true,
-      title: "Đang giao hàng hàng",
+      title: "Sẵn sàng giao hàng",
       message:
         "Bạn có chắc chắn muốn chuyển trạng thái đơn hàng sang sẵn sàng giao?",
       onConfirm: async () => {
@@ -2981,7 +2981,7 @@ const VendorDashboard = () => {
                                   (sum: number, item: any) =>
                                     sum +
                                     item.quantity *
-                                      (item.orderItem?.unit_price || 0),
+                                    (item.orderItem?.unit_price || 0),
                                   0,
                                 ) || 0,
                               ).toLocaleString()}
@@ -3049,8 +3049,8 @@ const VendorDashboard = () => {
                                 className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl"
                               >
                                 {item.orderItem?.variant?.product?.images?.[0]?.image_url ? (
-                                  <img 
-                                    src={item.orderItem.variant.product.images[0].image_url} 
+                                  <img
+                                    src={item.orderItem.variant.product.images[0].image_url}
                                     alt={item.orderItem.product_name}
                                     className="w-16 h-16 object-cover rounded-lg border border-gray-200"
                                   />
@@ -3088,7 +3088,7 @@ const VendorDashboard = () => {
                                     <img src={url} alt="Minh chứng" className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition-opacity" />
                                   </a>
                                 )) : <p className="text-xs text-gray-500 italic">Không có ảnh đính kèm</p>;
-                              } catch(e) {
+                              } catch (e) {
                                 return req.evidence_urls ? (
                                   <a href={req.evidence_urls} target="_blank" rel="noreferrer" className="text-blue-500 text-xs underline">
                                     Xem minh chứng
@@ -3303,7 +3303,7 @@ const VendorDashboard = () => {
                                       onClick={() => handleReadyOrder(order.id)}
                                       className="px-4 py-2 bg-primary text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-black hover:text-white transition-all shadow-subtle active:translate-y-0.5 active:shadow-none"
                                     >
-                                      Đang giao hàng hàng
+                                      Sẵn sàng giao hàng
                                     </button>
                                   )}
                                   {order.status === "RETURN_PENDING" && (

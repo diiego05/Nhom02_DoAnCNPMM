@@ -7,7 +7,7 @@ import orderService from "@/services/orderService";
 
 export const ShipperReconciliationTab: React.FC = () => {
   const user = useAppSelector((state) => state.auth.user);
-  
+
   const [collectedCODOrders, setCollectedCODOrders] = useState<any[]>([]);
   const [reconciliationHistory, setReconciliationHistory] = useState<any[]>([]);
   const [codLoading, setCodLoading] = useState(false);
@@ -40,7 +40,7 @@ export const ShipperReconciliationTab: React.FC = () => {
     }
   }, [user]);
 
-  const totalHeldAmount = collectedCODOrders.reduce((sum, o) => sum + Number(o.final_amount), 0);
+  const totalHeldAmount = collectedCODOrders.reduce((sum, o) => sum + Number(o.cod_amount_collected || 0), 0);
   const totalHeldCount = collectedCODOrders.length;
 
   return (
@@ -93,7 +93,7 @@ export const ShipperReconciliationTab: React.FC = () => {
                         <div className="flex justify-between items-center font-bold mb-1">
                           <span className="font-mono text-sm">{order.shop_order_code}</span>
                           <span className="text-primary font-black text-sm">
-                            {Number(order.final_amount).toLocaleString()}₫
+                            {Number(order.cod_amount_collected || 0).toLocaleString()}₫
                           </span>
                         </div>
                         <p className="text-gray-500 mb-1">
@@ -125,7 +125,7 @@ export const ShipperReconciliationTab: React.FC = () => {
             <h3 className="font-serif text-lg font-bold border-b border-black/10 pb-2">
               Đối soát tự động
             </h3>
-            
+
             <div className="space-y-4 text-xs font-bold text-gray-700">
               <div className="flex justify-between">
                 <span>Số lượng đơn đã giao:</span>
@@ -200,9 +200,8 @@ export const ShipperReconciliationTab: React.FC = () => {
                           </td>
                           <td className="py-4 text-center">
                             <span
-                              className={`px-3 py-1 border text-[9px] font-black uppercase tracking-wider rounded-lg ${
-                                statusColors[history.status] || "bg-gray-100 text-gray-700"
-                              }`}
+                              className={`px-3 py-1 border text-[9px] font-black uppercase tracking-wider rounded-lg ${statusColors[history.status] || "bg-gray-100 text-gray-700"
+                                }`}
                             >
                               {getReconciliationStatusLabel(history.status)}
                             </span>

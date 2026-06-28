@@ -1,5 +1,7 @@
 import db from "../models/index.js";
 import notificationService from "./notificationService.js";
+import orderService from "./orderService.js";
+import { generateTrackingNumber } from "../utils/helpers.js";
 
 const returnService = {
   createReturnRequest: async (userId, shopOrderId, data) => {
@@ -335,11 +337,63 @@ const returnService = {
 
       await returnRequest.update({ status: "APPROVED_BY_SHOP", resolved_by: null }, { transaction });
       
-      await returnService._processRefundAndRestock(returnRequest, transaction);
-      
-      await returnRequest.update({ status: "COMPLETED" }, { transaction });
+      const shopOrder = returnRequest.shopOrder;
+      // Auto-assign shipper if not already assigned
+      if (!shopOrder.shipper_id) {
+        const assignedShipperId = await orderService.autoAssignShipperByArea(shopOrder.id);
+        if (assignedShipperId) {
+          await shopOrder.update({ shipper_id: assignedShipperId }, { transaction });
+          shopOrder.shipper_id = assignedShipperId;
+        }
+      }
+
+      // Process refund immediately!
+      await returnService._processRefundOnly(returnRequest, transaction);
+
+      // Update shop order status to RETURN_PENDING
+      await shopOrder.update({ status: "RETURN_PENDING" }, { transaction });
+
+      // Find or create Shipment
+      const [shipment] = await db.Shipment.findOrCreate({
+        where: { shop_order_id: shopOrder.id },
+        defaults: {
+          shipper_id: shopOrder.shipper_id || null,
+          status: 'PENDING_PICKUP',
+          shipping_fee: 0,
+          tracking_number: generateTrackingNumber()
+        },
+        transaction
+      });
+
+      // Update shipment status to PENDING_PICKUP
+      await shipment.update({
+        status: 'PENDING_PICKUP',
+        shipper_id: shopOrder.shipper_id || null
+      }, { transaction });
+
+      // Create ShipmentHistory
+      await db.ShipmentHistory.create({
+        shipment_id: shipment.id,
+        status: 'PENDING_PICKUP',
+        note: 'Yêu cầu trả hàng được duyệt. Shipper đang đến nhận hàng từ người mua.'
+      }, { transaction });
 
       await transaction.commit();
+
+      // Notify shipper
+      if (shopOrder.shipper_id) {
+        try {
+          await notificationService.createNotification(
+            shopOrder.shipper_id,
+            "Yêu cầu lấy hàng hoàn trả",
+            `Đơn hàng ${shopOrder.shop_order_code} đã được duyệt trả hàng. Vui lòng đến lấy hàng hoàn trả từ khách hàng.`,
+            "ORDER_UPDATE"
+          );
+        } catch (notifErr) {
+          console.error("Error sending notification to shipper:", notifErr);
+        }
+      }
+
       return returnRequest;
     } catch (error) {
       await transaction.rollback();
@@ -383,8 +437,89 @@ const returnService = {
       if (!returnRequest) throw new Error("Yêu cầu trả hàng không hợp lệ hoặc không ở trạng thái tranh chấp");
 
       if (approved) {
-        await returnService._processRefundAndRestock(returnRequest, transaction);
         await returnRequest.update({ status: "RESOLVED_BY_ADMIN", resolved_by: managerId, resolve_note: resolveNote }, { transaction });
+        
+        const shopOrder = returnRequest.shopOrder;
+        // Auto-assign shipper if not already assigned
+        if (!shopOrder.shipper_id) {
+          const assignedShipperId = await orderService.autoAssignShipperByArea(shopOrder.id);
+          if (assignedShipperId) {
+            await shopOrder.update({ shipper_id: assignedShipperId }, { transaction });
+            shopOrder.shipper_id = assignedShipperId;
+          }
+        }
+
+        // Process refund immediately!
+        await returnService._processRefundOnly(returnRequest, transaction);
+
+        // Update shop order status to RETURN_PENDING
+        await shopOrder.update({ status: "RETURN_PENDING" }, { transaction });
+
+        // Find or create Shipment
+        const [shipment] = await db.Shipment.findOrCreate({
+          where: { shop_order_id: shopOrder.id },
+          defaults: {
+            shipper_id: shopOrder.shipper_id || null,
+            status: 'PENDING_PICKUP',
+            shipping_fee: 0,
+            tracking_number: generateTrackingNumber()
+          },
+          transaction
+        });
+
+        // Update shipment status to PENDING_PICKUP
+        await shipment.update({
+          status: 'PENDING_PICKUP',
+          shipper_id: shopOrder.shipper_id || null
+        }, { transaction });
+
+        // Create ShipmentHistory
+        await db.ShipmentHistory.create({
+          shipment_id: shipment.id,
+          status: 'PENDING_PICKUP',
+          note: 'Admin đã duyệt yêu cầu hoàn trả. Shipper đang đến nhận hàng từ người mua.'
+        }, { transaction });
+
+        // Notify shipper
+        if (shopOrder.shipper_id) {
+          try {
+            await notificationService.createNotification(
+              shopOrder.shipper_id,
+              "Yêu cầu lấy hàng hoàn trả (Tranh chấp)",
+              `Đơn hàng ${shopOrder.shop_order_code} đã được Admin duyệt hoàn hàng. Vui lòng đến lấy hàng hoàn trả từ khách hàng.`,
+              "ORDER_UPDATE"
+            );
+          } catch (notifErr) {
+            console.error("Error sending notification to shipper:", notifErr);
+          }
+        }
+
+        // Notify customer
+        try {
+          await notificationService.createNotification(
+            returnRequest.user_id,
+            "Khiếu nại trả hàng đã được duyệt",
+            `Yêu cầu khiếu nại trả hàng đơn ${shopOrder.shop_order_code} đã được Admin phê duyệt. Shipper sẽ đến lấy hàng hoàn trả.`,
+            "ORDER_UPDATE"
+          );
+        } catch (notifErr) {
+          console.error("Error sending notification to customer:", notifErr);
+        }
+
+        // Notify vendor
+        try {
+          const shop = await db.Shop.findByPk(shopOrder.shop_id);
+          if (shop && shop.vendor_id) {
+            await notificationService.createNotification(
+              shop.vendor_id,
+              "Khiếu nại trả hàng được quyết định bởi Admin",
+              `Admin đã duyệt yêu cầu hoàn tiền cho đơn hàng ${shopOrder.shop_order_code} sau khi xem xét tranh chấp.`,
+              "ORDER_UPDATE"
+            );
+          }
+        } catch (notifErr) {
+          console.error("Error sending notification to vendor:", notifErr);
+        }
       } else {
         await returnRequest.update({ status: "RESOLVED_BY_ADMIN", resolved_by: managerId, resolve_note: resolveNote }, { transaction });
         
@@ -408,6 +543,33 @@ const returnService = {
                 await shopWallet.save({ transaction });
             }
         }
+
+        // Notify customer
+        try {
+          await notificationService.createNotification(
+            returnRequest.user_id,
+            "Khiếu nại trả hàng bị từ chối",
+            `Yêu cầu khiếu nại trả hàng đơn ${shopOrder.shop_order_code} đã bị Admin bác bỏ. Phán quyết cuối cùng giữ nguyên từ chối của Shop. Lý do: ${resolveNote || 'Không có'}`,
+            "ORDER_UPDATE"
+          );
+        } catch (notifErr) {
+          console.error("Error sending notification to customer:", notifErr);
+        }
+
+        // Notify vendor
+        try {
+          const shop = await db.Shop.findByPk(shopOrder.shop_id);
+          if (shop && shop.vendor_id) {
+            await notificationService.createNotification(
+              shop.vendor_id,
+              "Khiếu nại trả hàng của khách bị bác bỏ",
+              `Admin đã bác bỏ yêu cầu khiếu nại của khách hàng cho đơn hàng ${shopOrder.shop_order_code}. Doanh thu đã được mở khóa.`,
+              "ORDER_UPDATE"
+            );
+          }
+        } catch (notifErr) {
+          console.error("Error sending notification to vendor:", notifErr);
+        }
       }
 
       await transaction.commit();
@@ -418,21 +580,12 @@ const returnService = {
     }
   },
 
-  _processRefundAndRestock: async (returnRequest, transaction) => {
+  _processRefundOnly: async (returnRequest, transaction) => {
     const shopOrder = returnRequest.shopOrder;
     
     // Calculate total return value
     let returnAmount = 0;
     for (const item of returnRequest.items) {
-      // Restock
-      if (item.orderItem && item.orderItem.variant_id) {
-        await db.ProductVariant.increment("stock_quantity", {
-          by: item.quantity,
-          where: { id: item.orderItem.variant_id },
-          transaction
-        });
-      }
-      
       const itemSubtotal = item.quantity * item.orderItem.unit_price;
       returnAmount += itemSubtotal;
     }
@@ -441,14 +594,34 @@ const returnService = {
     const returnRatio = returnAmount / shopOrder.subtotal;
     const finalReturnAmount = shopOrder.final_amount * returnRatio;
     
+    // Phân loại lỗi dựa trên lý do trả hàng
+    const reasonText = (returnRequest.reason || "").toLowerCase();
+    const isBuyerFault = reasonText.includes("đổi ý") || 
+                         reasonText.includes("không thích") || 
+                         reasonText.includes("không vừa") || 
+                         reasonText.includes("nhầm size") || 
+                         reasonText.includes("mua nhầm") || 
+                         reasonText.includes("đổi size");
+
+    let cashRefundToUser = finalReturnAmount;
+    if (isBuyerFault) {
+      // Lỗi do người mua -> trừ đi phí ship chiều đi
+      cashRefundToUser = Math.max(0, finalReturnAmount - parseFloat(shopOrder.shipping_fee || 0));
+    } else {
+      // Lỗi do người bán/vận chuyển -> hoàn lại 100% tiền hàng và ship
+      cashRefundToUser = finalReturnAmount;
+    }
+    
     const pointsUsedReturned = Math.floor(shopOrder.points_used * returnRatio);
     const pointsEarnedDeducted = Math.floor(shopOrder.points_earned * returnRatio);
     
-    const redeemRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_REDEEM_RATE' } });
-    const redeemRate = redeemRateSetting ? Number(redeemRateSetting.setting_value) : 100;
+    // Đọc tỷ lệ tích điểm từ system_settings (vd: earnRate=100 → 1đ/100VNĐ)
+    const earnRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_EARN_RATE' } });
+    const earnRate = earnRateSetting ? Number(earnRateSetting.setting_value) : 100;
 
+    // Hoàn điểm tương ứng số tiền hoàn lại (theo đúng tỷ lệ tích điểm)
     let pointsToRefund = pointsUsedReturned;
-    pointsToRefund += Math.floor(finalReturnAmount / redeemRate);
+    pointsToRefund += Math.floor(cashRefundToUser / earnRate);
 
     // Update User points
     const user = await db.User.findByPk(returnRequest.user_id, { transaction });
@@ -461,26 +634,27 @@ const returnService = {
     const shopWallet = await db.ShopWallet.findOne({ where: { shop_id: shopOrder.shop_id }, transaction });
     if (shopWallet) {
         const frozenAmount = shopOrder.final_amount - shopOrder.commission_amount;
-        const actualRefundToUserFromShop = finalReturnAmount - (shopOrder.commission_amount * returnRatio);
+        const actualRefundToUserFromShop = cashRefundToUser - (shopOrder.commission_amount * returnRatio);
         
-        // We deduct the refunded portion from pending_balance and return the rest to balance
         if (shopWallet.pending_balance >= frozenAmount) {
             shopWallet.pending_balance -= frozenAmount;
             shopWallet.balance += (frozenAmount - actualRefundToUserFromShop);
             await shopWallet.save({ transaction });
         }
     }
+  },
 
-    // Update ShopOrder status
-    await shopOrder.update({ status: "RETURNED" }, { transaction });
-
-    await db.ShopOrderStatusHistory.create({
-      shop_order_id: shopOrder.id,
-      old_status: "RETURN_PENDING",
-      new_status: "RETURNED",
-      changed_by: returnRequest.user_id,
-      note: "Yêu cầu trả hàng hoàn tất",
-    }, { transaction });
+  _processRestockOnly: async (returnRequest, transaction) => {
+    for (const item of returnRequest.items) {
+      // Restock
+      if (item.orderItem && item.orderItem.variant_id) {
+        await db.ProductVariant.increment("stock_quantity", {
+          by: item.quantity,
+          where: { id: item.orderItem.variant_id },
+          transaction
+        });
+      }
+    }
   }
 };
 
