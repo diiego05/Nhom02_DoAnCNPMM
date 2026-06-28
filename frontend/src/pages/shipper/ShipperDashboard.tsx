@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   X,
+  Search,
 } from "lucide-react";
 import { getShipmentStatusLabel } from "@/utils/statusUtils";
 import useAuth from "@/hooks/useAuth";
@@ -58,12 +59,16 @@ export const ShipperDashboard: React.FC = () => {
   // Orders and Stats state
   const [allShipperOrders, setAllShipperOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [orderSearchTerm, setOrderSearchTerm] = useState("");
 
   // Delivery status change modal state
   const [showFailedModal, setShowFailedModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [failedReason, setFailedReason] = useState("Không liên lạc được người mua");
   const [otherReason, setOtherReason] = useState("");
+  const [collectedShippingFee, setCollectedShippingFee] = useState<number>(0);
+  const [isBomRefusal, setIsBomRefusal] = useState<boolean>(true);
+  const [hasPaidShippingFee, setHasPaidShippingFee] = useState<boolean>(false);
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successProofFile, setSuccessProofFile] = useState<File | null>(null);
@@ -171,11 +176,17 @@ export const ShipperDashboard: React.FC = () => {
     fetchShipperOrders();
   }, []);
 
-  const handleUpdateStatus = async (orderId: number, status: string, note?: string, proofImageUrl?: string) => {
+  const handleUpdateStatus = async (orderId: number, status: string, note?: string, proofImageUrl?: string, collectedShippingFee?: number, isBom?: boolean) => {
     try {
       const order = allShipperOrders.find(o => o.id === orderId);
       if (order && order.shipment) {
-        await shipmentService.updateShipmentStatus(order.shipment.id, { status, note, proof_image_url: proofImageUrl });
+        await shipmentService.updateShipmentStatus(order.shipment.id, { 
+          status, 
+          note, 
+          proof_image_url: proofImageUrl,
+          collected_shipping_fee: collectedShippingFee,
+          is_bom: isBom
+        });
       } else {
         throw new Error("Không tìm thấy thông tin vận đơn");
       }
@@ -193,10 +204,24 @@ export const ShipperDashboard: React.FC = () => {
       alert("Vui lòng nhập lý do khác");
       return;
     }
-    handleUpdateStatus(selectedOrderId, "CANCELLED", finalReason);
+    const isRefusal = failedReason === "Người mua từ chối nhận hàng";
+    const finalIsBom = isRefusal ? (isBomRefusal ? !hasPaidShippingFee : false) : undefined;
+    const finalCollectedFee = isRefusal && isBomRefusal && hasPaidShippingFee ? 30000 : 0;
+
+    handleUpdateStatus(
+      selectedOrderId, 
+      "FAILED", 
+      finalReason, 
+      undefined, 
+      finalCollectedFee, 
+      finalIsBom
+    );
     setShowFailedModal(false);
     setSelectedOrderId(null);
     setOtherReason("");
+    setCollectedShippingFee(0);
+    setIsBomRefusal(true);
+    setHasPaidShippingFee(false);
   };
 
   const handleSuccessProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -351,13 +376,13 @@ export const ShipperDashboard: React.FC = () => {
   });
 
   // COD Cash tracking
-  const heldCODCash = deliveredOrders
+  const heldCODCash = allShipperOrders
     .filter((o) => o.cod_status === "HELD_BY_SHIPPER")
-    .reduce((sum, o) => sum + Number(o.final_amount), 0);
+    .reduce((sum, o) => sum + Number(o.cod_amount_collected || 0), 0);
 
-  const confirmedCODCash = deliveredOrders
+  const confirmedCODCash = allShipperOrders
     .filter((o) => o.cod_status === "CONFIRMED")
-    .reduce((sum, o) => sum + Number(o.final_amount), 0);
+    .reduce((sum, o) => sum + Number(o.cod_amount_collected || 0), 0);
 
   // Stats by day (Last 7 Days)
   const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -383,6 +408,17 @@ export const ShipperDashboard: React.FC = () => {
       return d.getMonth() === i && d.getFullYear() === currentYear;
     }).length;
     return { label: `T${i + 1}`, value: count };
+  });
+
+  const filteredOrders = allShipperOrders.filter((order: any) => {
+    if (!orderSearchTerm.trim()) return true;
+    const term = orderSearchTerm.trim().toLowerCase();
+    
+    const shopOrderCode = (order.shop_order_code || "").toLowerCase();
+    const parentOrderCode = (order.parentOrder?.order_code || "").toLowerCase();
+    const orderId = String(order.id || "");
+    
+    return shopOrderCode.includes(term) || parentOrderCode.includes(term) || orderId === term;
   });
 
   return (
@@ -680,15 +716,42 @@ export const ShipperDashboard: React.FC = () => {
                 </button>
               </div>
 
+              {/* Search input field */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Tìm nhanh theo mã đơn hàng hoặc mã shop..."
+                  value={orderSearchTerm}
+                  onChange={(e) => setOrderSearchTerm(e.target.value)}
+                  className="w-full bg-white border-2 border-black rounded-xl px-12 py-3.5 font-bold text-sm focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all shadow-inner"
+                />
+                <Search
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={18}
+                />
+                {orderSearchTerm && (
+                  <button
+                    onClick={() => setOrderSearchTerm("")}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-black uppercase tracking-wider bg-gray-100 hover:bg-red-100 hover:text-red-600 border border-black rounded-lg transition-colors active:translate-y-0.5"
+                  >
+                    Xóa
+                  </button>
+                )}
+              </div>
+
               {ordersLoading ? (
                 <p className="text-gray-500 italic py-10">Đang tải danh sách đơn hàng...</p>
               ) : allShipperOrders.length === 0 ? (
                 <p className="text-gray-500 italic py-10 text-center bg-white border-2 border-black border-dashed rounded-2xl font-bold uppercase">
                   Không có đơn hàng nào cần xử lý.
                 </p>
+              ) : filteredOrders.length === 0 ? (
+                <p className="text-gray-500 italic py-10 text-center bg-white border-2 border-black border-dashed rounded-2xl font-bold uppercase">
+                  Không tìm thấy đơn hàng nào khớp với "{orderSearchTerm}".
+                </p>
               ) : (
                 <div className="flex flex-col gap-6">
-                  {allShipperOrders.map((order: any) => {
+                  {filteredOrders.map((order: any) => {
                     const shippingAddress = order.parentOrder?.shipping_address || "Chưa có địa chỉ";
                     const paymentMethod = order.parentOrder?.payment_method || "COD";
                     const clientNote = order.parentOrder?.note || "Không có ghi chú";
@@ -801,46 +864,64 @@ export const ShipperDashboard: React.FC = () => {
                             </button>
                           )}
 
-                          {shipmentStatus === "IN_TRANSIT" && order.shipper_id === user?.id && (
-                            <button
-                              onClick={() => handleUpdateStatus(order.id, "OUT_FOR_DELIVERY")}
-                              className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-orange-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
-                            >
-                              Bắt đầu đi giao
-                            </button>
-                          )}
-
-                          {shipmentStatus === "OUT_FOR_DELIVERY" && order.shipper_id === user?.id && (
-                            <>
+                           {shipmentStatus === "IN_TRANSIT" && order.shipper_id === user?.id && (
+                            order.status === "RETURN_PENDING" ? (
                               <button
-                                onClick={() => {
-                                  setSelectedOrderId(order.id);
-                                  setShowSuccessModal(true);
-                                }}
-                                className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-green-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
+                                onClick={() => handleUpdateStatus(order.id, "RETURNED")}
+                                className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-pink-600 text-white hover:bg-black transition-all active:translate-y-[2px]"
                               >
-                                Giao thành công
+                                Xác nhận hoàn trả cho Shop
                               </button>
+                            ) : (
                               <button
-                                onClick={() => {
-                                  setSelectedOrderId(order.id);
-                                  setShowFailedModal(true);
-                                }}
-                                className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-red-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
+                                onClick={() => handleUpdateStatus(order.id, "OUT_FOR_DELIVERY")}
+                                className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-orange-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
                               >
-                                Giao thất bại
+                                Bắt đầu đi giao
                               </button>
-                            </>
+                            )
                           )}
-
-                          {shipmentStatus === "FAILED" && order.shipper_id === user?.id && (
-                            <button
-                              onClick={() => handleUpdateStatus(order.id, "RETURN_PENDING")}
-                              className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-pink-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
-                            >
-                              Bắt đầu chuyển hoàn
-                            </button>
-                          )}
+ 
+                           {shipmentStatus === "OUT_FOR_DELIVERY" && order.shipper_id === user?.id && (
+                             <>
+                               <button
+                                 onClick={() => {
+                                   setSelectedOrderId(order.id);
+                                   setShowSuccessModal(true);
+                                 }}
+                                 className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-green-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
+                               >
+                                 Giao thành công
+                               </button>
+                               <button
+                                 onClick={() => {
+                                   setSelectedOrderId(order.id);
+                                   setShowFailedModal(true);
+                                 }}
+                                 className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-red-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
+                               >
+                                 Giao thất bại
+                               </button>
+                             </>
+                           )}
+ 
+                           {shipmentStatus === "FAILED" && order.shipper_id === user?.id && (
+                             order.status === "RETURN_PENDING" ? (
+                               <button
+                                 onClick={() => handleUpdateStatus(order.id, "PICKED_UP")}
+                                 className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-pink-500 text-white hover:bg-black transition-all active:translate-y-[2px]"
+                               >
+                                 Bắt đầu chuyển hoàn
+                               </button>
+                             ) : (
+                               <button
+                                 onClick={() => handleUpdateStatus(order.id, "OUT_FOR_DELIVERY")}
+                                 className="px-5 py-2 border-2 border-black rounded-lg text-xs font-black uppercase tracking-widest bg-blue-600 text-white hover:bg-black transition-all active:translate-y-[2px]"
+                               >
+                                 Giao lại đơn hàng (Lần {(order.delivery_attempts ?? 0) + 1})
+                               </button>
+                             )
+                           )}
                         </div>
                       </Card>
                     );
@@ -1222,6 +1303,81 @@ export const ShipperDashboard: React.FC = () => {
                     placeholder="Vui lòng nhập lý do cụ thể..."
                     className="w-full border-2 border-black p-3 rounded-xl focus:border-primary outline-none text-xs font-bold min-h-[80px]"
                   />
+                </div>
+              )}
+
+              {failedReason === "Người mua từ chối nhận hàng" && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">
+                    Phân loại từ chối nhận hàng
+                  </label>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-3 p-3 border-2 border-black/10 rounded-xl cursor-pointer hover:border-black transition-all">
+                      <input
+                        type="radio"
+                        name="refusalType"
+                        checked={isBomRefusal === false}
+                        onChange={() => setIsBomRefusal(false)}
+                        className="w-4 h-4 accent-primary"
+                      />
+                      <div>
+                        <span className="text-xs font-black text-gray-800">Lý do chính đáng</span>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mt-0.5">Sản phẩm lỗi, giao sai hàng, hàng hỏng. (Miễn phí ship, không tính bom)</p>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 p-3 border-2 border-black/10 rounded-xl cursor-pointer hover:border-black transition-all">
+                      <input
+                        type="radio"
+                        name="refusalType"
+                        checked={isBomRefusal === true}
+                        onChange={() => setIsBomRefusal(true)}
+                        className="w-4 h-4 accent-primary"
+                      />
+                      <div>
+                        <span className="text-xs font-black text-gray-800">Lý do không chính đáng (Bom hàng)</span>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mt-0.5">Đổi ý, không thích nhận hàng không có lý do. (Có tính bom, yêu cầu trả phí ship)</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {failedReason === "Người mua từ chối nhận hàng" && isBomRefusal && 
+               (allShipperOrders.find(o => o.id === selectedOrderId)?.parentOrder?.payment_method === "COD" || 
+                allShipperOrders.find(o => o.id === selectedOrderId)?.payment_method === "COD" ||
+                !allShipperOrders.find(o => o.id === selectedOrderId)?.parentOrder?.payment_method) && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">
+                    Thu tiền phí vận chuyển 30,000đ từ khách hàng
+                  </label>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-3 p-3 border-2 border-black/10 rounded-xl cursor-pointer hover:border-black transition-all">
+                      <input
+                        type="radio"
+                        name="shippingFeePaid"
+                        checked={hasPaidShippingFee === true}
+                        onChange={() => setHasPaidShippingFee(true)}
+                        className="w-4 h-4 accent-primary"
+                      />
+                      <div>
+                        <span className="text-xs font-black text-gray-800">Khách đã trả 30.000đ phí ship</span>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mt-0.5">Người nhận đồng ý thanh toán phí vận chuyển. (Không tính phạt bom)</p>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 p-3 border-2 border-black/10 rounded-xl cursor-pointer hover:border-black transition-all">
+                      <input
+                        type="radio"
+                        name="shippingFeePaid"
+                        checked={hasPaidShippingFee === false}
+                        onChange={() => setHasPaidShippingFee(false)}
+                        className="w-4 h-4 accent-primary"
+                      />
+                      <div>
+                        <span className="text-xs font-black text-gray-800">Khách không trả phí ship (0đ)</span>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mt-0.5">Người nhận từ chối trả phí vận chuyển. (Tính phạt bom hàng)</p>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               )}
             </div>

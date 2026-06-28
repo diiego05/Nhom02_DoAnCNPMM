@@ -39,6 +39,8 @@ router.put("/payouts/:id/reject", adminController.rejectShopPayout);
 router.get("/shipper-reconciliations", adminController.getPendingShipperReconciliations);
 router.put("/shipper-reconciliations/:id/approve", adminController.approveShipperReconciliation);
 router.put("/shipper-reconciliations/:id/reject", adminController.rejectShipperReconciliation);
+router.get("/shop-wallets", adminController.getShopWalletBreakdown);
+router.post("/shop-wallets/:id/disburse", adminController.disburseShopWallet);
 
 
 // ---- 6. Lịch sử thanh toán ----

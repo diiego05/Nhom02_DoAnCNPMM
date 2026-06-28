@@ -71,7 +71,7 @@ const createShipment = async (shopOrderId, shipperId = null, transaction = null)
   return shipment;
 };
 
-const addShipmentHistory = async (shipmentId, status, location, note, proofImageUrl, shipperId) => {
+const addShipmentHistory = async (shipmentId, status, location, note, proofImageUrl, shipperId, collectedShippingFee, isBom) => {
   const shipment = await db.Shipment.findByPk(shipmentId);
   if (!shipment) throw new Error("Không tìm thấy vận đơn");
   
@@ -104,15 +104,128 @@ const addShipmentHistory = async (shipmentId, status, location, note, proofImage
 
     // 3. Đồng bộ status sang ShopOrder nếu giao thành công hoặc hoàn trả
     if (['DELIVERED', 'FAILED', 'RETURNED'].includes(status)) {
-      const orderStatus = status === 'DELIVERED' ? 'DELIVERED' 
-                        : status === 'FAILED' ? 'FAILED' 
-                        : 'RETURN_PENDING';
-                        
       const shopOrder = await db.ShopOrder.findByPk(shipment.shop_order_id, {
         include: [{ model: db.ParentOrder, as: "parentOrder" }],
         transaction
       });
       if (shopOrder) {
+        let orderStatus = shopOrder.status;
+        const oldOrderStatus = shopOrder.status;
+        let logNote = null;
+
+        if (status === 'DELIVERED') {
+          orderStatus = 'DELIVERED';
+        } else if (status === 'FAILED') {
+          if (shopOrder.status === 'RETURN_PENDING') {
+            orderStatus = 'RETURN_PENDING';
+          } else {
+            const newAttempts = shopOrder.delivery_attempts + 1;
+            await shopOrder.update({ delivery_attempts: newAttempts }, { transaction });
+            
+            // Nếu từ chối nhận hoặc đã giao thất bại 3 lần
+            if (note === 'Người mua từ chối nhận hàng' || newAttempts >= 3) {
+              orderStatus = 'RETURN_PENDING';
+
+              const isCOD = shopOrder.parentOrder?.payment_method === 'COD';
+              let newShippingFee = 30000;
+
+              if (note === 'Người mua từ chối nhận hàng') {
+                const isBomRefusal = isBom !== false; // Mặc định là bom trừ khi shipper chọn là lý do chính đáng
+                if (isBomRefusal) {
+                  logNote = "BOM: Người mua từ chối nhận hàng (Lý do không chính đáng)";
+                  if (isCOD) {
+                    newShippingFee = (collectedShippingFee !== undefined && collectedShippingFee !== null) ? Math.max(0, Number(collectedShippingFee)) : 0;
+                  } else {
+                    newShippingFee = 30000;
+                  }
+                } else {
+                  logNote = "Người mua từ chối nhận hàng (Lý do chính đáng: lỗi sản phẩm/giao sai)";
+                  newShippingFee = 0;
+                }
+              } else if (note === 'Không liên lạc được người mua' || note === 'Sai địa chỉ giao hàng' || newAttempts >= 3) {
+                if (newAttempts >= 3 && note === 'Không liên lạc được người mua') {
+                  logNote = "BOM: Không liên lạc được người mua quá 3 lần";
+                } else {
+                  logNote = `Giao hàng thất bại lần thứ ${newAttempts} (${note || 'Không gặp khách'})`;
+                }
+                newShippingFee = 0;
+              }
+
+              // Cập nhật phí ship trong shopOrder và tính lại final_amount
+              await shopOrder.update({
+                shipping_fee: newShippingFee,
+                final_amount: Math.max(0, Number(shopOrder.subtotal) + newShippingFee - Number(shopOrder.discount_amount))
+              }, { transaction });
+
+              // Đồng bộ phí ship vào shipment
+              await shipment.update({
+                shipping_fee: newShippingFee
+              }, { transaction });
+            } else {
+              orderStatus = 'SHIPPING'; // remains shipping, try again next time
+              logNote = `Giao hàng thất bại lần thứ ${newAttempts} (${note || 'Không liên lạc được'})`;
+            }
+          }
+        } else if (status === 'RETURNED') {
+          orderStatus = 'RETURNED';
+
+          // Restock items
+          const returnRequest = await db.ReturnRequest.findOne({
+            where: { shop_order_id: shopOrder.id, status: ["APPROVED_BY_SHOP", "RESOLVED_BY_ADMIN"] },
+            include: [
+              {
+                model: db.ReturnItem,
+                as: "items",
+                include: [{ model: db.OrderItem, as: "orderItem" }]
+              }
+            ],
+            transaction
+          });
+          const returnService = (await import("./returnService.js")).default;
+          if (returnRequest) {
+            // Customer return request
+            await returnService._processRestockOnly(returnRequest, transaction);
+            await returnRequest.update({ status: "COMPLETED" }, { transaction });
+          } else {
+            // Failed delivery return, restock items from OrderItem
+            const orderItems = await db.OrderItem.findAll({
+              where: { shop_order_id: shopOrder.id },
+              transaction
+            });
+            for (const item of orderItems) {
+              if (item.variant_id) {
+                await db.ProductVariant.increment("stock_quantity", {
+                  by: item.quantity,
+                  where: { id: item.variant_id },
+                  transaction
+                });
+              }
+            }
+
+            // Hoàn lại điểm tích lũy đã dùng cho đơn hàng (áp dụng cho cả COD và Online)
+            const user = await db.User.findByPk(shopOrder.parentOrder.user_id, { transaction });
+            if (user && shopOrder.points_used > 0) {
+              user.loyalty_points = Number(user.loyalty_points || 0) + Number(shopOrder.points_used);
+              await user.save({ transaction });
+            }
+
+            // Hoàn tiền cho khách nếu đã thanh toán online (trừ đi phí ship)
+            if (shopOrder.parentOrder && shopOrder.parentOrder.payment_status === "PAID") {
+              const cashRefundToUser = Math.max(0, Number(shopOrder.subtotal) + 30000 - Number(shopOrder.discount_amount) - Number(shopOrder.shipping_fee));
+              
+              // Đọc tỷ lệ tích điểm từ system_settings
+              const earnRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_EARN_RATE' } });
+              const earnRate = earnRateSetting ? Number(earnRateSetting.setting_value) : 100;
+              const pointsToRefund = Math.floor(cashRefundToUser / earnRate);
+
+              if (user) {
+                user.loyalty_points = Math.max(0, Number(user.loyalty_points || 0) + pointsToRefund);
+                await user.save({ transaction });
+              }
+            }
+          }
+        }
+
         const orderUpdateData = { status: orderStatus };
         if (shopOrder.shipper_id === null && updateData.shipper_id) {
           orderUpdateData.shipper_id = updateData.shipper_id;
@@ -135,14 +248,30 @@ const addShipmentHistory = async (shipmentId, status, location, note, proofImage
           }
         }
 
+        // Nếu là đơn COD và chuyển sang trạng thái chuyển hoàn (RETURN_PENDING) do thất bại
+        if (shopOrder.parentOrder && shopOrder.parentOrder.payment_method === "COD" && orderStatus === "RETURN_PENDING") {
+          const isCOD = shopOrder.parentOrder?.payment_method === 'COD';
+          const collectedFee = (note === 'Người mua từ chối nhận hàng' && isBom !== false && isCOD)
+            ? ((collectedShippingFee !== undefined && collectedShippingFee !== null) ? Math.max(0, Number(collectedShippingFee)) : 0)
+            : 0;
+
+          if (collectedFee > 0) {
+            orderUpdateData.cod_amount_collected = collectedFee;
+            orderUpdateData.cod_status = "HELD_BY_SHIPPER";
+          } else {
+            orderUpdateData.cod_amount_collected = 0;
+            orderUpdateData.cod_status = "NOT_COD";
+          }
+        }
+
         await shopOrder.update(orderUpdateData, { transaction });
         
         // Ghi log vào ShopOrderStatusHistory
         await db.ShopOrderStatusHistory.create({
           shop_order_id: shopOrder.id,
-          old_status: shopOrder.status,
+          old_status: oldOrderStatus,
           new_status: orderStatus,
-          note: note || `Cập nhật tự động từ shipper (Shipment ID: ${shipmentId})`,
+          note: logNote || note || (status === 'FAILED' ? `Giao hàng thất bại lần ${shopOrder.delivery_attempts}` : `Cập nhật tự động từ shipper (Shipment ID: ${shipmentId})`),
           changed_by: shipperId !== 'system' ? shipperId : null
         }, { transaction });
       }
@@ -152,9 +281,11 @@ const addShipmentHistory = async (shipmentId, status, location, note, proofImage
       if (shopOrder) {
         const orderUpdateData = {};
         let needsUpdate = false;
-        if (shopOrder.status !== 'SHIPPING') {
-          orderUpdateData.status = 'SHIPPING';
-          needsUpdate = true;
+        if (shopOrder.status !== 'RETURN_PENDING' && shopOrder.status !== 'RETURNED') {
+          if (shopOrder.status !== 'SHIPPING') {
+            orderUpdateData.status = 'SHIPPING';
+            needsUpdate = true;
+          }
         }
         if (shopOrder.shipper_id === null && updateData.shipper_id) {
           orderUpdateData.shipper_id = updateData.shipper_id;
@@ -169,7 +300,7 @@ const addShipmentHistory = async (shipmentId, status, location, note, proofImage
             await db.ShopOrderStatusHistory.create({
               shop_order_id: shopOrder.id,
               old_status: oldStatus,
-              new_status: 'SHIPPING',
+              new_status: orderUpdateData.status,
               note: `Shipper bắt đầu giao hàng (Shipment ID: ${shipmentId})`,
               changed_by: shipperId !== 'system' ? shipperId : null
             }, { transaction });

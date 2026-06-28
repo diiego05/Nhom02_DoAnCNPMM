@@ -349,6 +349,14 @@ const CheckoutPage = () => {
     }
   }, [couponCode, shopCoupons, usePoints]);
 
+  const isCodBlocked = calculatedData?.isCodBlocked || false;
+
+  useEffect(() => {
+    if (isCodBlocked && paymentMethod === "COD") {
+      setPaymentMethod("VNPAY");
+    }
+  }, [isCodBlocked, paymentMethod]);
+
   if (isCartLoading || isAddressesLoading) {
     return (
       <div className="min-h-screen bg-[#F4F4F0] flex items-center justify-center">
@@ -504,10 +512,22 @@ const CheckoutPage = () => {
                   <div className="card-brutal !p-8 !rounded-[2rem] bg-white border-2 border-black shadow-brutal">
                     <h3 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3"><CreditCard className="text-primary" /> Phương thức thanh toán</h3>
                     <div className="space-y-4">
-                      <button type="button" onClick={() => setPaymentMethod("COD")} className={`w-full flex items-center justify-between p-6 border-2 rounded-2xl transition-all ${paymentMethod === 'COD' ? 'bg-primary/5 border-primary' : 'bg-white border-black/10 hover:border-black'}`}>
+                      <button 
+                        type="button" 
+                        disabled={isCodBlocked}
+                        onClick={() => !isCodBlocked && setPaymentMethod("COD")} 
+                        className={`w-full flex items-center justify-between p-6 border-2 rounded-2xl transition-all text-left ${isCodBlocked ? 'bg-gray-100 border-black/10 opacity-60 cursor-not-allowed' : paymentMethod === 'COD' ? 'bg-primary/5 border-primary' : 'bg-white border-black/10 hover:border-black'}`}
+                      >
                         <div className="flex items-center gap-4">
-                          <Wallet size={24} className={paymentMethod === 'COD' ? 'text-primary' : 'text-gray-400'} />
-                          <p className="text-sm font-black uppercase">Thanh toán khi nhận hàng (COD)</p>
+                          <Wallet size={24} className={isCodBlocked ? 'text-gray-300' : paymentMethod === 'COD' ? 'text-primary' : 'text-gray-400'} />
+                          <div>
+                            <p className="text-sm font-black uppercase">Thanh toán khi nhận hàng (COD)</p>
+                            {isCodBlocked && (
+                              <p className="text-[10px] text-red-500 font-bold uppercase tracking-tight mt-1 animate-pulse">
+                                Bị khóa tạm thời do bom hàng quá 3 lần trong 1 tháng qua!
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center bg-white ${paymentMethod === 'COD' ? 'border-primary' : 'border-gray-300'}`}>
                           {paymentMethod === 'COD' && <div className="w-2 h-2 rounded-full bg-primary"></div>}
@@ -598,7 +618,7 @@ const CheckoutPage = () => {
                       <div key={group.shop?.id || "unknown"} className="space-y-4">
                         <div className="flex items-center gap-2 border-b border-white/10 pb-2">
                           <Store className="text-primary w-4 h-4" />
-                          <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">{group.shop?.name || "UTEShop Official"}</h4>
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">{group.shop?.shop_name || group.shop?.name || "UTEShop Official"}</h4>
                         </div>
                         {group.items.map((item: any) => {
                           const product = item.variant?.product || item.product;

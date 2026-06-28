@@ -164,6 +164,16 @@ export const adminService = {
     return response.data;
   },
 
+  getShopWallets: async () => {
+    const response = await axiosClient.get("/admin/shop-wallets");
+    return response.data;
+  },
+
+  disburseShopWallet: async (id: number | string) => {
+    const response = await axiosClient.post(`/admin/shop-wallets/${id}/disburse`);
+    return response.data;
+  },
+
   // ============================================================
   // 6. LỊCH SỬ THANH TOÁN
   // ============================================================

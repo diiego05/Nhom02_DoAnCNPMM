@@ -188,7 +188,99 @@ const OrderDetailPage = () => {
     return 'bg-orange-50 text-orange-600 border-orange-200';
   };
 
+  const renderReturnTimeline = (currentStatus: string) => {
+    const returnStatuses = [
+      { key: "FAILED", label: "Giao thất bại" },
+      { key: "RETURN_PENDING", label: "Đang chuyển hoàn" },
+      { key: "RETURNED", label: "Đã hoàn hàng" },
+    ];
+
+    const currentIndex = returnStatuses.findIndex(s => s.key === currentStatus);
+    if (currentIndex === -1) return null;
+
+    return (
+      <div className="flex flex-row w-full mt-8 px-4 relative">
+        {returnStatuses.map((s, idx) => {
+          const isCompleted = idx < currentIndex;
+          const isActive = idx <= currentIndex;
+
+          return (
+            <div key={s.key} className="flex-1 flex flex-col items-center relative group">
+              {idx < returnStatuses.length - 1 && (
+                <div className={`absolute top-5 left-1/2 w-full h-[3px] ${isActive ? 'bg-pink-500' : 'bg-gray-200'} -z-10 transition-all`}></div>
+              )}
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center border-[3px] text-sm transition-all duration-300 ${isActive ? 'bg-pink-500 border-pink-500 text-white shadow-[0_0_15px_rgba(236,72,153,0.3)] scale-110' : 'bg-white border-gray-300 text-gray-400 font-bold'}`}>
+                {isCompleted ? <CheckCircle size={20} /> : idx + 1}
+              </div>
+              <p className={`text-[11px] mt-4 font-black uppercase tracking-wider text-center transition-all ${isActive ? 'text-pink-600 translate-y-1' : 'text-gray-400'}`}>
+                {s.label}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderReturnRequestTimeline = (retReq: any) => {
+    const steps = [
+      { key: "PENDING", label: "Đang chờ duyệt" },
+      { key: "APPROVED", label: "Yêu cầu được chấp nhận" },
+      { key: "SHIPPING", label: "Chờ lấy hàng" },
+      { key: "COMPLETED", label: "Hoàn tất" }
+    ];
+
+    let currentIndex = 0;
+    if (retReq.status === "PENDING") {
+      currentIndex = 0;
+    } else if (retReq.status === "REJECTED") {
+      steps[1] = { key: "REJECTED", label: "Bị từ chối (Chờ Admin)" };
+      currentIndex = 1;
+    } else if (retReq.status === "APPROVED_BY_SHOP" || retReq.status === "RESOLVED_BY_ADMIN") {
+      currentIndex = 2; // shipping / in-transit is next
+    } else if (retReq.status === "COMPLETED") {
+      currentIndex = 3;
+    }
+
+    return (
+      <div className="flex flex-row w-full mt-8 px-4 relative">
+        {steps.map((s, idx) => {
+          const isCompleted = idx < currentIndex;
+          const isActive = idx <= currentIndex;
+
+          let stepColor = 'bg-pink-500 border-pink-500';
+          let textColor = 'text-pink-600';
+          let shadowColor = 'rgba(236,72,153,0.3)';
+
+          if (s.key === "REJECTED") {
+            stepColor = 'bg-red-500 border-red-500';
+            textColor = 'text-red-600';
+            shadowColor = 'rgba(239,68,68,0.3)';
+          }
+
+          return (
+            <div key={s.key} className="flex-1 flex flex-col items-center relative group">
+              {idx < steps.length - 1 && (
+                <div className={`absolute top-5 left-1/2 w-full h-[3px] ${isActive && s.key !== "REJECTED" ? 'bg-pink-500' : 'bg-gray-200'} -z-10 transition-all`}></div>
+              )}
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center border-[3px] text-sm transition-all duration-300 ${isActive ? `${stepColor} text-white shadow-[0_0_15px_${shadowColor}] scale-110` : 'bg-white border-gray-300 text-gray-400 font-bold'}`}>
+                {isCompleted ? <CheckCircle size={20} /> : idx + 1}
+              </div>
+              <p className={`text-[11px] mt-4 font-black uppercase tracking-wider text-center transition-all ${isActive ? `${textColor} translate-y-1` : 'text-gray-400'}`}>
+                {s.label}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const isFailedDeliveryReturn = order && ['RETURN_PENDING', 'RETURNED'].includes(order.status) && (!order.returnRequests || order.returnRequests.length === 0);
+  const displayStatus = isFailedDeliveryReturn ? 'FAILED' : order?.status;
+
   const renderTimeline = (currentStatus: string) => {
+    if (!order) return null;
     if (['CANCELLED', 'CANCEL_REQUESTED', 'FAILED', 'RETURN_PENDING', 'RETURNED'].includes(currentStatus)) {
       let title = "Đơn hàng đã hủy";
       let desc = "Đơn hàng này đã bị hủy và không thể tiếp tục giao.";
@@ -199,10 +291,28 @@ const OrderDetailPage = () => {
 
       if (currentStatus === 'FAILED') {
         title = "Giao hàng thất bại";
-        desc = "Đơn hàng giao không thành công.";
+        const failedHistory = shipment?.histories?.find(h => h.status === 'FAILED');
+        desc = failedHistory?.note ? `Lý do: ${failedHistory.note}` : "Đơn hàng giao không thành công.";
       } else if (currentStatus === 'RETURN_PENDING') {
-        title = "Đang chuyển hoàn";
-        desc = "Đơn hàng giao thất bại và đang trên đường chuyển hoàn về shop.";
+        if (order.returnRequests && order.returnRequests.length > 0) {
+          const retReq = order.returnRequests[0];
+          if (retReq.status === "PENDING") {
+            title = "Chờ duyệt trả hàng";
+            desc = "Yêu cầu trả hàng của bạn đang được người bán xem xét.";
+          } else if (retReq.status === "APPROVED_BY_SHOP") {
+            title = "Người bán đồng ý trả hàng";
+            desc = "Người bán đã duyệt yêu cầu. Đang gán shipper đến thu hồi sản phẩm từ bạn.";
+          } else if (retReq.status === "REJECTED") {
+            title = "Người bán từ chối trả hàng";
+            desc = "Cửa hàng đã từ chối yêu cầu trả hàng của bạn. Hệ thống đã tự động chuyển lên Ban quản trị (Admin) để phân xử.";
+          } else {
+            title = "Đang xử lý trả hàng";
+            desc = "Yêu cầu trả hàng đang được xử lý.";
+          }
+        } else {
+          title = "Đang chuyển hoàn";
+          desc = "Đơn hàng giao thất bại và đang trên đường chuyển hoàn về shop.";
+        }
         colorClass = "text-pink-600";
         bgClass = "bg-pink-50 border-pink-200";
         borderClass = "border-pink-500";
@@ -215,12 +325,17 @@ const OrderDetailPage = () => {
       }
 
       return (
-        <div className={`flex flex-col items-center justify-center p-8 rounded-2xl border-2 ${bgClass}`}>
-          <div className={`w-16 h-16 bg-white rounded-full border-4 ${borderClass} flex items-center justify-center mb-4`}>
-            <span className={`${colorClass} font-black text-2xl`}>{symbol}</span>
+        <div className="space-y-6">
+          <div className={`flex flex-col items-center justify-center p-8 rounded-2xl border-2 ${bgClass}`}>
+            <div className={`w-16 h-16 bg-white rounded-full border-4 ${borderClass} flex items-center justify-center mb-4`}>
+              <span className={`${colorClass} font-black text-2xl`}>{symbol}</span>
+            </div>
+            <h3 className={`text-xl font-black ${colorClass} uppercase mb-2`}>{title}</h3>
+            <p className="text-sm font-bold text-gray-500">{desc}</p>
           </div>
-          <h3 className={`text-xl font-black ${colorClass} uppercase mb-2`}>{title}</h3>
-          <p className="text-sm font-bold text-gray-500">{desc}</p>
+          {order.returnRequests && order.returnRequests.length > 0 && (
+            renderReturnRequestTimeline(order.returnRequests[0])
+          )}
         </div>
       );
     }
@@ -255,6 +370,17 @@ const OrderDetailPage = () => {
   const renderShipmentHistory = () => {
     if (!shipment || !shipment.histories || shipment.histories.length === 0) return null;
 
+    let displayHistories = shipment.histories;
+    if (order && order.returnRequests && order.returnRequests.length > 0) {
+      displayHistories = shipment.histories.filter(h => h.status !== 'IN_TRANSIT' && h.status !== 'RETURNED');
+    }
+
+    // Nếu là luồng giao hàng thất bại quay đầu, chỉ hiển thị tới trạng thái FAILED
+    const failedIndex = displayHistories.findIndex(h => h.status === 'FAILED');
+    if (failedIndex !== -1) {
+      displayHistories = displayHistories.slice(failedIndex);
+    }
+
     return (
       <div className="mt-8 border-t-2 border-gray-100 pt-8">
         <h3 className="text-xl font-black uppercase mb-6 flex items-center gap-2">
@@ -287,7 +413,7 @@ const OrderDetailPage = () => {
         <div className="relative pl-6">
           <div className="absolute left-[11px] top-4 bottom-4 w-[2px] bg-gray-200"></div>
           <div className="space-y-6">
-            {shipment.histories.map((h, idx) => (
+            {displayHistories.map((h, idx) => (
               <div key={h.id} className="relative flex gap-4">
                 <div className={`absolute -left-6 top-1 w-6 h-6 rounded-full border-4 border-white ${idx === 0 ? 'bg-primary shadow-[0_0_10px_rgba(var(--color-primary),0.5)]' : 'bg-gray-300'}`}></div>
                 <div className="flex-1">
@@ -382,7 +508,7 @@ const OrderDetailPage = () => {
                       Shop
                     </span>
                     <span className="font-black text-sm text-black uppercase">
-                      {order.shop?.name || "UTEShop Official"}
+                      {order.shop?.shop_name || order.shop?.name || "UTEShop Official"}
                     </span>
                   </div>
                 </div>
@@ -407,8 +533,8 @@ const OrderDetailPage = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <div className={`px-6 py-3 rounded-full border-2 font-black text-xs uppercase tracking-widest shadow-subtle ${getStatusColor(order.status)}`}>
-                {getOrderStatusLabel(order.status)}
+              <div className={`px-6 py-3 rounded-full border-2 font-black text-xs uppercase tracking-widest shadow-subtle ${getStatusColor(displayStatus as OrderStatus)}`}>
+                {getOrderStatusLabel(displayStatus as OrderStatus)}
               </div>
               
               <div className="flex flex-row flex-wrap items-center gap-3">
@@ -425,11 +551,24 @@ const OrderDetailPage = () => {
                   order.returnRequests && order.returnRequests.length > 0 ? (
                     <div className="flex flex-col items-start sm:items-end gap-1">
                       <span className="text-xs font-black text-red-500 uppercase tracking-widest bg-red-50 px-3 py-2 rounded-full border border-red-100">
-                        Đã yêu cầu trả hàng
+                        {order.returnRequests[0].status === "PENDING"
+                          ? "Đã gửi yêu cầu trả hàng"
+                          : order.returnRequests[0].status === "APPROVED_BY_SHOP"
+                            ? "Shop đã duyệt trả hàng"
+                            : order.returnRequests[0].status === "REJECTED"
+                              ? "Yêu cầu bị từ chối (Chờ Admin)"
+                              : order.returnRequests[0].status === "RESOLVED_BY_ADMIN"
+                                ? "Từ chối (Hệ thống đã phân xử)"
+                                : "Hoàn thành trả hàng"}
                       </span>
+                      {order.returnRequests[0].status === "REJECTED" && (
+                        <span className="text-[10px] font-bold text-red-600 max-w-[250px] text-right leading-tight block">
+                          Lý do Shop từ chối: {order.returnRequests[0].resolve_note || "Không có lý do"}
+                        </span>
+                      )}
                       {order.returnRequests[0].status === "RESOLVED_BY_ADMIN" && (
-                        <span className="text-[10px] font-bold text-gray-500 max-w-[200px] text-right leading-tight hidden sm:block">
-                          Đã bị từ chối và không thể yêu cầu lại.
+                        <span className="text-[10px] font-bold text-gray-500 max-w-[250px] text-right leading-tight block">
+                          Đã bị từ chối và không thể yêu cầu lại. Lý do: {order.returnRequests[0].resolve_note || "Không hợp lệ"}
                         </span>
                       )}
                     </div>
@@ -447,7 +586,7 @@ const OrderDetailPage = () => {
           </div>
 
           <div className="p-8 border-b-2 border-black/5">
-            {renderTimeline(order.status)}
+            {renderTimeline(displayStatus || '')}
             {renderShipmentHistory()}
           </div>
 
@@ -606,7 +745,7 @@ const OrderDetailPage = () => {
                           </p>
                         </div>
 
-                        {(order.status === "DELIVERED" || order.status === "COMPLETED") &&
+                        {order.status === "COMPLETED" &&
                           (() => {
                             const existingReview = order.reviews?.find(
                               (r: any) =>
@@ -706,8 +845,51 @@ const OrderDetailPage = () => {
             </div>
           </div>
           {/* Action Buttons */}
-          {(order.status === "CANCELLED" ||
-            order.status === "CANCEL_REQUESTED") && (
+          {order.status === "DELIVERED" ? (
+            <div className="p-8 bg-white border-t-2 border-black/5 flex justify-end gap-3">
+              {order.returnRequests && order.returnRequests.length > 0 ? (
+                <div className="flex flex-col items-end gap-2">
+                  <span className="text-xs font-black text-red-500 uppercase tracking-widest bg-red-50 px-5 py-3 rounded-xl border border-red-100">
+                    {order.returnRequests[0].status === "PENDING"
+                      ? "Đã gửi yêu cầu trả hàng"
+                      : order.returnRequests[0].status === "APPROVED_BY_SHOP"
+                        ? "Đã duyệt trả hàng (Chờ Shipper)"
+                        : order.returnRequests[0].status === "REJECTED"
+                          ? "Yêu cầu bị từ chối (Chờ Admin)"
+                          : order.returnRequests[0].status === "RESOLVED_BY_ADMIN"
+                            ? "Admin đã xử lý tranh chấp"
+                            : "Hoàn tất hoàn trả"}
+                  </span>
+                  {order.returnRequests[0].status === "REJECTED" && (
+                    <span className="text-xs text-red-500 font-bold max-w-[400px] text-right">
+                      Lý do từ chối: {order.returnRequests[0].resolve_note || "Không rõ"}
+                    </span>
+                  )}
+                  {order.returnRequests[0].status === "RESOLVED_BY_ADMIN" && (
+                    <span className="text-xs text-gray-500 font-bold max-w-[400px] text-right">
+                      Kết luận của Admin: {order.returnRequests[0].resolve_note || "Đã đóng tranh chấp"}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setReturnModalOpen(true)}
+                    className="px-6 py-3 bg-white text-red-600 border-2 border-red-200 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-50 hover:border-red-300 transition-all shadow-subtle hover:shadow-none active:translate-y-[2px]"
+                  >
+                    Trả hàng / Hoàn tiền
+                  </button>
+                  <button
+                    onClick={handleConfirmReceipt}
+                    disabled={isConfirming}
+                    className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-black text-xs uppercase tracking-widest rounded-xl border-2 border-black shadow-subtle hover:shadow-none transition-all active:translate-y-[2px]"
+                  >
+                    {isConfirming ? 'Đang xử lý...' : 'Đã nhận hàng'}
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (order.status === "CANCELLED" || order.status === "CANCEL_REQUESTED") ? (
             <div className="p-8 bg-white border-t-2 border-black/5 flex justify-end">
               <button
                 onClick={() => handleRepurchase(order.items || [])}
@@ -717,7 +899,7 @@ const OrderDetailPage = () => {
                 Mua lại đơn hàng này
               </button>
             </div>
-          )}
+          ) : null}
 
         </div>
       </div>

@@ -26,18 +26,18 @@ const getShipmentByOrderId = async (req, res) => {
 const updateShipmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, location, note, proof_image_url } = req.body;
+    const { status, location, note, proof_image_url, collected_shipping_fee, is_bom } = req.body;
     const shipperId = req.user.id;
     
     // Require proof of delivery if status is DELIVERED
     if (status === 'DELIVERED' && !proof_image_url) {
       return res.status(400).json({ message: "Bắt buộc phải có ảnh bằng chứng khi giao hàng thành công" });
     }
-
+ 
     const history = await shipmentService.addShipmentHistory(
-      id, status, location, note, proof_image_url, shipperId
+      id, status, location, note, proof_image_url, shipperId, collected_shipping_fee, is_bom
     );
-
+ 
     res.json(history);
   } catch (error) {
     res.status(400).json({ message: error.message });

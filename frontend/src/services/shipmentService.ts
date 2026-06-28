@@ -43,7 +43,7 @@ export const shipmentService = {
     return response.data as ShipmentHistory[];
   },
 
-  updateShipmentStatus: async (shipmentId: number, data: { status: string, location?: string, note?: string, proof_image_url?: string }) => {
+  updateShipmentStatus: async (shipmentId: number, data: { status: string, location?: string, note?: string, proof_image_url?: string, collected_shipping_fee?: number, is_bom?: boolean }) => {
     const response = await axiosClient.post(`/shipments/${shipmentId}/history`, data);
     return response.data;
   }
