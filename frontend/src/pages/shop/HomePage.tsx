@@ -12,8 +12,11 @@ import {
   Eye,
   Store,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
+import toast from "react-hot-toast";
+import { useValidCoupons, useSaveCoupon } from "@/hooks/useCoupons";
+import { useAppSelector } from "@/stores/hooks";
 import {
   useFeaturedProducts,
   useNewestProducts,
@@ -27,10 +30,10 @@ import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
 
-const DEFAULT_SHOP_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='128' height='128'><rect width='100' height='100' fill='%23FFE4D6' stroke='black' stroke-width='4'/><path d='M20 40 L50 15 L80 40 L80 85 L20 85 Z' fill='white' stroke='black' stroke-width='4'/><rect x='40' y='55' width='20' height='30' fill='%23D97736' stroke='black' stroke-width='4'/><path d='M15 40 L85 40' stroke='black' stroke-width='4'/></svg>";
+const DEFAULT_SHOP_LOGO =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='128' height='128'><rect width='100' height='100' fill='%23FFE4D6' stroke='black' stroke-width='4'/><path d='M20 40 L50 15 L80 40 L80 85 L20 85 Z' fill='white' stroke='black' stroke-width='4'/><rect x='40' y='55' width='20' height='30' fill='%23D97736' stroke='black' stroke-width='4'/><path d='M15 40 L85 40' stroke='black' stroke-width='4'/></svg>";
 
 const HomePage = () => {
-
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -44,6 +47,35 @@ const HomePage = () => {
     useMostViewedProducts(10);
   const { data: topShopsData, isLoading: loadTopShops } = useTopShops(8);
   const topShops = topShopsData?.data || [];
+
+  const { data: validCoupons } = useValidCoupons();
+  const { mutate: saveCoupon } = useSaveCoupon();
+  const isAuthenticated = useAppSelector((state) => !!state.auth.accessToken);
+  const navigate = useNavigate();
+
+  const platformCoupons = validCoupons?.filter((c: any) => !c.shop_id) || [];
+
+  const handleSaveCoupon = (
+    e: React.MouseEvent,
+    couponId: number,
+    isSaved: boolean,
+  ) => {
+    e.stopPropagation();
+    if (!isAuthenticated) {
+      toast.error("Vui lòng đăng nhập để lưu mã");
+      navigate("/auth/login?redirect=/");
+      return;
+    }
+    if (isSaved) {
+      toast.success("Bạn đã lưu mã này rồi!");
+      return;
+    }
+    saveCoupon(couponId, {
+      onSuccess: () => toast.success("Đã lưu mã giảm giá thành công!"),
+      onError: (err: any) =>
+        toast.error(err.response?.data?.message || "Lỗi khi lưu mã"),
+    });
+  };
 
   const slides = [
     {
@@ -301,7 +333,7 @@ const HomePage = () => {
                 originalPrice={product.sale_price ? product.price : undefined}
                 image={product.images?.[0]?.image_url || "/placeholder.jpg"}
                 category={product.category?.name || "Danh mục"}
-                rating={product.rating_average || 0}
+                rating={Number(product.rating_average) || 0}
                 sales={product.sold_count}
                 badge={product.is_new ? "Mới" : undefined}
                 shop={product.shop}
@@ -419,7 +451,7 @@ const HomePage = () => {
                     }
                     image={product.images?.[0]?.image_url || "/placeholder.jpg"}
                     category={product.category?.name || "Danh mục"}
-                    rating={product.rating_average || 0}
+                    rating={Number(product.rating_average) || 0}
                     sales={product.sold_count}
                     badge={product.is_featured ? "Sale" : undefined}
                     shop={product.shop}
@@ -510,7 +542,7 @@ const HomePage = () => {
                     }
                     image={product.images?.[0]?.image_url || "/placeholder.jpg"}
                     category={product.category?.name || "Danh mục"}
-                    rating={product.rating_average || 0}
+                    rating={Number(product.rating_average) || 0}
                     sales={product.sold_count}
                     badge={product.view_count > 100 ? "Hot" : undefined}
                     shop={product.shop}
@@ -587,7 +619,7 @@ const HomePage = () => {
                         product.images?.[0]?.image_url || "/placeholder.jpg"
                       }
                       category={product.category?.name || "Danh mục"}
-                      rating={product.rating_average || 0}
+                      rating={Number(product.rating_average) || 0}
                       sales={product.sold_count}
                       badge={product.sold_count > 15 ? "Hot" : undefined}
                       shop={product.shop}
@@ -606,37 +638,69 @@ const HomePage = () => {
               <Ticket className="text-primary" /> Ưu đãi độc quyền
             </h3>
             <div className="space-y-6 flex-1">
-              {[
-                {
-                  code: "UTE20",
-                  desc: "Giảm 20% cho đơn hàng đầu tiên",
-                  color: "bg-orange-50 text-orange-600",
-                },
-                {
-                  code: "FREESHIP",
-                  desc: "Miễn phí vận chuyển toàn quốc",
-                  color: "bg-green-50 text-green-600",
-                },
-                {
-                  code: "SUMMER30",
-                  desc: "Giảm 30k cho BST Mùa Hè",
-                  color: "bg-blue-50 text-blue-600",
-                },
-              ].map((v, i) => (
-                <div
-                  key={i}
-                  className={`p-6 rounded-2xl border border-dashed border-primary/30 ${v.color} transition-all hover:scale-[1.02] cursor-pointer`}
-                >
-                  <div className="font-black text-xl mb-1 tracking-wider">
-                    {v.code}
-                  </div>
-                  <div className="text-[11px] font-black opacity-80 leading-tight">
-                    {v.desc}
-                  </div>
+              {platformCoupons.length > 0 ? (
+                platformCoupons.slice(0, 5).map((v: any, i: number) => {
+                  const colors = [
+                    "bg-orange-50 text-orange-600 border-orange-200",
+                    "bg-green-50 text-green-600 border-green-200",
+                    "bg-blue-50 text-blue-600 border-blue-200",
+                    "bg-purple-50 text-purple-600 border-purple-200",
+                    "bg-pink-50 text-pink-600 border-pink-200",
+                  ];
+                  const color = colors[i % colors.length];
+                  return (
+                    <div
+                      key={v.id}
+                      className={`p-6 rounded-2xl border border-dashed ${color} transition-all hover:scale-[1.02] cursor-pointer`}
+                      onClick={() => {
+                        navigator.clipboard.writeText(v.code);
+                        toast.success(`Đã sao chép mã ${v.code}`);
+                      }}
+                      title="Nhấn để copy mã"
+                    >
+                      <div className="font-black text-xl mb-1 tracking-wider flex items-center justify-between gap-2">
+                        <span className="truncate" title={v.code}>
+                          {v.code}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-black opacity-80 leading-tight">
+                        Giảm{" "}
+                        {v.discount_type === "PERCENT"
+                          ? `${v.discount_value}%`
+                          : `${Number(v.discount_value).toLocaleString()}₫`}
+                        {v.max_discount
+                          ? ` (Tối đa ${Number(v.max_discount).toLocaleString()}₫)`
+                          : ""}
+                      </div>
+                      <div className="text-[10px] mt-1 font-bold opacity-60">
+                        Đơn tối thiểu{" "}
+                        {Number(v.min_order_amount).toLocaleString()}₫
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => handleSaveCoupon(e, v.id, v.isSaved)}
+                        disabled={v.isSaved}
+                        className={`mt-4 w-full shrink-0 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all ${
+                          v.isSaved
+                            ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                            : "bg-black text-white hover:bg-primary"
+                        }`}
+                      >
+                        {v.isSaved ? "Đã lưu" : "Lưu mã"}
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-sm font-bold text-gray-500 text-center py-10">
+                  Hiện tại chưa có ưu đãi nào
                 </div>
-              ))}
+              )}
             </div>
-            <button className="btn-modern w-full mt-10 py-3 px-2 leading-tight flex flex-col items-center justify-center">
+            <button 
+              className="btn-modern w-full mt-10 py-3 px-2 leading-tight flex flex-col items-center justify-center"
+              onClick={() => navigate("/vouchers")}
+            >
               <span className="text-[10px] uppercase tracking-widest opacity-80 mb-1">
                 Xem tất cả
               </span>

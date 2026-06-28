@@ -277,12 +277,29 @@ const createCampaign = async (campaignData) => {
   const { title, type, date } = campaignData;
   if (!title) throw new Error("Thiếu tên chiến dịch");
 
+  // Map frontend type to model ENUM ("FLASH_SALE", "SEASONAL", "VOUCHER_RAIN", "OTHER")
+  let mappedType = "OTHER";
+  if (type === "Flash sale") mappedType = "FLASH_SALE";
+  else if (type === "Banner Marketing") mappedType = "SEASONAL";
+
+  let start_time = new Date();
+  let end_time = new Date(new Date().setDate(new Date().getDate() + 7)); // 7 ngày
+
+  if (date) {
+    const parsedDate = new Date(date);
+    if (!isNaN(parsedDate.getTime())) {
+      start_time = parsedDate;
+      end_time = new Date(parsedDate.setDate(parsedDate.getDate() + 7));
+    }
+  }
+
   return await db.Campaign.create({
     name: title,
-    description: `Loại chiến dịch: ${type || 'Flash sale'}`,
-    start_date: new Date(),
-    end_date: new Date(new Date().setDate(new Date().getDate() + 7)), // 7 ngày
-    status: "SẮP DIỄN RA",
+    type: mappedType,
+    description: `Loại chiến dịch: ${type || 'Khác'}`,
+    start_time: start_time,
+    end_time: end_time,
+    status: "DRAFT", // ENUM defines DRAFT, ACTIVE, ENDED, CANCELLED
   });
 };
 

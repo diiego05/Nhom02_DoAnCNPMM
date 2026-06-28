@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ShoppingBag,
   ShoppingCart,
+  Ticket,
   Search,
   ChevronDown,
   User,
@@ -194,10 +195,16 @@ const Header = () => {
           >
             BLOG TIN TỨC
           </Link>
+          <Link
+            to="/vouchers"
+            className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors text-primary"
+          >
+            SĂN VOUCHER
+          </Link>
         </nav>
 
         {/* Search Bar */}
-        <div className="flex-1 max-w-md relative hidden md:block group/search">
+        <div className="flex-1 max-w-xl relative hidden md:block group/search">
           <form onSubmit={handleSearchSubmit}>
             <input
               type="text"
@@ -261,7 +268,9 @@ const Header = () => {
 
         {/* Right Icons */}
         <div className="flex items-center space-x-4 shrink-0">
-          <div className="relative group/cart py-2">
+          {/* Actions */}
+          <div className="flex items-center gap-4">
+            <div className="relative group/cart py-2">
             <Link
               to="/cart"
               className={`relative w-11 h-11 bg-white border border-gray-100 rounded-full flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-sm hover:shadow-soft hover:-translate-y-1 active:scale-95 text-gray-700 ${shouldShake ? "animate-shake" : ""}`}
@@ -422,6 +431,7 @@ const Header = () => {
               <User size={22} strokeWidth={2.5} />
             </Link>
           )}
+          </div>
         </div>
       </div>
       <style>{`

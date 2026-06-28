@@ -8,6 +8,28 @@ const generateOrderCode = (prefix = "ORD") => {
   return `${prefix}-${dateStr}-${random}`;
 };
 
+const getDescendantCategories = async (categoryId) => {
+  const descendants = [categoryId];
+  let currentLevel = [categoryId];
+
+  while (currentLevel.length > 0) {
+    const children = await db.Category.findAll({
+      where: { parent_id: { [db.Sequelize.Op.in]: currentLevel } },
+      attributes: ['id']
+    });
+    
+    if (children.length > 0) {
+      const childIds = children.map(c => c.id);
+      descendants.push(...childIds);
+      currentLevel = childIds;
+    } else {
+      currentLevel = [];
+    }
+  }
+
+  return descendants;
+};
+
 const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupons, usePoints }) => {
   // Fetch loyalty points settings once
   const earnRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_EARN_RATE' } });
@@ -64,6 +86,7 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
     const itemTotal = item.quantity * Number(price);
     shopsData[shopId].subtotal += itemTotal;
     shopsData[shopId].items.push({
+      cart_item_id: item.id || item.cart_item_id,
       product_id: product.id,
       variant_id: variant.id,
       product_name: product.name,
@@ -82,12 +105,43 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
     for (const [shopId, code] of Object.entries(shopCoupons)) {
       if (shopsData[shopId]) {
         const coupon = await db.Coupon.findOne({ where: { code, shop_id: shopId } });
-        if (coupon && shopsData[shopId].subtotal >= coupon.min_order_amount) {
-          const discount = coupon.discount_type === 'PERCENT'
-            ? (shopsData[shopId].subtotal * Number(coupon.discount_value) / 100)
-            : Number(coupon.discount_value);
-          shopsData[shopId].shop_discount = coupon.max_discount ? Math.min(discount, Number(coupon.max_discount)) : discount;
-          shopsData[shopId].shop_coupon_id = coupon.id;
+        if (coupon) {
+          if (coupon.usage_limit && coupon.used_count >= coupon.usage_limit) {
+            throw new Error(`Mã giảm giá ${code} đã hết lượt sử dụng`);
+          }
+          
+          // Kiểm tra xem user đã lưu mã này chưa (trừ khi dùng guest/không bắt buộc)
+          const isSaved = await db.UserCoupon.findOne({
+            where: { user_id: userId, coupon_id: coupon.id, is_used: false }
+          });
+          if (!isSaved) {
+            throw new Error(`Bạn chưa lưu mã giảm giá ${code}. Vui lòng lưu mã trước khi sử dụng.`);
+          }
+
+          let validShopSubtotal = shopsData[shopId].subtotal;
+
+          // Nếu có giới hạn danh mục
+          if (coupon.category_id) {
+            validShopSubtotal = 0;
+            const validCategoryIds = await getDescendantCategories(coupon.category_id);
+            for (const item of shopsData[shopId].items) {
+              if (validCategoryIds.includes(item.category_id)) {
+                validShopSubtotal += item.total_price;
+              }
+            }
+          }
+
+          if (validShopSubtotal >= coupon.min_order_amount) {
+            const discount = coupon.discount_type === 'PERCENT'
+              ? (validShopSubtotal * Number(coupon.discount_value) / 100)
+              : Number(coupon.discount_value);
+            shopsData[shopId].shop_discount = coupon.max_discount ? Math.min(discount, Number(coupon.max_discount)) : discount;
+            shopsData[shopId].shop_coupon_id = coupon.id;
+          } else if (coupon.category_id && validShopSubtotal === 0) {
+            throw new Error(`Mã giảm giá ${code} không áp dụng cho danh mục sản phẩm bạn đang mua từ shop này`);
+          } else {
+            throw new Error(`Đơn hàng từ shop chưa đạt mức tối thiểu ${coupon.min_order_amount}₫ để áp dụng mã giảm giá ${code}`);
+          }
         }
       }
     }
@@ -111,14 +165,26 @@ const calculateCheckout = async (userId, { items, platformCouponCode, shopCoupon
   if (platformCouponCode) {
     platformCouponObj = await db.Coupon.findOne({ where: { code: platformCouponCode, shop_id: null } });
     if (platformCouponObj) {
+      if (platformCouponObj.usage_limit && platformCouponObj.used_count >= platformCouponObj.usage_limit) {
+        throw new Error(`Mã giảm giá sàn ${platformCouponCode} đã hết lượt sử dụng`);
+      }
+
+      const isSaved = await db.UserCoupon.findOne({
+        where: { user_id: userId, coupon_id: platformCouponObj.id, is_used: false }
+      });
+      if (!isSaved) {
+        throw new Error(`Bạn chưa lưu mã giảm giá sàn ${platformCouponCode}. Vui lòng lưu mã trước khi sử dụng.`);
+      }
+
       let validSubtotal = parentSubtotal;
 
       // Nếu có giới hạn danh mục
       if (platformCouponObj.category_id) {
         validSubtotal = 0;
+        const validCategoryIds = await getDescendantCategories(platformCouponObj.category_id);
         for (const shop of Object.values(shopsData)) {
           for (const item of shop.items) {
-            if (item.category_id === platformCouponObj.category_id) {
+            if (validCategoryIds.includes(item.category_id)) {
               validSubtotal += item.total_price;
             }
           }
@@ -321,8 +387,11 @@ const createOrder = async (userId, data) => {
     }
 
     if (data.is_cart_checkout) {
-      // Vì hiện tại frontend chưa hỗ trợ thanh toán từng phần giỏ hàng, nên ta xóa luôn toàn bộ giỏ hàng
-      await db.CartItem.destroy({ where: { user_id: userId }, transaction });
+      // Vì hiện tại frontend hỗ trợ thanh toán từng phần giỏ hàng, nên ta chỉ xóa các item đã được chọn
+      const cartItemIds = calcResult.shops.flatMap(s => s.items.map(i => i.cart_item_id).filter(Boolean));
+      if (cartItemIds.length > 0) {
+        await db.CartItem.destroy({ where: { id: cartItemIds, user_id: userId }, transaction });
+      }
     }
 
     // Tạo PaymentLog ban đầu
@@ -333,6 +402,38 @@ const createOrder = async (userId, data) => {
       status: "UNPAID",
       message: paymentMethod === "COD" ? "Khởi tạo đơn hàng thanh toán khi nhận hàng" : "Đang chờ thanh toán trực tuyến",
     }, { transaction });
+
+    // Tăng số lần sử dụng cho các mã khuyến mãi (Sàn & Shop)
+    const appliedCouponIds = [];
+    if (calcResult.platformCoupon && calcResult.platformCoupon.id) {
+      appliedCouponIds.push(calcResult.platformCoupon.id);
+    }
+    calcResult.shops.forEach(shop => {
+      if (shop.shop_coupon_id) {
+        appliedCouponIds.push(shop.shop_coupon_id);
+      }
+    });
+
+    if (appliedCouponIds.length > 0) {
+      await db.Coupon.increment("used_count", {
+        by: 1,
+        where: { id: { [db.Sequelize.Op.in]: appliedCouponIds } },
+        transaction
+      });
+
+      // Đánh dấu mã đã sử dụng trong UserCoupon
+      await db.UserCoupon.update(
+        { is_used: true, used_at: new Date() },
+        { 
+          where: { 
+            user_id: userId, 
+            coupon_id: { [db.Sequelize.Op.in]: appliedCouponIds },
+            is_used: false
+          },
+          transaction
+        }
+      );
+    }
 
     await transaction.commit();
 

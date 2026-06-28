@@ -443,6 +443,12 @@ const Profile = () => {
                     >
                       <Package size={18} /> Đơn hàng của tôi
                     </Link>
+                    <Link
+                      to="/user/vouchers"
+                      className="flex items-center gap-3 px-6 py-4 hover:bg-gray-50 border-b border-black text-gray-700 font-medium transition-colors"
+                    >
+                      <Ticket size={18} /> Kho Voucher
+                    </Link>
                     <a
                       href="#"
                       onClick={(e) => {

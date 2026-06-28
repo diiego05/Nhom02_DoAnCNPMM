@@ -11,6 +11,7 @@ import Profile from "@/pages/user/Profile";
 import { ShipperDashboard } from "@/pages/shipper/ShipperDashboard";
 
 import HomePage from "@/pages/shop/HomePage";
+import VoucherCenterPage from "@/pages/shop/VoucherCenterPage";
 import ProductListPage from "@/pages/shop/ProductListPage";
 import ProductDetailPage from "@/pages/shop/ProductDetailPage";
 import CartPage from "@/pages/shop/CartPage";
@@ -20,6 +21,7 @@ import VendorShopPage from "@/pages/shop/VendorShopPage";
 import OrderHistoryPage from "@/pages/user/OrderHistoryPage";
 import OrderDetailPage from "@/pages/user/OrderDetailPage";
 import ReviewPage from "@/pages/user/ReviewPage";
+import VoucherWalletPage from "@/pages/user/VoucherWalletPage";
 import VendorDashboard from "@/pages/vendor/VendorDashboard";
 import ManagerDashboard from "@/pages/manager/ManagerDashboard";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
@@ -40,6 +42,10 @@ export const getRoutes = (): RouteObject[] => {
           element: <HomePage />,
         },
         {
+          path: "vouchers",
+          element: <VoucherCenterPage />,
+        },
+        {
           path: "products",
           element: <ProductListPage />,
         },
@@ -56,6 +62,14 @@ export const getRoutes = (): RouteObject[] => {
           element: (
             <AuthGuard>
               <Profile />
+            </AuthGuard>
+          ),
+        },
+        {
+          path: "user/vouchers",
+          element: (
+            <AuthGuard>
+              <VoucherWalletPage />
             </AuthGuard>
           ),
         },

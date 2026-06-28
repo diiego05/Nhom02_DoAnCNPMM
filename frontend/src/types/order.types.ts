@@ -99,6 +99,7 @@ export interface CreateOrderPayload {
     variant_id?: number;
     quantity: number;
     unit_price: number;
+    cart_item_id?: number;
   }[];
 }
 

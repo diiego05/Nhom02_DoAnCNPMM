@@ -353,6 +353,7 @@ const VendorDashboard = () => {
     per_user_limit: 1,
     start_date: "",
     end_date: "",
+    category_id: "",
   });
 
   // Returns state
@@ -1433,6 +1434,7 @@ const VendorDashboard = () => {
         per_user_limit: parseInt(voucherForm.per_user_limit.toString()),
         start_date: voucherForm.start_date || undefined,
         end_date: voucherForm.end_date || undefined,
+        category_id: voucherForm.category_id ? parseInt(voucherForm.category_id.toString()) : undefined,
       };
 
       await vendorService.createVoucher(payload);
@@ -4530,6 +4532,24 @@ const VendorDashboard = () => {
                       ...voucherForm,
                       discount_type: val as "PERCENTAGE" | "FIXED_AMOUNT",
                     })
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <CustomSelect
+                  label="Loại sản phẩm áp dụng"
+                  value={voucherForm.category_id}
+                  placeholder="Áp dụng cho tất cả sản phẩm"
+                  options={[
+                    { value: "", label: "Áp dụng cho tất cả sản phẩm" },
+                    ...categories.map((c) => ({
+                      value: c.id.toString(),
+                      label: c.name,
+                    })),
+                  ]}
+                  onChange={(val) =>
+                    setVoucherForm({ ...voucherForm, category_id: val })
                   }
                 />
               </div>
