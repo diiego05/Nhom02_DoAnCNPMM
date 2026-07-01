@@ -18,6 +18,7 @@ import CartPage from "@/pages/shop/CartPage";
 import CheckoutPage from "@/pages/shop/CheckoutPage";
 import VNPayReturn from "@/pages/shop/VNPayReturn";
 import VendorShopPage from "@/pages/shop/VendorShopPage";
+import ShopListPage from "@/pages/shop/ShopListPage";
 import OrderHistoryPage from "@/pages/user/OrderHistoryPage";
 import OrderDetailPage from "@/pages/user/OrderDetailPage";
 import ReviewPage from "@/pages/user/ReviewPage";
@@ -56,6 +57,10 @@ export const getRoutes = (): RouteObject[] => {
         {
           path: "shop/:id",
           element: <VendorShopPage />,
+        },
+        {
+          path: "shops",
+          element: <ShopListPage />,
         },
         {
           path: "profile",

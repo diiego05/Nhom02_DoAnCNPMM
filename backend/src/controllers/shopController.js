@@ -38,6 +38,17 @@ const getTopShops = async (req, res) => {
   }
 };
 
+const getAllShops = async (req, res) => {
+  try {
+    const { search, page, limit } = req.query;
+    const result = await shopService.getAllShops(search, page, limit);
+    return res.status(200).json({ message: "Success", data: result });
+  } catch (error) {
+    console.error("Error getting all shops:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 const getMyShop = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -241,12 +252,35 @@ const getShopReviews = async (req, res) => {
   }
 };
 
+const replyToReview = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const shop = await shopService.getShopByUserId(userId);
+    if (!shop) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+    
+    const { id } = req.params;
+    const { vendor_reply } = req.body;
+    
+    if (!vendor_reply) {
+      return res.status(400).json({ error: "Nội dung phản hồi không được để trống" });
+    }
+
+    const updatedReview = await shopService.replyToReview(shop.id, id, vendor_reply);
+    return res.status(200).json({ message: "Gửi phản hồi thành công", data: updatedReview });
+  } catch (error) {
+    console.error("Error replying to review:", error);
+    return res.status(500).json({ error: error.message || "Internal server error" });
+  }
+};
+
 const uploadImage = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "Vui lòng chọn ảnh để tải lên" });
     }
-    const imageUrl = `/public/uploads/${req.file.filename}`;
+    const imageUrl = req.file.path;
     return res.status(200).json({
       message: "Tải ảnh lên thành công",
       url: imageUrl,
@@ -354,6 +388,7 @@ export default {
   createShopVoucher,
   deleteShopVoucher,
   getShopReviews,
+  replyToReview,
   uploadImage,
   getShopReturnRequests,
   approveReturnRequest,
@@ -361,4 +396,5 @@ export default {
   requestWithdrawal,
   getWithdrawals,
   getTopShops,
+  getAllShops,
 };

@@ -347,9 +347,6 @@ const returnService = {
         }
       }
 
-      // Process refund immediately!
-      await returnService._processRefundOnly(returnRequest, transaction);
-
       // Update shop order status to RETURN_PENDING
       await shopOrder.update({ status: "RETURN_PENDING" }, { transaction });
 
@@ -448,9 +445,6 @@ const returnService = {
             shopOrder.shipper_id = assignedShipperId;
           }
         }
-
-        // Process refund immediately!
-        await returnService._processRefundOnly(returnRequest, transaction);
 
         // Update shop order status to RETURN_PENDING
         await shopOrder.update({ status: "RETURN_PENDING" }, { transaction });
@@ -615,13 +609,13 @@ const returnService = {
     const pointsUsedReturned = Math.floor(shopOrder.points_used * returnRatio);
     const pointsEarnedDeducted = Math.floor(shopOrder.points_earned * returnRatio);
     
-    // Đọc tỷ lệ tích điểm từ system_settings (vd: earnRate=100 → 1đ/100VNĐ)
-    const earnRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_EARN_RATE' } });
-    const earnRate = earnRateSetting ? Number(earnRateSetting.setting_value) : 100;
+    // Đọc tỷ lệ quy đổi điểm từ system_settings (vd: redeemRate=100 → 1 điểm = 100VNĐ)
+    const redeemRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_REDEEM_RATE' } });
+    const redeemRate = redeemRateSetting ? Number(redeemRateSetting.setting_value) : 100;
 
-    // Hoàn điểm tương ứng số tiền hoàn lại (theo đúng tỷ lệ tích điểm)
+    // Hoàn điểm tương ứng số tiền hoàn lại (theo đúng tỷ lệ quy đổi ra tiền)
     let pointsToRefund = pointsUsedReturned;
-    pointsToRefund += Math.floor(cashRefundToUser / earnRate);
+    pointsToRefund += Math.floor(cashRefundToUser / redeemRate);
 
     // Update User points
     const user = await db.User.findByPk(returnRequest.user_id, { transaction });
@@ -630,17 +624,46 @@ const returnService = {
         await user.save({ transaction });
     }
     
-    // Deduct pending_balance from shop
+    // Deduct pending_balance or balance from shop
     const shopWallet = await db.ShopWallet.findOne({ where: { shop_id: shopOrder.shop_id }, transaction });
     if (shopWallet) {
-        const frozenAmount = shopOrder.final_amount - shopOrder.commission_amount;
-        const actualRefundToUserFromShop = cashRefundToUser - (shopOrder.commission_amount * returnRatio);
-        
-        if (shopWallet.pending_balance >= frozenAmount) {
-            shopWallet.pending_balance -= frozenAmount;
-            shopWallet.balance += (frozenAmount - actualRefundToUserFromShop);
-            await shopWallet.save({ transaction });
+        // Calculate original net earning exactly like orderService
+        const settings = await db.SystemSetting.findAll({
+          where: { setting_key: ['tax_rate', 'payment_gateway_fee'] },
+          transaction
+        });
+        const settingsMap = {};
+        settings.forEach(s => settingsMap[s.setting_key] = s.setting_value);
+        const taxRate = parseFloat(settingsMap.tax_rate || "0.25");
+        const gatewayFeeRate = parseFloat(settingsMap.payment_gateway_fee || "1.00");
+
+        const baseAmount = Math.max(0, Number(shopOrder.subtotal) - Number(shopOrder.discount_amount));
+        const taxAmount = baseAmount * (taxRate / 100);
+        let gatewayFeeAmount = 0;
+        if (shopOrder.parentOrder && shopOrder.parentOrder.payment_method !== "COD") {
+          gatewayFeeAmount = Number(shopOrder.final_amount) * (gatewayFeeRate / 100);
         }
+        const totalNetEarning = baseAmount - Number(shopOrder.commission_amount) - taxAmount - gatewayFeeAmount;
+        
+        // Earning to reverse based on return ratio
+        const reverseEarning = totalNetEarning * returnRatio;
+
+        // Check if the order was ever COMPLETED
+        const completedHistory = await db.ShopOrderStatusHistory.findOne({
+            where: { shop_order_id: shopOrder.id, new_status: "COMPLETED" },
+            transaction
+        });
+
+        if (completedHistory) {
+            // Order was completed, money is in balance and total_earned
+            shopWallet.balance = Math.max(0, Number(shopWallet.balance || 0) - reverseEarning);
+            shopWallet.total_earned = Math.max(0, Number(shopWallet.total_earned || 0) - reverseEarning);
+        } else {
+            // Order was not completed, money is in pending_balance
+            shopWallet.pending_balance = Math.max(0, Number(shopWallet.pending_balance || 0) - reverseEarning);
+        }
+        
+        await shopWallet.save({ transaction });
     }
   },
 

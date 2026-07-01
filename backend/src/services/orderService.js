@@ -300,6 +300,10 @@ const createOrder = async (userId, data) => {
       await db.User.decrement('loyalty_points', { by: totalPointsToUse, where: { id: userId }, transaction });
     }
 
+    const totalGlobalDiscount = (calcResult.platformDiscount || 0) + (calcResult.pointsDiscount || 0);
+    let remainingGlobalDiscount = totalGlobalDiscount;
+    const totalOriginalFinalAmount = calcResult.shops.reduce((sum, s) => sum + s.final_amount, 0);
+
     // 2. Create Shop Orders
     for (let i = 0; i < calcResult.shops.length; i++) {
       const shop = calcResult.shops[i];
@@ -311,19 +315,31 @@ const createOrder = async (userId, data) => {
       const commissionAmount = (commissionBase * commissionRate) / 100;
 
       // Distribute points_used (assign to first shop, or distribute proportionally)
-      // Here we just distribute it proportionally based on final amount, or simpler: give all remaining to the last shop.
       let shopPointsUsed = 0;
       if (pointsUsedRemaining > 0) {
         if (i === calcResult.shops.length - 1) {
           shopPointsUsed = pointsUsedRemaining;
         } else {
-          shopPointsUsed = Math.floor(totalPointsToUse * (shop.final_amount / calcResult.totalAmount));
+          shopPointsUsed = Math.floor(totalPointsToUse * (shop.final_amount / totalOriginalFinalAmount));
           pointsUsedRemaining -= shopPointsUsed;
         }
       }
 
       // Calculate earned points for THIS shop order
       const shopPointsEarned = Math.floor(shop.final_amount / calcResult.earnRate);
+
+      // Distribute global discount (platform + points) proportionally to shop.final_amount
+      let shopGlobalDiscount = 0;
+      if (remainingGlobalDiscount > 0) {
+        if (i === calcResult.shops.length - 1) {
+          shopGlobalDiscount = remainingGlobalDiscount;
+        } else {
+          shopGlobalDiscount = Math.floor(totalGlobalDiscount * (shop.final_amount / totalOriginalFinalAmount));
+          remainingGlobalDiscount -= shopGlobalDiscount;
+        }
+      }
+
+      const finalAmountAfterGlobalDiscount = Math.max(0, shop.final_amount - shopGlobalDiscount);
 
       const shopOrder = await db.ShopOrder.create({
         parent_order_id: parentOrder.id,
@@ -332,7 +348,7 @@ const createOrder = async (userId, data) => {
         subtotal: shop.subtotal,
         shipping_fee: shop.shipping_fee,
         discount_amount: shop.shop_discount,
-        final_amount: shop.final_amount,
+        final_amount: finalAmountAfterGlobalDiscount,
         commission_rate: commissionRate,
         commission_amount: commissionAmount,
         shop_coupon_id: shop.shop_coupon_id,
@@ -747,105 +763,104 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
     await shipmentService.createShipment(shopOrderId, assignedShipperId || null);
   }
 
-  // Handle DELIVERED logic (COD vs Online)
+  // Handle DELIVERED logic
   if (newStatus === "DELIVERED" && oldStatus !== "DELIVERED") {
     updateData.delivered_at = new Date();
+    
     if (shopOrder.parentOrder.payment_method === "COD") {
       updateData.cod_amount_collected = shopOrder.final_amount;
       updateData.cod_status = "HELD_BY_SHIPPER";
-      // Update parentOrder's payment_status to PAID since cash has been collected
       await shopOrder.parentOrder.update({ payment_status: "PAID" });
-    } else {
-      // Online payment (already paid, immediately add to pending shop wallet balance)
-      const netShopAmount = Number(shopOrder.subtotal) - Number(shopOrder.discount_amount) - Number(shopOrder.commission_amount);
-      const [wallet] = await db.ShopWallet.findOrCreate({
-        where: { shop_id: shopOrder.shop_id },
-        defaults: { balance: 0.00, pending_balance: 0.00, total_earned: 0.00 }
-      });
-      await wallet.increment('pending_balance', { by: netShopAmount });
     }
+
+    const settings = await db.SystemSetting.findAll({
+      where: { setting_key: ['tax_rate', 'payment_gateway_fee'] }
+    });
+    const settingsMap = {};
+    settings.forEach(s => settingsMap[s.setting_key] = s.setting_value);
+    const taxRate = parseFloat(settingsMap.tax_rate || "1.50");
+    const gatewayFeeRate = parseFloat(settingsMap.payment_gateway_fee || "5.00");
+
+    const baseAmount = Math.max(0, Number(shopOrder.subtotal) - Number(shopOrder.discount_amount));
+    const taxAmount = baseAmount * (taxRate / 100);
+    
+    let gatewayFeeAmount = 0;
+    if (shopOrder.parentOrder.payment_method !== "COD") {
+      gatewayFeeAmount = Number(shopOrder.final_amount) * (gatewayFeeRate / 100);
+    }
+
+    // Update ShopWallet: add to pending_balance
+    const netEarning = baseAmount - Number(shopOrder.commission_amount) - taxAmount - gatewayFeeAmount;
+    const [wallet] = await db.ShopWallet.findOrCreate({
+      where: { shop_id: shopOrder.shop_id },
+      defaults: { balance: 0.00, pending_balance: 0.00, total_earned: 0.00 }
+    });
+    await wallet.increment('pending_balance', { by: netEarning });
   }
 
-  // Handle COMPLETED logic (move from pending_balance to available balance)
+  // Handle COMPLETED logic
   if (newStatus === "COMPLETED" && oldStatus !== "COMPLETED") {
-    const netShopAmount = Number(shopOrder.subtotal) - Number(shopOrder.discount_amount) - Number(shopOrder.commission_amount);
+    const settings = await db.SystemSetting.findAll({
+      where: { setting_key: ['tax_rate', 'payment_gateway_fee'] }
+    });
+    const settingsMap = {};
+    settings.forEach(s => settingsMap[s.setting_key] = s.setting_value);
+    const taxRate = parseFloat(settingsMap.tax_rate || "1.50");
+    const gatewayFeeRate = parseFloat(settingsMap.payment_gateway_fee || "5.00");
+
+    const baseAmount = Math.max(0, Number(shopOrder.subtotal) - Number(shopOrder.discount_amount));
+    const taxAmount = baseAmount * (taxRate / 100);
+    
+    let gatewayFeeAmount = 0;
+    if (shopOrder.parentOrder.payment_method !== "COD") {
+      gatewayFeeAmount = Number(shopOrder.final_amount) * (gatewayFeeRate / 100);
+    }
+
+    const netEarning = baseAmount - Number(shopOrder.commission_amount) - taxAmount - gatewayFeeAmount;
     const [wallet] = await db.ShopWallet.findOrCreate({
       where: { shop_id: shopOrder.shop_id },
       defaults: { balance: 0.00, pending_balance: 0.00, total_earned: 0.00 }
     });
 
-    // Safety check to prevent negative pending balance
-    const deductAmount = Math.min(Number(wallet.pending_balance), netShopAmount);
-    wallet.pending_balance = Number(wallet.pending_balance) - deductAmount;
-    wallet.balance = Number(wallet.balance) + netShopAmount;
-    wallet.total_earned = Number(wallet.total_earned) + netShopAmount;
-    await wallet.save();
+    const deductAmount = Math.min(Number(wallet.pending_balance), netEarning);
+    await wallet.update({
+      pending_balance: Number(wallet.pending_balance) - deductAmount,
+      balance: Number(wallet.balance) + netEarning,
+      total_earned: Number(wallet.total_earned) + netEarning
+    });
 
-    // Mark parentOrder as PAID if COD and not paid yet
     if (shopOrder.parentOrder?.payment_method === "COD" && shopOrder.parentOrder?.payment_status !== "PAID") {
       await shopOrder.parentOrder.update({ payment_status: "PAID" });
+    }
+
+    // Add loyalty points when order is officially completed
+    if (shopOrder.points_earned && shopOrder.points_earned > 0) {
+      await db.User.increment('loyalty_points', { by: shopOrder.points_earned, where: { id: shopOrder.parentOrder.user_id } });
     }
   }
 
   await shopOrder.update(updateData);
 
-  // Add loyalty points when delivered successfully
-  if (newStatus === "DELIVERED" && oldStatus !== "DELIVERED") {
-    if (shopOrder.points_earned && shopOrder.points_earned > 0) {
-      await db.User.increment('loyalty_points', { by: shopOrder.points_earned, where: { id: shopOrder.parentOrder.user_id } });
-    }
-
-
-    // Update payment_status to PAID for COD if all active shop orders are delivered
-    if (shopOrder.parentOrder.payment_method === "COD") {
-      const allShopOrders = await db.ShopOrder.findAll({
-        where: { parent_order_id: shopOrder.parent_order_id }
-      });
-      const allCompleted = allShopOrders.every(order =>
-        (order.id === shopOrder.id) ? true : ["DELIVERED", "CANCELLED", "RETURN_PENDING", "RETURNED"].includes(order.status)
-      );
-      if (allCompleted) {
-        await db.ParentOrder.update(
-          { payment_status: "PAID" },
-          { where: { id: shopOrder.parent_order_id } }
-        );
-      }
-    }
-
-
-    // Update ShopWallet: increase pending_balance and total_earned
-    const netEarning = parseFloat(shopOrder.final_amount) - parseFloat(shopOrder.commission_amount) - parseFloat(shopOrder.shipping_fee);
-    const [wallet] = await db.ShopWallet.findOrCreate({
-      where: { shop_id: shopOrder.shop_id },
-      defaults: { balance: 0, pending_balance: 0, total_earned: 0 }
-    });
-    await wallet.increment({
-      pending_balance: netEarning,
-      total_earned: netEarning
-    });
-  }
-
-  // Release pending balance to available balance when completed successfully
-  if (newStatus === "COMPLETED" && oldStatus !== "COMPLETED") {
-    const netEarning = parseFloat(shopOrder.final_amount) - parseFloat(shopOrder.commission_amount) - parseFloat(shopOrder.shipping_fee);
-    const [wallet] = await db.ShopWallet.findOrCreate({
-      where: { shop_id: shopOrder.shop_id },
-      defaults: { balance: 0, pending_balance: 0, total_earned: 0 }
-    });
-    const newPending = Math.max(0, parseFloat(wallet.pending_balance) - netEarning);
-    await wallet.update({
-      pending_balance: newPending,
-      balance: db.sequelize.literal(`balance + ${netEarning}`)
-    });
-
-  }
-
   // Refund points when cancelled or failed
   const isCancelledOrFailed = (newStatus === "CANCELLED" || newStatus === "FAILED");
-  const wasCancelledOrFailed = ["CANCELLED", "FAILED", "RETURN_PENDING", "RETURNED"].includes(oldStatus);
+  const wasCancelledOrFailed = ["CANCELLED", "FAILED"].includes(oldStatus);
   if (isCancelledOrFailed && !wasCancelledOrFailed) {
     if (shopOrder.points_used && shopOrder.points_used > 0) {
       await db.User.increment('loyalty_points', { by: shopOrder.points_used, where: { id: shopOrder.parentOrder.user_id } });
+    }
+    
+    // CASH REFUND FOR CANCELLED (Convert to loyalty points)
+    if (newStatus === "CANCELLED" && shopOrder.parentOrder && shopOrder.parentOrder.payment_method !== "COD") {
+      if (shopOrder.parentOrder.payment_status !== "REFUNDED") {
+        const redeemRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_REDEEM_RATE' } });
+        const redeemRate = redeemRateSetting ? Number(redeemRateSetting.setting_value) : 100;
+        const refundAmount = Number(shopOrder.final_amount);
+        const pointsToRefund = Math.floor(refundAmount / redeemRate);
+        if (pointsToRefund > 0) {
+          await db.User.increment('loyalty_points', { by: pointsToRefund, where: { id: shopOrder.parentOrder.user_id } });
+        }
+        await db.ParentOrder.update({ payment_status: "REFUNDED" }, { where: { id: shopOrder.parent_order_id } });
+      }
     }
   }
 
@@ -853,14 +868,75 @@ const updateOrderStatus = async (shopOrderId, userId, newStatus, role, note = nu
   const isRestored = (newStatus === "CANCELLED" || newStatus === "RETURNED");
   const wasRestored = ["CANCELLED", "RETURNED"].includes(oldStatus);
   if (isRestored && !wasRestored) {
-    const orderItems = await db.OrderItem.findAll({ where: { shop_order_id: shopOrderId } });
-    for (const item of orderItems) {
-      if (item.variant_id) {
-        await db.ProductVariant.increment("stock_quantity", {
-          by: item.quantity,
-          where: { id: item.variant_id },
-          paranoid: false,
+    let shouldRestockAll = true;
+    let returnRequest = null;
+    let returnService = null;
+
+    if (newStatus === "RETURNED") {
+      try {
+        returnService = (await import("./returnService.js")).default;
+        returnRequest = await db.ReturnRequest.findOne({
+          where: { shop_order_id: shopOrderId, status: ["APPROVED_BY_SHOP", "RESOLVED_BY_ADMIN"] },
+          include: [
+            { model: db.ShopOrder, as: "shopOrder" },
+            { model: db.ReturnItem, as: "items", include: [{ model: db.OrderItem, as: "orderItem" }]}
+          ]
         });
+
+        if (returnRequest) {
+          shouldRestockAll = false; // We have specific return items to restock
+          await returnService._processRestockOnly(returnRequest, null);
+          
+          // Process the refund (update shop wallet and user loyalty points)
+          await returnService._processRefundOnly(returnRequest, null);
+          
+          // Đánh dấu yêu cầu trả hàng đã hoàn tất
+          await returnRequest.update({ status: "COMPLETED" });
+          
+          // Đánh dấu parentOrder là đã hoàn tiền (Refunded)
+          await db.ParentOrder.update({ payment_status: "REFUNDED" }, { where: { id: shopOrder.parent_order_id } });
+        } else {
+          // Không có returnRequest -> Khách từ chối nhận hàng ở cửa
+          if (shopOrder.parentOrder && shopOrder.parentOrder.payment_method !== "COD") {
+            const isBom = Number(shopOrder.shipping_fee) > 0;
+            let refundAmount = Number(shopOrder.final_amount);
+            let refundMsg = "";
+            if (isBom) {
+              const fee = Number(shopOrder.shipping_fee || 0);
+              refundAmount = Math.max(0, refundAmount - fee);
+              refundMsg = `BOM: Hoàn tiền ${refundAmount}đ (trừ ${fee}đ phí ship)`;
+            } else {
+              refundMsg = `Hoàn đủ tiền ${refundAmount}đ (không BOM)`;
+            }
+            
+            if (shopOrder.parentOrder.payment_status !== "REFUNDED") {
+              const redeemRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_REDEEM_RATE' } });
+              const redeemRate = redeemRateSetting ? Number(redeemRateSetting.setting_value) : 100;
+              const pointsToRefund = Math.floor(refundAmount / redeemRate);
+              if (pointsToRefund > 0) {
+                await db.User.increment('loyalty_points', { by: pointsToRefund, where: { id: shopOrder.parentOrder.user_id } });
+              }
+              await db.ParentOrder.update({ payment_status: "REFUNDED" }, { where: { id: shopOrder.parent_order_id } });
+            }
+            // Add to note if possible
+            note = note ? `${note} - ${refundMsg}` : refundMsg;
+          }
+        }
+      } catch (err) {
+        console.error("Lỗi khi xử lý trả hàng/hoàn tiền:", err);
+      }
+    }
+
+    if (shouldRestockAll) {
+      const orderItems = await db.OrderItem.findAll({ where: { shop_order_id: shopOrderId } });
+      for (const item of orderItems) {
+        if (item.variant_id) {
+          await db.ProductVariant.increment("stock_quantity", {
+            by: item.quantity,
+            where: { id: item.variant_id },
+            paranoid: false,
+          });
+        }
       }
     }
   }
@@ -1177,6 +1253,20 @@ const cancelOrder = async (shopOrderId, userId, reason) => {
           where: { id: item.variant_id },
           paranoid: false,
         });
+      }
+    }
+    
+    // CASH REFUND FOR CANCELLED (Convert to loyalty points)
+    if (shopOrder.parentOrder && shopOrder.parentOrder.payment_method !== "COD") {
+      if (shopOrder.parentOrder.payment_status !== "REFUNDED") {
+        const redeemRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_REDEEM_RATE' } });
+        const redeemRate = redeemRateSetting ? Number(redeemRateSetting.setting_value) : 100;
+        const refundAmount = Number(shopOrder.final_amount);
+        const pointsToRefund = Math.floor(refundAmount / redeemRate);
+        if (pointsToRefund > 0) {
+          await db.User.increment('loyalty_points', { by: pointsToRefund, where: { id: shopOrder.parentOrder.user_id } });
+        }
+        await db.ParentOrder.update({ payment_status: "REFUNDED" }, { where: { id: shopOrder.parent_order_id } });
       }
     }
   }

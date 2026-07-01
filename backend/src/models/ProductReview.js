@@ -21,6 +21,7 @@ export default (sequelize, DataTypes) => {
         validate: { min: 1, max: 5 }
       },
       comment: { type: DataTypes.TEXT, allowNull: true },
+      vendor_reply: { type: DataTypes.TEXT, allowNull: true },
       deleted_at: { type: DataTypes.DATE, allowNull: true },
     },
     {

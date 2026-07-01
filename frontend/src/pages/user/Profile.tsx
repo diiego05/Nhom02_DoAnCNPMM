@@ -909,7 +909,7 @@ const Profile = () => {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                   {favorites && favorites.length > 0 ? (
-                    favorites.map((fav: any) => (
+                    favorites.filter((fav: any) => fav.product).map((fav: any) => (
                       <Link
                         to={`/products/${fav.product.slug}`}
                         key={fav.id}
@@ -959,7 +959,7 @@ const Profile = () => {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                   {viewedProducts && viewedProducts.length > 0 ? (
-                    viewedProducts.map((view: any) => (
+                    viewedProducts.filter((view: any) => view.product).map((view: any) => (
                       <Link
                         to={`/products/${view.product.slug}`}
                         key={view.id}

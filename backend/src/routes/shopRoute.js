@@ -6,6 +6,7 @@ import upload from "../middleware/upload.js";
 const router = express.Router();
 
 // Routes công khai (Public)
+router.get("/", shopController.getAllShops);
 router.get("/top", shopController.getTopShops);
 router.get("/:id", shopController.getShopProfile);
 router.get("/:id/vouchers", shopController.getShopVouchers);
@@ -46,5 +47,8 @@ router.post("/my-shop/upload", upload.single("image"), shopController.uploadImag
 router.get("/my-shop/returns", shopController.getShopReturnRequests);
 router.post("/my-shop/returns/:id/approve", shopController.approveReturnRequest);
 router.post("/my-shop/returns/:id/reject", shopController.rejectReturnRequest);
+
+// Trả lời bình luận
+router.post("/my-shop/reviews/:id/reply", shopController.replyToReview);
 
 export default router;

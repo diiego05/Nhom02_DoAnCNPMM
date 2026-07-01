@@ -28,6 +28,7 @@ export interface ShopProfileData extends ShopRegistrationData {
 }
 
 export interface ProductData {
+  approval_status?: string;
   name: string;
   category_id: number;
   brand_id?: number;
@@ -110,6 +111,12 @@ export const vendorService = {
     return response.data;
   },
 
+  // Hủy đơn hàng (Vendor)
+  cancelOrder: async (orderId: number | string, note?: string) => {
+    const response = await axiosClient.patch(`/orders/${orderId}/status`, { status: "CANCELLED", note: note || "Shop từ chối đơn hàng" });
+    return response.data;
+  },
+
   // Quản lý sản phẩm
   createProduct: async (data: ProductData) => {
     const response = await axiosClient.post("/shops/my-shop/products", data);
@@ -168,6 +175,11 @@ export const vendorService = {
     return response.data;
   },
 
+  getAllShops: async (params: { search?: string; page?: number; limit?: number }) => {
+    const response = await publicAxios.get("/shops", { params });
+    return response.data;
+  },
+
   uploadImage: async (file: File) => {
     const formData = new FormData();
     formData.append("image", file);
@@ -221,6 +233,12 @@ export const vendorService = {
     return response.data;
   },
 
+  // Trả lời bình luận
+  replyToReview: async (reviewId: number | string, vendor_reply: string) => {
+    const response = await axiosClient.post(`/shops/my-shop/reviews/${reviewId}/reply`, { vendor_reply });
+    return response.data;
+  },
+
   // Gửi tin nhắn chat
   sendMessage: async (receiverId: number | string, content: string) => {
     const response = await axiosClient.post("/chats/messages", { receiverId, content });
@@ -242,3 +260,5 @@ export const vendorService = {
     return response.data.data as ReturnRequest;
   },
 };
+
+export default vendorService;

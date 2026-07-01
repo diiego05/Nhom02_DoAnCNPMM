@@ -531,7 +531,7 @@ const getFinancialReport = async (dateFrom, dateTo, groupBy, shopMonth, shopYear
     [Op.lte]: end
   };
 
-  const shopOrderWhere = { status: "DELIVERED" };
+  const shopOrderWhere = { status: { [db.Sequelize.Op.in]: ["DELIVERED", "COMPLETED"] } };
   // Lọc theo ngày giao thành công (delivered_at), dùng updated_at làm fallback nếu dữ liệu cũ chưa cập nhật cột này
   shopOrderWhere[Op.or] = [
     {
@@ -557,26 +557,69 @@ const getFinancialReport = async (dateFrom, dateTo, groupBy, shopMonth, shopYear
     }],
   });
 
-  // Phân tách theo phương thức thanh toán
   let totalRevenue = 0;
   let codRevenue = 0;
   let onlineRevenue = 0;
   let codOrderCount = 0;
   let onlineOrderCount = 0;
 
+  // Các biến cộng dồn thực tế
+  let codCommission = 0;
+  let codTax = 0;
+  let codShopPayout = 0;
+  
+  let onlineCommission = 0;
+  let onlineTax = 0;
+  let onlineGatewayFee = 0;
+  let onlineShopPayout = 0;
+
+  // Tiền ship và chi phí voucher sàn
+  let totalShippingFee = 0;
+  let platformVoucherCost = 0;
+
   // Doanh thu theo shop
   const shopRevenueMap = {};
 
   for (const order of deliveredOrders) {
-    const amount = parseFloat(order.final_amount || 0);
-    totalRevenue += amount;
+    const finalAmount = parseFloat(order.final_amount || 0); // Tiền khách thực trả
+
+    // Phí vận chuyển
+    const shippingFee = parseFloat(order.shipping_fee || 0);
+    totalShippingFee += shippingFee;
+
+    // Cơ sở tính doanh thu, chiết khấu và thuế: subtotal - shop_discount (KHÔNG BAO GỒM TIỀN SHIP)
+    const baseAmount = Math.max(0, parseFloat(order.subtotal || 0) - parseFloat(order.discount_amount || 0));
+    
+    // Chi phí voucher sàn (Sàn tài trợ): baseAmount + shippingFee - finalAmount
+    const voucherCost = Math.max(0, baseAmount + shippingFee - finalAmount);
+    platformVoucherCost += voucherCost;
+
+    // Đổi "Doanh thu" trên báo cáo thành baseAmount để khớp công thức: Doanh thu - Phí = Shop nhận về
+    const revenueToReport = baseAmount;
+    
+    totalRevenue += revenueToReport;
+
+    const commission = parseFloat(order.commission_amount || 0);
+    const tax = baseAmount * (taxRate / 100);
+    
+    // Shop nhận về = Cơ sở - Chiết khấu - Thuế
+    const shopPayout = baseAmount - commission - tax;
 
     const isCOD = order.parentOrder.payment_method === "COD";
     if (isCOD) {
-      codRevenue += amount;
+      codRevenue += revenueToReport;
+      codCommission += commission;
+      codTax += tax;
+      codShopPayout += shopPayout;
       codOrderCount++;
     } else {
-      onlineRevenue += amount;
+      onlineRevenue += revenueToReport;
+      onlineCommission += commission;
+      onlineTax += tax;
+      // Phí cổng thanh toán tính trên số tiền thực tế khách quẹt thẻ
+      const gatewayFeeAmount = finalAmount * (gatewayFee / 100);
+      onlineGatewayFee += gatewayFeeAmount;
+      onlineShopPayout += (shopPayout - gatewayFeeAmount);
       onlineOrderCount++;
     }
 
@@ -592,27 +635,17 @@ const getFinancialReport = async (dateFrom, dateTo, groupBy, shopMonth, shopYear
         online_revenue: 0,
       };
     }
-    shopRevenueMap[shopId].total_revenue += amount;
+    shopRevenueMap[shopId].total_revenue += revenueToReport;
     shopRevenueMap[shopId].order_count++;
     if (isCOD) {
-      shopRevenueMap[shopId].cod_revenue += amount;
+      shopRevenueMap[shopId].cod_revenue += revenueToReport;
     } else {
-      shopRevenueMap[shopId].online_revenue += amount;
+      shopRevenueMap[shopId].online_revenue += revenueToReport;
     }
   }
 
-  // Tính khấu trừ COD: chiết khấu sàn 10% + thuế 1.5% = 11.5%
-  const codCommission = codRevenue * (commissionRate / 100);
-  const codTax = codRevenue * (taxRate / 100);
   const codTotalDeduction = codCommission + codTax;
-  const codShopPayout = codRevenue - codTotalDeduction;
-
-  // Tính khấu trừ Thẻ: chiết khấu sàn 10% + phí cổng 5% + thuế 1.5% = 16.5%
-  const onlineCommission = onlineRevenue * (commissionRate / 100);
-  const onlineGatewayFee = onlineRevenue * (gatewayFee / 100);
-  const onlineTax = onlineRevenue * (taxRate / 100);
   const onlineTotalDeduction = onlineCommission + onlineGatewayFee + onlineTax;
-  const onlineShopPayout = onlineRevenue - onlineTotalDeduction;
 
   // Tổng hợp
   const totalCommission = codCommission + onlineCommission;
@@ -878,13 +911,15 @@ const getFinancialReport = async (dateFrom, dateTo, groupBy, shopMonth, shopYear
     // Tổng quan
     summary: {
       total_revenue: totalRevenue,
+      total_shipping_fee: totalShippingFee,
+      platform_voucher_cost: platformVoucherCost,
       total_orders: deliveredOrders.length,
       total_commission: totalCommission,
       total_gateway_fee: totalGatewayFee,
       total_tax: totalTax,
       total_deduction: totalDeduction,
       total_shop_payout: totalShopPayout,
-      platform_profit: totalCommission, // Lợi nhuận sàn = chiết khấu (phí cổng trả cho bên TT, thuế nộp nhà nước)
+      platform_profit: totalCommission, // Lợi nhuận sàn = chiết khấu (chưa trừ chi phí vận hành/voucher)
     },
 
     // Phân tách COD
@@ -1386,7 +1421,6 @@ const getPendingShipperReconciliations = async () => {
     const heldOrders = await db.ShopOrder.findAll({
       where: {
         shipper_id: shipper.id,
-        status: "DELIVERED",
         cod_status: "HELD_BY_SHIPPER"
       },
       include: [
@@ -1397,10 +1431,10 @@ const getPendingShipperReconciliations = async () => {
           attributes: ["id", "checkout_code", "payment_method", "shipping_address"]
         }
       ],
-      attributes: ["id", "shop_order_code", "final_amount", "subtotal", "discount_amount", "commission_amount", "created_at"]
+      attributes: ["id", "shop_order_code", "cod_amount_collected", "final_amount", "subtotal", "discount_amount", "commission_amount", "created_at"]
     });
 
-    const totalHeldAmount = heldOrders.reduce((sum, o) => sum + Number(o.final_amount), 0);
+    const totalHeldAmount = heldOrders.reduce((sum, o) => sum + Number(o.cod_amount_collected || o.final_amount), 0);
 
     // Only include in overview if they have assigned orders or are holding cash
     if (totalOrders > 0 || totalHeldAmount > 0) {
@@ -1427,11 +1461,10 @@ const getPendingShipperReconciliations = async () => {
 const approveShipperReconciliation = async (processorId, shipperId) => {
   const transaction = await db.sequelize.transaction();
   try {
-    // 1. Find all delivered COD orders held by this shipper
+    // 1. Find all COD orders held by this shipper
     const orders = await db.ShopOrder.findAll({
       where: {
         shipper_id: shipperId,
-        status: "DELIVERED",
         cod_status: "HELD_BY_SHIPPER"
       },
       include: [
@@ -1448,7 +1481,7 @@ const approveShipperReconciliation = async (processorId, shipperId) => {
       throw new Error("Shipper không giữ tiền mặt thu hộ nào cần đối soát");
     }
 
-    const totalAmount = orders.reduce((sum, o) => sum + Number(o.final_amount), 0);
+    const totalAmount = orders.reduce((sum, o) => sum + Number(o.cod_amount_collected || o.final_amount), 0);
 
     // 2. Create a ShipperReconciliation record with status APPROVED for audit trail
     const recon = await db.ShipperReconciliation.create({
@@ -1459,23 +1492,12 @@ const approveShipperReconciliation = async (processorId, shipperId) => {
       note: "Đã nộp tiền mặt đối soát thành công (hệ thống tự động)"
     }, { transaction });
 
-    // 3. Update orders and credit shop wallets
+    // 3. Update orders
     for (const order of orders) {
       await order.update({
         cod_status: "CONFIRMED",
         shipper_reconciliation_id: recon.id
       }, { transaction });
-
-      // Calculate Net Shop Amount: subtotal - discount_amount - commission_amount
-      const netShopAmount = Number(order.subtotal) - Number(order.discount_amount) - Number(order.commission_amount);
-
-      const [wallet] = await db.ShopWallet.findOrCreate({
-        where: { shop_id: order.shop_id },
-        defaults: { balance: 0.00, pending_balance: 0.00, total_earned: 0.00 },
-        transaction
-      });
-
-      await wallet.increment('pending_balance', { by: netShopAmount, transaction });
     }
 
     await transaction.commit();
@@ -1489,11 +1511,10 @@ const approveShipperReconciliation = async (processorId, shipperId) => {
 const rejectShipperReconciliation = async (processorId, shipperId, reason) => {
   const transaction = await db.sequelize.transaction();
   try {
-    // 1. Find all delivered COD orders held by this shipper
+    // 1. Find all COD orders held by this shipper
     const orders = await db.ShopOrder.findAll({
       where: {
         shipper_id: shipperId,
-        status: "DELIVERED",
         cod_status: "HELD_BY_SHIPPER"
       },
       include: [
@@ -1510,7 +1531,7 @@ const rejectShipperReconciliation = async (processorId, shipperId, reason) => {
       throw new Error("Shipper không giữ tiền mặt thu hộ nào cần từ chối");
     }
 
-    const totalAmount = orders.reduce((sum, o) => sum + Number(o.final_amount), 0);
+    const totalAmount = orders.reduce((sum, o) => sum + Number(o.cod_amount_collected || o.final_amount), 0);
 
     // 2. Create a ShipperReconciliation record with status REJECTED for audit trail
     const recon = await db.ShipperReconciliation.create({

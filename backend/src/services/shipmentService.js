@@ -184,8 +184,11 @@ const addShipmentHistory = async (shipmentId, status, location, note, proofImage
           const returnService = (await import("./returnService.js")).default;
           if (returnRequest) {
             // Customer return request
+            returnRequest.shopOrder = shopOrder; // Gán shopOrder để _processRefundOnly có thể sử dụng
             await returnService._processRestockOnly(returnRequest, transaction);
+            await returnService._processRefundOnly(returnRequest, transaction);
             await returnRequest.update({ status: "COMPLETED" }, { transaction });
+            await db.ParentOrder.update({ payment_status: "REFUNDED" }, { where: { id: shopOrder.parent_order_id }, transaction });
           } else {
             // Failed delivery return, restock items from OrderItem
             const orderItems = await db.OrderItem.findAll({
@@ -213,10 +216,10 @@ const addShipmentHistory = async (shipmentId, status, location, note, proofImage
             if (shopOrder.parentOrder && shopOrder.parentOrder.payment_status === "PAID") {
               const cashRefundToUser = Math.max(0, Number(shopOrder.subtotal) + 30000 - Number(shopOrder.discount_amount) - Number(shopOrder.shipping_fee));
               
-              // Đọc tỷ lệ tích điểm từ system_settings
-              const earnRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_EARN_RATE' } });
-              const earnRate = earnRateSetting ? Number(earnRateSetting.setting_value) : 100;
-              const pointsToRefund = Math.floor(cashRefundToUser / earnRate);
+              // Đọc tỷ lệ quy đổi điểm từ system_settings
+              const redeemRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_REDEEM_RATE' } });
+              const redeemRate = redeemRateSetting ? Number(redeemRateSetting.setting_value) : 100;
+              const pointsToRefund = Math.floor(cashRefundToUser / redeemRate);
 
               if (user) {
                 user.loyalty_points = Math.max(0, Number(user.loyalty_points || 0) + pointsToRefund);

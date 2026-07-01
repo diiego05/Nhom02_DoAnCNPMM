@@ -481,7 +481,7 @@ const updateShopProduct = async (shopId, productId, productData) => {
     }
 
     let finalApprovalStatus = product.approval_status;
-    if (product.approval_status === "APPROVED") {
+    if (product.approval_status === "APPROVED" || product.approval_status === "REJECTED") {
       finalApprovalStatus = "PENDING";
     }
     if (approval_status) {
@@ -616,6 +616,28 @@ const getShopReviews = async (shopId) => {
     ],
     order: [["created_at", "DESC"]],
   });
+};
+
+const replyToReview = async (shopId, reviewId, vendorReply) => {
+  const review = await db.ProductReview.findOne({
+    where: { id: reviewId },
+    include: [
+      {
+        model: db.Product,
+        as: "product",
+        where: { shop_id: shopId },
+        required: true,
+      }
+    ]
+  });
+
+  if (!review) {
+    throw new Error("Không tìm thấy đánh giá hoặc đánh giá không thuộc shop này");
+  }
+
+  review.vendor_reply = vendorReply;
+  await review.save();
+  return review;
 };
 
 const requestWithdrawal = async (shopId, withdrawData) => {
@@ -760,6 +782,39 @@ const getWithdrawals = async (shopId) => {
   });
 };
 
+const getAllShops = async (search = "", page = 1, limit = 10) => {
+  const offset = (page - 1) * limit;
+  const where = { status: "APPROVED" };
+
+  if (search) {
+    where.shop_name = {
+      [db.Sequelize.Op.like]: `%${search}%`,
+    };
+  }
+
+  const { count, rows } = await db.Shop.findAndCountAll({
+    where,
+    attributes: [
+      "id",
+      "shop_name",
+      ["shop_logo", "avatar_url"],
+      "rating",
+    ],
+    order: [
+      ["rating", "DESC"],
+    ],
+    limit: parseInt(limit),
+    offset: parseInt(offset),
+  });
+
+  return {
+    total: count,
+    totalPages: Math.ceil(count / limit),
+    currentPage: parseInt(page),
+    shops: rows,
+  };
+};
+
 export default {
   registerShop,
   getShopProfile,
@@ -772,7 +827,9 @@ export default {
   deleteShopProduct,
   getShopProducts,
   getShopReviews,
+  replyToReview,
   requestWithdrawal,
   getWithdrawals,
   getTopShops,
+  getAllShops,
 };

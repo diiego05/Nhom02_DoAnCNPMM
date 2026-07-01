@@ -31,7 +31,9 @@ import {
   Download,
   Loader2,
   Save,
-  Paperclip
+  Paperclip,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { getOrderStatusLabel } from '@/utils/statusUtils';
 import { useState, useEffect, useRef } from 'react';
@@ -177,11 +179,15 @@ const VendorDashboard = () => {
 
   // Products state
   const [products, setProducts] = useState<any[]>([]);
+  const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [productStatusFilter, setProductStatusFilter] = useState("ALL");
   const [productsTotal, setProductsTotal] = useState(0);
   const [productsPage, setProductsPage] = useState(1);
   const [categories, setCategories] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [replyTexts, setReplyTexts] = useState<Record<number, string>>({});
+  const [isReplying, setIsReplying] = useState<Record<number, boolean>>({});
   const [productView, setProductView] = useState<"list" | "add" | "edit">(
     "list",
   );
@@ -604,6 +610,26 @@ const VendorDashboard = () => {
       }
     } catch (err) {
       console.log("Lỗi tải bình luận:", err);
+    }
+  };
+
+  const handleReplyReview = async (reviewId: number) => {
+    const reply = replyTexts[reviewId];
+    if (!reply || !reply.trim()) {
+      alert("Vui lòng nhập nội dung phản hồi");
+      return;
+    }
+
+    try {
+      setIsReplying(prev => ({ ...prev, [reviewId]: true }));
+      await vendorService.replyToReview(reviewId, reply);
+      alert("Gửi phản hồi thành công!");
+      fetchShopReviews();
+    } catch (error: any) {
+      console.error(error);
+      alert(error.response?.data?.error || "Lỗi khi gửi phản hồi");
+    } finally {
+      setIsReplying(prev => ({ ...prev, [reviewId]: false }));
     }
   };
 
@@ -1113,20 +1139,22 @@ const VendorDashboard = () => {
     }
   };
 
-  const handleDeleteProduct = async (id: number) => {
+  const handleToggleProductStatus = async (id: number, currentStatus: string) => {
+    const isApproved = currentStatus === 'APPROVED';
+    const newStatus = isApproved ? 'HIDDEN' : 'APPROVED';
     setConfirmModal({
       isOpen: true,
-      title: "Ngừng bán sản phẩm",
-      message: "Bạn có chắc chắn muốn ngừng bán sản phẩm này?",
+      title: isApproved ? "Ngừng bán sản phẩm" : "Bán trở lại sản phẩm",
+      message: isApproved ? "Bạn có chắc chắn muốn ngừng bán sản phẩm này?" : "Bạn có chắc chắn muốn mở bán lại sản phẩm này?",
       onConfirm: async () => {
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
         try {
-          await vendorService.deleteProduct(id);
-          alert("Đã ngưng bán sản phẩm!");
+          await vendorService.updateProduct(id, { approval_status: newStatus });
+          alert(isApproved ? "Đã ngưng bán sản phẩm!" : "Đã mở bán lại sản phẩm!");
           fetchShopProducts();
         } catch (err) {
           console.error(err);
-          alert("Lỗi khi ngưng bán sản phẩm!");
+          alert("Lỗi khi cập nhật trạng thái sản phẩm!");
         }
       },
     });
@@ -1147,6 +1175,25 @@ const VendorDashboard = () => {
         } catch (err: any) {
           console.error(err);
           alert(err.response?.data?.message || "Lỗi khi xác nhận đơn hàng!");
+        }
+      },
+    });
+  };
+  // Hủy đơn hàng
+  const handleCancelOrder = async (orderId: number) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Từ chối đơn hàng",
+      message: "Bạn có chắc chắn muốn từ chối/hủy đơn hàng này? Khách hàng sẽ được hoàn lại tiền và điểm tích lũy.",
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await vendorService.cancelOrder(orderId);
+          alert("Đã hủy đơn hàng thành công!");
+          fetchShopOrders();
+        } catch (err: any) {
+          console.error(err);
+          alert(err.response?.data?.message || "Lỗi khi hủy đơn hàng!");
         }
       },
     });
@@ -2067,17 +2114,46 @@ const VendorDashboard = () => {
                   </div>
 
                   <div className="bg-white border-2 border-black rounded-[2rem] overflow-hidden shadow-sm">
-                    <div className="p-6 border-b-2 border-black/5 bg-gray-50/50 flex gap-4">
+                    <div className="p-6 border-b-2 border-black/5 bg-gray-50/50 flex flex-col gap-4">
                       <div className="relative flex-grow">
                         <input
                           type="text"
                           placeholder="Tìm tên sản phẩm..."
-                          className="w-full bg-white border-2 border-black rounded-xl px-10 py-2.5 text-xs font-bold"
+                          value={productSearchTerm}
+                          onChange={(e) => setProductSearchTerm(e.target.value)}
+                          className="w-full bg-white border-2 border-black rounded-xl px-10 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20"
                         />
                         <Search
                           className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
                           size={16}
                         />
+                      </div>
+                      
+                      {/* Bộ lọc trạng thái sản phẩm */}
+                      <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                        {[
+                          "ALL",
+                          "APPROVED",
+                          "PENDING",
+                          "REJECTED",
+                          "HIDDEN",
+                        ].map((status) => (
+                          <button
+                            key={status}
+                            onClick={() => setProductStatusFilter(status)}
+                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all border-2 ${productStatusFilter === status ? "bg-black text-white border-black" : "bg-white text-gray-500 border-gray-200 hover:border-black"}`}
+                          >
+                            {status === "ALL"
+                              ? "Tất cả"
+                              : status === "APPROVED"
+                                ? "Đang bán"
+                                : status === "PENDING"
+                                  ? "Chờ duyệt"
+                                  : status === "REJECTED"
+                                    ? "Bị từ chối"
+                                    : "Ngừng bán"}
+                          </button>
+                        ))}
                       </div>
                     </div>
                     <div className="overflow-x-auto">
@@ -2093,7 +2169,7 @@ const VendorDashboard = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y-2 divide-black/5">
-                          {products.length === 0 ? (
+                          {products.filter(p => p.name.toLowerCase().includes(productSearchTerm.toLowerCase()) && (productStatusFilter === "ALL" || p.approval_status === productStatusFilter)).length === 0 ? (
                             <tr>
                               <td
                                 colSpan={6}
@@ -2103,7 +2179,7 @@ const VendorDashboard = () => {
                               </td>
                             </tr>
                           ) : (
-                            products.map((prod, i) => (
+                            products.filter(p => p.name.toLowerCase().includes(productSearchTerm.toLowerCase()) && (productStatusFilter === "ALL" || p.approval_status === productStatusFilter)).map((prod, i) => (
                               <tr
                                 key={prod.id || i}
                                 className="hover:bg-gray-50 transition-colors group"
@@ -2170,11 +2246,19 @@ const VendorDashboard = () => {
 
 
 
-                                    =======
                                     <button onClick={() => startEditProduct(prod)} className="p-2 border-2 border-black rounded-lg text-primary hover:bg-primary hover:text-white transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"><Edit3 size={14} /></button>
-                                    {prod.approval_status === 'APPROVED' && (
-                                      <button onClick={() => handleDeleteProduct(prod.id)} className="p-2 border-2 border-black rounded-lg text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"><Trash2 size={14} /></button>
-
+                                    {(prod.approval_status === 'APPROVED' || prod.approval_status === 'HIDDEN') && (
+                                      <button 
+                                        onClick={() => handleToggleProductStatus(prod.id, prod.approval_status)} 
+                                        title={prod.approval_status === 'APPROVED' ? "Ngừng bán" : "Bán trở lại"}
+                                        className={`p-2 border-2 border-black rounded-lg transition-all shadow-subtle active:translate-x-[2px] active:translate-y-[2px] active:shadow-none ${
+                                          prod.approval_status === 'APPROVED' 
+                                            ? "text-red-600 hover:bg-red-600 hover:text-white" 
+                                            : "text-green-600 hover:bg-green-600 hover:text-white"
+                                        }`}
+                                      >
+                                        {prod.approval_status === 'APPROVED' ? <EyeOff size={14} /> : <Eye size={14} />}
+                                      </button>
                                     )}
                                   </div>
                                 </td>
@@ -2234,7 +2318,7 @@ const VendorDashboard = () => {
                         />
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <CustomSelect
                           label="Danh mục"
                           value={productForm.category_id}
@@ -2245,18 +2329,6 @@ const VendorDashboard = () => {
                           }))}
                           onChange={(val) =>
                             setProductForm({ ...productForm, category_id: val })
-                          }
-                        />
-                        <CustomSelect
-                          label="Thương hiệu"
-                          value={productForm.brand_id}
-                          placeholder="-- Chọn thương hiệu --"
-                          options={brands.map((b: any) => ({
-                            value: b.id,
-                            label: b.name,
-                          }))}
-                          onChange={(val) =>
-                            setProductForm({ ...productForm, brand_id: val })
                           }
                         />
                         <CustomSelect
@@ -3179,10 +3251,12 @@ const VendorDashboard = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y-2 divide-black/5">
-                      {orders.filter(
-                        (o: any) =>
-                          filterStatus === "ALL" || o.status === filterStatus,
-                      ).length === 0 ? (
+                      {orders.filter((o: any) => {
+                        if (filterStatus === "ALL") return true;
+                        if (filterStatus === "DELIVERED") return ["DELIVERED", "COMPLETED"].includes(o.status);
+                        if (filterStatus === "SHIPPING") return ["READY_FOR_PICKUP", "PICKED_UP", "IN_TRANSIT", "DELIVERING", "SHIPPING"].includes(o.status);
+                        return o.status === filterStatus;
+                      }).length === 0 ? (
                         <tr>
                           <td
                             colSpan={6}
@@ -3193,11 +3267,12 @@ const VendorDashboard = () => {
                         </tr>
                       ) : (
                         orders
-                          .filter(
-                            (o: any) =>
-                              filterStatus === "ALL" ||
-                              o.status === filterStatus,
-                          )
+                          .filter((o: any) => {
+                            if (filterStatus === "ALL") return true;
+                            if (filterStatus === "DELIVERED") return ["DELIVERED", "COMPLETED"].includes(o.status);
+                            if (filterStatus === "SHIPPING") return ["READY_FOR_PICKUP", "PICKED_UP", "IN_TRANSIT", "DELIVERING", "SHIPPING"].includes(o.status);
+                            return o.status === filterStatus;
+                          })
                           .map((order, i) => {
                             let customerName = "Khách hàng";
                             let customerContact = "";
@@ -3279,14 +3354,24 @@ const VendorDashboard = () => {
                                 </td>
                                 <td className="px-8 py-4 text-right">
                                   {order.status === "PENDING" && (
-                                    <button
-                                      onClick={() =>
-                                        handleConfirmOrder(order.id)
-                                      }
-                                      className="px-4 py-2 bg-black text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-green-500 hover:text-white transition-all shadow-subtle active:translate-y-0.5 active:shadow-none"
-                                    >
-                                      Xác nhận đơn
-                                    </button>
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        onClick={() =>
+                                          handleCancelOrder(order.id)
+                                        }
+                                        className="px-4 py-2 bg-white text-red-500 border-2 border-red-500 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-subtle active:translate-y-0.5 active:shadow-none"
+                                      >
+                                        Từ chối
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          handleConfirmOrder(order.id)
+                                        }
+                                        className="px-4 py-2 bg-black text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-green-500 hover:text-white transition-all shadow-subtle active:translate-y-0.5 active:shadow-none"
+                                      >
+                                        Xác nhận đơn
+                                      </button>
+                                    </div>
                                   )}
                                   {order.status === "CONFIRMED" && (
                                     <button
@@ -3346,6 +3431,7 @@ const VendorDashboard = () => {
                       per_user_limit: 1,
                       start_date: "",
                       end_date: "",
+                      category_id: "",
                     });
                     setShowVoucherModal(true);
                   }}
@@ -3483,21 +3569,40 @@ const VendorDashboard = () => {
                         <p className="text-xs font-medium text-gray-600 leading-relaxed mb-4 italic">
                           "{rev.comment}"
                         </p>
-                        <div className="bg-gray-50 rounded-xl p-4 border border-black/5">
-                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">
-                            Phản hồi của bạn
-                          </p>
-                          <textarea
-                            placeholder="Nhập phản hồi..."
-                            className="w-full bg-white border-2 border-black rounded-lg p-3 text-xs font-medium focus:outline-none resize-none"
-                            rows={2}
-                          ></textarea>
-                          <div className="flex justify-end mt-2">
-                            <button className="px-4 py-1.5 bg-black text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-primary transition-all">
-                              Gửi phản hồi
-                            </button>
+                        {rev.vendor_reply ? (
+                          <div className="bg-primary/5 rounded-xl p-4 border border-primary/20 mt-4">
+                            <p className="text-[9px] font-black text-primary uppercase tracking-widest mb-2 flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span>
+                              Phản hồi của bạn
+                            </p>
+                            <p className="text-xs font-medium text-gray-700">
+                              {rev.vendor_reply}
+                            </p>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="bg-gray-50 rounded-xl p-4 border border-black/5 mt-4">
+                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">
+                              Phản hồi của bạn
+                            </p>
+                            <textarea
+                              placeholder="Nhập phản hồi..."
+                              value={replyTexts[rev.id] || ""}
+                              onChange={(e) => setReplyTexts(prev => ({ ...prev, [rev.id]: e.target.value }))}
+                              disabled={isReplying[rev.id]}
+                              className="w-full bg-white border-2 border-black rounded-lg p-3 text-xs font-medium focus:outline-none resize-none"
+                              rows={2}
+                            ></textarea>
+                            <div className="flex justify-end mt-2">
+                              <button 
+                                onClick={() => handleReplyReview(rev.id)}
+                                disabled={isReplying[rev.id]}
+                                className="px-4 py-1.5 bg-black text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-primary transition-all disabled:opacity-50"
+                              >
+                                {isReplying[rev.id] ? "Đang gửi..." : "Gửi phản hồi"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}

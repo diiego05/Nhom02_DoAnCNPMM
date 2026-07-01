@@ -158,9 +158,9 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`) VA
   ('payment_gateway_card',    'enabled',     'Trạng thái cổng thanh toán Thẻ tín dụng'),
   ('platform_name',           'FashionHub',  'Tên thương hiệu sàn thương mại'),
   ('min_payout_amount',       '100000',      'Số tiền tối thiểu Vendor được rút (VNĐ)'),
-  ('payment_gateway_fee',     '5.00',        'Phí cổng thanh toán trực tuyến (%)'),
-  ('tax_rate',                '1.50',        'Thuế giao dịch thành công (%)'),
-  ('LOYALTY_POINT_EARN_RATE', '100',         'Tỷ lệ tích điểm: mỗi 100đ chi tiêu = 1 điểm'),
+  ('payment_gateway_fee',     '1.00',        'Phí cổng thanh toán trực tuyến (%)'),
+  ('tax_rate',                '0.25',        'Thuế giao dịch thành công (%)'),
+  ('LOYALTY_POINT_EARN_RATE', '10000',       'Tỷ lệ tích điểm: mỗi 10000đ chi tiêu = 1 điểm'),
   ('LOYALTY_POINT_REDEEM_RATE','100',        'Tỷ lệ quy đổi điểm: 1 điểm = 100đ khi thanh toán');
 
 -- ============================================================

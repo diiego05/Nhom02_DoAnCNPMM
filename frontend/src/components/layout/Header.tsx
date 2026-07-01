@@ -96,6 +96,7 @@ const Header = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchType, setSearchType] = useState<"PRODUCT" | "SHOP">("PRODUCT");
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -113,7 +114,11 @@ const Header = () => {
     e.preventDefault();
     if (searchTerm.trim()) {
       setShowSuggestions(false);
-      navigate(`/products?keyword=${encodeURIComponent(searchTerm.trim())}`);
+      if (searchType === "PRODUCT") {
+        navigate(`/products?keyword=${encodeURIComponent(searchTerm.trim())}`);
+      } else {
+        navigate(`/shops?search=${encodeURIComponent(searchTerm.trim())}`);
+      }
     }
   };
 
@@ -132,18 +137,7 @@ const Header = () => {
 
         {/* Navigation */}
         <nav className="hidden lg:flex items-center space-x-8">
-          <Link
-            to="/products?page=1&gender=MALE"
-            className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors"
-          >
-            NAM
-          </Link>
-          <Link
-            to="/products?page=1&gender=FEMALE"
-            className="text-xs font-black uppercase tracking-widest hover:text-primary transition-colors"
-          >
-            NỮ
-          </Link>
+
 
           <div className="relative group py-8">
             <button className="flex items-center gap-1 text-xs font-black uppercase tracking-widest hover:text-primary transition-colors">
@@ -205,11 +199,22 @@ const Header = () => {
 
         {/* Search Bar */}
         <div className="flex-1 max-w-xl relative hidden md:block group/search">
-          <form onSubmit={handleSearchSubmit}>
+          <form onSubmit={handleSearchSubmit} className="flex relative">
+            <div className="relative z-10 flex-shrink-0">
+              <select
+                value={searchType}
+                onChange={(e) => setSearchType(e.target.value as "PRODUCT" | "SHOP")}
+                className="h-11 pl-4 pr-8 bg-gray-100 border-r border-gray-200 text-xs font-black uppercase tracking-wider rounded-l-full appearance-none cursor-pointer focus:outline-none hover:bg-gray-200 transition-colors"
+              >
+                <option value="PRODUCT">Sản phẩm</option>
+                <option value="SHOP">Shop</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={14} />
+            </div>
             <input
               type="text"
-              placeholder="Tìm kiếm sản phẩm..."
-              className="input-modern w-full h-11 pl-12 rounded-full bg-gray-50/50"
+              placeholder={searchType === "PRODUCT" ? "Tìm kiếm sản phẩm..." : "Tìm kiếm shop..."}
+              className="input-modern w-full h-11 pl-12 rounded-r-full rounded-l-none bg-gray-50/50"
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
@@ -219,7 +224,7 @@ const Header = () => {
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
             />
             <Search
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-primary transition-colors cursor-pointer"
+              className="absolute left-[130px] top-1/2 -translate-y-1/2 text-gray-400 group-focus-within/search:text-primary transition-colors cursor-pointer"
               size={18}
               strokeWidth={2.5}
               onClick={handleSearchSubmit}

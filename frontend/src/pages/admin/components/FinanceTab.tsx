@@ -11,6 +11,7 @@ import {
    ArrowDownRight,
    BarChart3,
    Store,
+   Gift,
    Loader2,
 } from 'lucide-react';
 import { getOrderStatusLabel, getShipmentStatusLabel } from '@/utils/statusUtils';
@@ -234,19 +235,20 @@ export const FinanceTab = () => {
          </div>
 
          {/* Tổng quan cards */}
-         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             {[
-               { label: "Tổng doanh thu", value: `${fmt(report.summary.total_revenue)}₫`, icon: <TrendingUp className="text-green-500" />, color: "green" },
-               { label: "Lợi nhuận sàn", value: `${fmt(report.summary.platform_profit)}₫`, icon: <DollarSign className="text-red-500" />, color: "red" },
-               { label: "Trả shop", value: `${fmt(report.summary.total_shop_payout)}₫`, icon: <ArrowUpRight className="text-blue-500" />, color: "blue" },
-               { label: "Tổng đơn DELIVERED", value: report.summary.total_orders, icon: <Activity className="text-purple-500" />, color: "purple" },
+               { label: "Tiền thu hàng hoá (GMV)", value: `${fmt(report.summary.total_revenue)}₫`, icon: <TrendingUp className="text-green-500" /> },
+               { label: "Tiền ship thu hộ", value: `${fmt(report.summary.total_shipping_fee)}₫`, icon: <Truck className="text-amber-500" /> },
+               { label: "Chi phí Marketing (Trợ giá)", value: `${fmt(report.summary.platform_voucher_cost)}₫`, icon: <Gift className="text-pink-500" /> },
+               { label: "Tiền trả cho Shop (Payout)", value: `${fmt(report.summary.total_shop_payout)}₫`, icon: <ArrowUpRight className="text-blue-500" /> },
+               { label: "Lợi nhuận thực (Hoa hồng - Trợ giá)", value: `${fmt(report.summary.platform_profit - report.summary.platform_voucher_cost)}₫`, icon: <DollarSign className="text-red-500" /> },
             ].map((s, i) => (
-               <div key={i} className="bg-white border-2 border-black rounded-3xl p-8 shadow-sm flex items-center gap-6 group hover:shadow-brutal transition-all cursor-default">
-                  <div className="w-14 h-14 bg-gray-50 border-2 border-black/5 rounded-2xl flex items-center justify-center group-hover:bg-black group-hover:text-white transition-all">{s.icon}</div>
-                  <div>
-                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{s.label}</p>
-                     <p className="text-2xl font-black tracking-tighter">{s.value}</p>
+               <div key={i} className="bg-white border-2 border-black rounded-3xl p-6 shadow-sm flex flex-col gap-4 group hover:shadow-brutal transition-all cursor-default">
+                  <div className="flex items-center gap-4">
+                     <div className="w-12 h-12 bg-gray-50 border-2 border-black/5 rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-black group-hover:text-white transition-all">{s.icon}</div>
+                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-tight">{s.label}</p>
                   </div>
+                  <p className="text-2xl font-black tracking-tighter">{s.value}</p>
                </div>
             ))}
          </div>

@@ -8,6 +8,8 @@ import { sendRegistrationOtp } from "../utils/emailService.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+const pendingRegistrations = new Map();
+
 const register = (data) => {
   return new Promise(async (resolve, reject) => {
     try {
@@ -37,32 +39,21 @@ const register = (data) => {
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Create user
-      const user = await db.User.create({
-        email,
-        phone,
-        password: hashedPassword,
-        role_id: role_id || 5, // Default to user role (5)
-        status: "PENDING",
-      });
-
-      // Create profile
-      await db.UserProfile.create({
-        user_id: user.id,
-        full_name: fullName,
-      });
-
       // Generate OTP for account activation
       const otpCode = crypto.randomInt(100000, 999999).toString();
-      const expiredAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      const expiredAt = Date.now() + 15 * 60 * 1000; // 15 minutes
 
       console.log(`Generating OTP for ${email}: ${otpCode}`);
 
-      await db.OtpVerification.create({
-        user_id: user.id,
-        otp_code: otpCode,
-        type: "ACCOUNT_ACTIVATION",
-        expired_at: expiredAt,
+      // Save pending registration to memory
+      pendingRegistrations.set(email, {
+        email,
+        phone,
+        password: hashedPassword,
+        fullName,
+        role_id: role_id || 5, // Default to user role (5)
+        otpCode,
+        expiredAt,
       });
 
       // Send OTP email
@@ -75,12 +66,8 @@ const register = (data) => {
 
       resolve({
         status: 201,
-        message:
-          "User registered successfully. Please check your email for OTP.",
-        data: {
-          id: user.id,
-          email: user.email,
-        },
+        message: "User registered successfully. Please check your email for OTP.",
+        data: { email }, // Cannot return user.id yet
       });
     } catch (error) {
       reject(error);
@@ -384,36 +371,40 @@ const verifyAccountOtp = (data) => {
     try {
       const { email, otpCode } = data;
 
-      const user = await db.User.findOne({ where: { email } });
-      if (!user) {
-        return resolve({ status: 404, message: "User not found" });
+      const pendingUser = pendingRegistrations.get(email);
+      if (!pendingUser) {
+        return resolve({ status: 404, message: "User not found or registration expired" });
       }
 
-      const otpRecord = await db.OtpVerification.findOne({
-        where: {
-          user_id: user.id,
-          type: "ACCOUNT_ACTIVATION",
-          is_used: false,
-          otp_code: otpCode,
-        },
-        order: [["created_at", "DESC"]],
-      });
-
-      if (!otpRecord) {
+      if (pendingUser.otpCode !== otpCode) {
         return resolve({ status: 400, message: "Invalid OTP code" });
       }
 
-      if (new Date() > new Date(otpRecord.expired_at)) {
+      if (Date.now() > pendingUser.expiredAt) {
+        pendingRegistrations.delete(email);
         return resolve({ status: 410, message: "OTP code expired" });
       }
 
-      // Update user status and OTP record
-      await user.update({ status: "ACTIVE" });
-      await otpRecord.update({ is_used: true });
+      // Create user
+      const user = await db.User.create({
+        email: pendingUser.email,
+        phone: pendingUser.phone,
+        password: pendingUser.password,
+        role_id: pendingUser.role_id,
+        status: "ACTIVE",
+      });
+
+      // Create profile
+      await db.UserProfile.create({
+        user_id: user.id,
+        full_name: pendingUser.fullName,
+      });
+
+      pendingRegistrations.delete(email);
 
       resolve({
         status: 200,
-        message: "Account verified successfully",
+        message: "Account verified and created successfully",
       });
     } catch (error) {
       reject(error);

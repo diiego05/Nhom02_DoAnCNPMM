@@ -698,13 +698,9 @@ const OrderHistoryPage = () => {
                     ) : order.status === "COMPLETED" ? (
                       <button
                         onClick={() => navigate(`/orders/${order.id}`)}
-                        className="flex items-center gap-2 px-6 py-3 bg-black text-white border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all active:translate-y-1 shadow-subtle hover:shadow-none"
+                        className="flex items-center gap-2 px-6 py-3 bg-white text-black border-2 border-black rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-black hover:text-white transition-all active:translate-y-1"
                       >
-                        <Star
-                          size={14}
-                          className="text-yellow-400 fill-yellow-400"
-                        />{" "}
-                        Đánh giá sản phẩm
+                        Xem chi tiết đơn hàng
                       </button>
                     ) : order.status === "CANCELLED" ||
                       order.status === "CANCEL_REQUESTED" ? (

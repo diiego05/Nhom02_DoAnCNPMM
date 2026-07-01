@@ -1044,6 +1044,18 @@ const ProductDetailPage = () => {
                             )}
                           </div>
                         )}
+                        
+                      {review.vendor_reply && (
+                        <div className="mt-6 bg-gray-50 border-l-4 border-primary p-4 rounded-r-xl">
+                          <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span>
+                            Phản hồi từ Người bán
+                          </p>
+                          <p className="text-sm font-medium text-gray-700">
+                            {review.vendor_reply}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (
