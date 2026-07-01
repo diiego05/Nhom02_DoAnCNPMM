@@ -32,7 +32,7 @@ import { OrderStatus } from "@/types/order.types";
 
 const OrderHistoryPage = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState("pending");
   const [currentTime, setCurrentTime] = useState(Date.now());
 
   // Update time every minute to refresh cancel button state
@@ -319,12 +319,6 @@ const OrderHistoryPage = () => {
 
   const tabs = [
     {
-      id: "all",
-      label: "Tất cả",
-      icon: <Package size={16} />,
-      countKey: "ALL",
-    },
-    {
       id: "pending",
       label: "Chờ xác nhận",
       icon: <Calendar size={16} />,
@@ -591,8 +585,10 @@ const OrderHistoryPage = () => {
                           Tổng thanh toán
                         </p>
                         <p className="text-3xl font-black text-black tracking-tighter">
-                          {Number(
-                            order.final_amount || order.total_amount || 0,
+                          {Math.max(
+                            0,
+                            Number(order.final_amount || order.total_amount || 0) -
+                              Number(order.points_used || 0) * 100
                           ).toLocaleString()}
                           ₫
                         </p>

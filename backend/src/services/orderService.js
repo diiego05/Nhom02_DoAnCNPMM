@@ -285,7 +285,7 @@ const createOrder = async (userId, data) => {
       checkout_code: generateOrderCode("CHK"),
       total_amount: calcResult.totalAmount,
       payment_method: paymentMethod,
-      payment_status: "UNPAID",
+      payment_status: calcResult.totalAmount === 0 ? "PAID" : "UNPAID",
       shipping_address: shippingAddressStr,
       platform_coupon_id: calcResult.platformCoupon?.id || null,
       note: note || null,
@@ -322,8 +322,10 @@ const createOrder = async (userId, data) => {
         }
       }
 
-      // Calculate earned points for THIS shop order
-      const shopPointsEarned = Math.floor(shop.final_amount / calcResult.earnRate);
+      // Calculate earned points for THIS shop order (only on the actual amount paid by cash/card)
+      const pointsDiscountAmount = shopPointsUsed * calcResult.redeemRate;
+      const actualCashAmount = Math.max(0, Number(shop.final_amount) - pointsDiscountAmount);
+      const shopPointsEarned = Math.floor(actualCashAmount / calcResult.earnRate);
 
       const shopOrder = await db.ShopOrder.create({
         parent_order_id: parentOrder.id,
@@ -397,10 +399,14 @@ const createOrder = async (userId, data) => {
     // Tạo PaymentLog ban đầu
     await db.PaymentLog.create({
       order_code: parentOrder.checkout_code,
-      gateway_name: paymentMethod,
+      gateway_name: parentOrder.total_amount === 0 ? "FREE" : paymentMethod,
       amount: parentOrder.total_amount,
-      status: "UNPAID",
-      message: paymentMethod === "COD" ? "Khởi tạo đơn hàng thanh toán khi nhận hàng" : "Đang chờ thanh toán trực tuyến",
+      status: parentOrder.total_amount === 0 ? "PAID" : "UNPAID",
+      message: parentOrder.total_amount === 0 
+        ? "Đơn hàng miễn phí (đã thanh toán bằng điểm/khuyến mãi)" 
+        : paymentMethod === "COD" 
+          ? "Khởi tạo đơn hàng thanh toán khi nhận hàng" 
+          : "Đang chờ thanh toán trực tuyến",
     }, { transaction });
 
     // Tăng số lần sử dụng cho các mã khuyến mãi (Sàn & Shop)
@@ -596,10 +602,11 @@ const getUserOrderCounts = async (userId) => {
   return countMap;
 };
 
-const autoAssignShipperByArea = async (shopOrderId) => {
+const autoAssignShipperByArea = async (shopOrderId, transaction = null) => {
   try {
     const shopOrder = await db.ShopOrder.findByPk(shopOrderId, {
-      include: [{ model: db.ParentOrder, as: "parentOrder" }]
+      include: [{ model: db.ParentOrder, as: "parentOrder" }],
+      transaction
     });
     if (!shopOrder) return null;
 
@@ -619,7 +626,8 @@ const autoAssignShipperByArea = async (shopOrderId) => {
           model: db.UserProfile,
           as: "profile"
         }
-      ]
+      ],
+      transaction
     });
 
     // All active shippers are eligible since they are platform-wide
@@ -637,7 +645,8 @@ const autoAssignShipperByArea = async (shopOrderId) => {
         shipper_id: { [db.Sequelize.Op.in]: shipperIds },
         status: ["SHIPPING", "RETURN_PENDING"]
       },
-      include: [{ model: db.ParentOrder, as: "parentOrder" }]
+      include: [{ model: db.ParentOrder, as: "parentOrder" }],
+      transaction
     });
 
     const cleanAddress = address.toLowerCase();

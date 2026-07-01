@@ -1,9 +1,9 @@
 {
   "development": {
     "username": "root",
-    "password": "123456",
+    "password": "@nhkiettg2005",
     "database": "fashion_marketplace",
-    "host": "127.0.0.1",
+    "host": "localhost",
     "dialect": "mysql",
     "logging": false,
     "dialectOptions": {

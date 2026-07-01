@@ -421,6 +421,10 @@ export const ShipperDashboard: React.FC = () => {
     return shopOrderCode.includes(term) || parentOrderCode.includes(term) || orderId === term;
   });
 
+  const activeOrdersCount = allShipperOrders.filter(
+    (o) => o.status !== "DELIVERED"
+  ).length;
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Top Banner Header */}
@@ -498,14 +502,25 @@ export const ShipperDashboard: React.FC = () => {
                   setActiveTab("orders");
                   setIsSidebarOpen(false);
                 }}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 font-black uppercase text-xs tracking-wider transition-all text-left ${
+                className={`flex items-center justify-between w-full px-4 py-3 rounded-xl border-2 font-black uppercase text-xs tracking-wider transition-all text-left ${
                   activeTab === "orders"
                     ? "bg-black text-white border-black shadow-subtle"
                     : "border-transparent hover:bg-gray-100 hover:border-black text-gray-700"
                 }`}
               >
-                <PackageSearch size={16} />
-                Đơn hàng nhận giao
+                <div className="flex items-center gap-3">
+                  <PackageSearch size={16} />
+                  <span>Đơn hàng nhận giao</span>
+                </div>
+                {activeOrdersCount > 0 && (
+                  <span className={`inline-flex items-center justify-center min-w-[20px] h-5 rounded-full px-1.5 text-[10px] font-black transition-all ${
+                    activeTab === "orders"
+                      ? "bg-white text-black"
+                      : "bg-red-500 text-white"
+                  }`}>
+                    {activeOrdersCount}
+                  </span>
+                )}
               </button>
 
               <button

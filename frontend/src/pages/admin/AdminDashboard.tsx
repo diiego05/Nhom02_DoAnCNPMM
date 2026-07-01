@@ -18,6 +18,7 @@ import {
    AlertCircle,
    Wallet,
    Ticket,
+   ArrowUpRight,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
@@ -33,7 +34,8 @@ import { UserTab } from './components/UserTab';
 import { VendorTab } from './components/VendorTab';
 import { SettingsTab } from './components/SettingsTab';
 import { FinanceTab } from './components/FinanceTab';
-import { ReconciliationTab } from './components/ReconciliationTab';
+import { ReconciliationTab } from '../manager/components/ReconciliationTab';
+import { PayoutTab } from './components/PayoutTab';
 import { WithdrawalLogTab } from './components/WithdrawalLogTab';
 import { SystemLogTab } from './components/SystemLogTab';
 import { DisputeTab } from '../manager/components/DisputeTab';
@@ -160,9 +162,10 @@ const AdminDashboard = () => {
       { id: "disputes", label: "Giải quyết khiếu nại", icon: <AlertCircle size={20} /> },
       { id: "marketing", label: "Chiến dịch Marketing", icon: <Ticket size={20} /> },
       { id: "shop_wallets", label: "Quản lý ví Shop", icon: <Wallet size={20} /> },
+      { id: "payout", label: "Yêu cầu rút tiền", icon: <ArrowUpRight size={20} /> },
       { id: "settings", label: "Cấu hình hệ thống", icon: <Settings size={20} /> },
       { id: "finance", label: "Báo cáo tài chính", icon: <BarChart3 size={20} /> },
-      { id: "reconciliation", label: "Đối soát thanh toán", icon: <Landmark size={20} /> },
+      { id: "reconciliation", label: "Đối soát COD Shipper", icon: <Landmark size={20} /> },
       { id: "withdrawal_logs", label: "Lịch sử rút tiền", icon: <Activity size={20} /> },
       { id: "system_logs", label: "Nhật ký hệ thống", icon: <ClipboardList size={20} /> },
    ];
@@ -172,7 +175,7 @@ const AdminDashboard = () => {
 
          {/* Mobile Sidebar Backdrop */}
          {isSidebarOpen && (
-            <div 
+            <div
                className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 lg:hidden"
                onClick={() => setIsSidebarOpen(false)}
             />
@@ -194,7 +197,7 @@ const AdminDashboard = () => {
                   </div>
                </Link>
                {/* Mobile Close Button */}
-               <button 
+               <button
                   onClick={() => setIsSidebarOpen(false)}
                   className="lg:hidden p-1 hover:bg-gray-100 rounded-full transition-colors text-black"
                >
@@ -209,7 +212,7 @@ const AdminDashboard = () => {
                      onClick={() => {
                         setActiveTab(item.id);
                         setIsSidebarOpen(false);
-                      }}
+                     }}
                      className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === item.id ? 'bg-black text-white shadow-brutal translate-x-1' : 'hover:bg-red-50 text-gray-400 hover:text-black'}`}
                   >
                      {item.icon}
@@ -304,6 +307,7 @@ const AdminDashboard = () => {
                {activeTab === "vendors" && <VendorTab showToast={showToast} showConfirm={showConfirm} />}
                {activeTab === "settings" && <SettingsTab showToast={showToast} showConfirm={showConfirm} />}
                {activeTab === "finance" && <FinanceTab />}
+               {activeTab === "payout" && <PayoutTab showToast={showToast} showConfirm={showConfirm} />}
                {activeTab === "reconciliation" && <ReconciliationTab showToast={showToast} showConfirm={showConfirm} />}
                {activeTab === "withdrawal_logs" && <WithdrawalLogTab showToast={showToast} showConfirm={showConfirm} />}
                {activeTab === "system_logs" && <SystemLogTab showToast={showToast} showConfirm={showConfirm} />}
