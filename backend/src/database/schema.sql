@@ -313,6 +313,7 @@ CREATE TABLE `product_reviews` (
   `shop_order_id`  BIGINT   NOT NULL COMMENT 'Chỉ cho phép review khi đơn đã DELIVERED',
   `rating`         TINYINT  NOT NULL COMMENT '1–5 sao',
   `comment`        TEXT     DEFAULT NULL,
+  `vendor_reply`   TEXT     DEFAULT NULL,
   `created_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `deleted_at`     DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
