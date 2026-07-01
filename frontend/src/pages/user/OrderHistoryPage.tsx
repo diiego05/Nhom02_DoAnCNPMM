@@ -50,9 +50,9 @@ const OrderHistoryPage = () => {
       case "preparing":
         return "PREPARING";
       case "shipping":
-        return "READY_FOR_PICKUP,PICKED_UP,IN_TRANSIT,DELIVERING,SHIPPING";
+        return "READY_FOR_PICKUP,PICKED_UP,IN_TRANSIT,DELIVERING,SHIPPING,DELIVERED";
       case "completed":
-        return "DELIVERED,COMPLETED";
+        return "COMPLETED";
       case "cancelled":
         return "CANCELLED";
       case "returns":

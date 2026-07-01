@@ -639,7 +639,7 @@ const HomePage = () => {
             </h3>
             <div className="space-y-6 flex-1">
               {platformCoupons.length > 0 ? (
-                platformCoupons.slice(0, 5).map((v: any, i: number) => {
+                platformCoupons.slice(0, 3).map((v: any, i: number) => {
                   const colors = [
                     "bg-orange-50 text-orange-600 border-orange-200",
                     "bg-green-50 text-green-600 border-green-200",
@@ -697,7 +697,7 @@ const HomePage = () => {
                 </div>
               )}
             </div>
-            <button 
+            <button
               className="btn-modern w-full mt-10 py-3 px-2 leading-tight flex flex-col items-center justify-center"
               onClick={() => navigate("/vouchers")}
             >

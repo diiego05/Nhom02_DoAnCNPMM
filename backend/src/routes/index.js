@@ -1,0 +1,46 @@
+import express from "express";
+import userRouter from "./userRoute.js";
+import authRouter from "./authRoute.js";
+import forgotPasswordRoute from "./forgotPasswordRoute.js";
+import productRouter from "./productRoute.js";
+import categoryRouter from "./categoryRoute.js";
+import cartRouter from "./cartRoute.js";
+import orderRouter from "./orderRoute.js";
+import addressRouter from "./addressRoute.js";
+import couponRouter from "./couponRoute.js";
+import shopRouter from "./shopRoute.js";
+import chatRouter from "./chatRoute.js";
+import adminRouter from "./adminRoute.js";
+import systemRouter from "./systemRoute.js";
+import managerRouter from "./managerRoute.js";
+import notificationRouter from "./notificationRoute.js";
+import paymentRouter from "./paymentRoute.js";
+import returnRouter from "./returnRoute.js";
+import blogRouter from "./blogRoute.js";
+import aiChatRouter from "./aiChatRoute.js";
+import shipmentRouter from "./shipmentRoutes.js";
+
+const router = express.Router();
+
+router.use("/user", userRouter);
+router.use("/auth", authRouter);
+router.use("/auth/forgot-password", forgotPasswordRoute);
+router.use("/products", productRouter);
+router.use("/categories", categoryRouter);
+router.use("/cart", cartRouter);
+router.use("/orders", orderRouter);
+router.use("/addresses", addressRouter);
+router.use("/coupons", couponRouter);
+router.use("/shops", shopRouter);
+router.use("/chats", chatRouter);
+router.use("/admin", adminRouter);
+router.use("/manager", managerRouter);
+router.use("/notifications", notificationRouter);
+router.use("/payment", paymentRouter);
+router.use("/system", systemRouter);
+router.use("/returns", returnRouter);
+router.use("/", blogRouter);
+router.use("/", aiChatRouter);
+router.use("/shipments", shipmentRouter);
+
+export default router;

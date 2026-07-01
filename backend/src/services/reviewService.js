@@ -7,7 +7,7 @@ const createReview = async (userId, productId, { order_id, rating, comment }) =>
   try {
     // 1. Kiểm tra đơn hàng đã mua và ở trạng thái DELIVERED
     const order = await ShopOrder.findOne({
-      where: { id: order_id, status: "DELIVERED" },
+      where: { id: order_id, status: ["DELIVERED", "COMPLETED"] },
       include: [{
         model: ParentOrder,
         as: "parentOrder",

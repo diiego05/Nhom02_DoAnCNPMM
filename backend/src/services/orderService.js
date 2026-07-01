@@ -577,8 +577,10 @@ const getUserOrderCounts = async (userId) => {
     RETURNS: 0,
   };
 
+  const deliveringStatuses = ["READY_FOR_PICKUP", "PICKED_UP", "IN_TRANSIT", "DELIVERING", "SHIPPING", "DELIVERED"];
+
   counts.forEach(c => {
-    if (c.status === 'SHIPPING' || c.status === 'DELIVERED') {
+    if (deliveringStatuses.includes(c.status)) {
       countMap.DELIVERING += Number(c.count);
       countMap.ALL += Number(c.count);
       if (countMap[c.status] !== undefined) {

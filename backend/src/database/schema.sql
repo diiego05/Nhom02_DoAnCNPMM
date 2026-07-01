@@ -909,10 +909,29 @@ CREATE TABLE `user_viewed_products` (
   CONSTRAINT `fk_uvp_product` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ************************************************************
+-- PHẦN 26: USER COUPONS
+-- ************************************************************
+
+CREATE TABLE `user_coupons` (
+  `id`         BIGINT     NOT NULL AUTO_INCREMENT,
+  `user_id`    BIGINT     NOT NULL,
+  `coupon_id`  BIGINT     NOT NULL,
+  `is_used`    TINYINT(1) NOT NULL DEFAULT 0,
+  `saved_at`   DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `used_at`    DATETIME   DEFAULT NULL,
+  `created_at` DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_coupon` (`user_id`, `coupon_id`),
+  CONSTRAINT `fk_uc_user`   FOREIGN KEY (`user_id`)   REFERENCES `users`(`id`)   ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_uc_coupon` FOREIGN KEY (`coupon_id`) REFERENCES `coupons`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================
 -- END OF SCHEMA
--- Total tables: 39
+-- Total tables: 40
 -- ============================================================
