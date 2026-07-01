@@ -53,7 +53,7 @@ const getShipmentByOrderId = async (orderId) => {
 
 const createShipment = async (shopOrderId, shipperId = null, transaction = null) => {
   const trackingNumber = generateTrackingNumber();
-  
+
   const shipment = await db.Shipment.create({
     shop_order_id: shopOrderId,
     shipper_id: shipperId,
@@ -74,7 +74,7 @@ const createShipment = async (shopOrderId, shipperId = null, transaction = null)
 const addShipmentHistory = async (shipmentId, status, location, note, proofImageUrl, shipperId, collectedShippingFee, isBom) => {
   const shipment = await db.Shipment.findByPk(shipmentId);
   if (!shipment) throw new Error("Không tìm thấy vận đơn");
-  
+
   if (shipment.shipper_id !== shipperId && shipperId !== 'system') {
     // Allow claiming if it's unassigned
     if (shipment.shipper_id === null && status === 'PENDING_PICKUP') {
@@ -121,7 +121,7 @@ const addShipmentHistory = async (shipmentId, status, location, note, proofImage
           } else {
             const newAttempts = shopOrder.delivery_attempts + 1;
             await shopOrder.update({ delivery_attempts: newAttempts }, { transaction });
-            
+
             // Nếu từ chối nhận hoặc đã giao thất bại 3 lần
             if (note === 'Người mua từ chối nhận hàng' || newAttempts >= 3) {
               orderStatus = 'RETURN_PENDING';
@@ -209,14 +209,14 @@ const addShipmentHistory = async (shipmentId, status, location, note, proofImage
               await user.save({ transaction });
             }
 
-            // Hoàn tiền cho khách nếu đã thanh toán online (trừ đi phí ship)
             if (shopOrder.parentOrder && shopOrder.parentOrder.payment_status === "PAID") {
-              const cashRefundToUser = Math.max(0, Number(shopOrder.subtotal) + 30000 - Number(shopOrder.discount_amount) - Number(shopOrder.shipping_fee));
-              
-              // Đọc tỷ lệ tích điểm từ system_settings
+              const cashRefundToUser = Number(shopOrder.final_amount);
+
               const earnRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_EARN_RATE' } });
+              const redeemRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_REDEEM_RATE' } });
               const earnRate = earnRateSetting ? Number(earnRateSetting.setting_value) : 100;
-              const pointsToRefund = Math.floor(cashRefundToUser / earnRate);
+              const redeemRate = redeemRateSetting ? Number(redeemRateSetting.setting_value) : 100;
+              const pointsToRefund = Math.floor(cashRefundToUser * (redeemRate / earnRate));
 
               if (user) {
                 user.loyalty_points = Math.max(0, Number(user.loyalty_points || 0) + pointsToRefund);
@@ -231,20 +231,35 @@ const addShipmentHistory = async (shipmentId, status, location, note, proofImage
           orderUpdateData.shipper_id = updateData.shipper_id;
         }
 
-        // If DELIVERED and COD, update parentOrder payment status to PAID when all orders are completed/delivered
-        if (shopOrder.parentOrder && shopOrder.parentOrder.payment_method === "COD" && orderStatus === "DELIVERED") {
-          orderUpdateData.cod_amount_collected = shopOrder.final_amount;
-          orderUpdateData.cod_status = "HELD_BY_SHIPPER";
-          
-          const allShopOrders = await db.ShopOrder.findAll({
-            where: { parent_order_id: shopOrder.parent_order_id },
-            transaction
-          });
-          const allCompleted = allShopOrders.every(o =>
-            (o.id === shopOrder.id) ? true : ["DELIVERED", "CANCELLED", "RETURN_PENDING", "RETURNED", "COMPLETED"].includes(o.status)
-          );
-          if (allCompleted) {
+        // If DELIVERED (and was not DELIVERED already)
+        if (orderStatus === "DELIVERED" && shopOrder.status !== "DELIVERED") {
+          // 1. Add loyalty points earned to user
+          if (shopOrder.points_earned && shopOrder.points_earned > 0) {
+            await db.User.increment('loyalty_points', {
+              by: shopOrder.points_earned,
+              where: { id: shopOrder.parentOrder.user_id },
+              transaction
+            });
+          }
+
+          // 2. If COD, update parentOrder payment status to PAID and set cod_status
+          if (shopOrder.parentOrder && shopOrder.parentOrder.payment_method === "COD") {
+            const redeemRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_REDEEM_RATE' } }, { transaction });
+            const redeemRate = redeemRateSetting ? Number(redeemRateSetting.setting_value) : 100;
+            const pointsDiscount = Number(shopOrder.points_used) * redeemRate;
+
+            orderUpdateData.cod_amount_collected = Math.max(0, Number(shopOrder.final_amount) - pointsDiscount);
+            orderUpdateData.cod_status = orderUpdateData.cod_amount_collected > 0 ? "HELD_BY_SHIPPER" : "NOT_COD";
             await shopOrder.parentOrder.update({ payment_status: "PAID" }, { transaction });
+          } else {
+            // 3. If Online payment, credit shop wallet pending balance
+            const netShopAmount = Number(shopOrder.subtotal) - Number(shopOrder.discount_amount) - Number(shopOrder.commission_amount);
+            const [wallet] = await db.ShopWallet.findOrCreate({
+              where: { shop_id: shopOrder.shop_id },
+              defaults: { balance: 0.00, pending_balance: 0.00, total_earned: 0.00 },
+              transaction
+            });
+            await wallet.increment('pending_balance', { by: netShopAmount, transaction });
           }
         }
 
@@ -265,7 +280,7 @@ const addShipmentHistory = async (shipmentId, status, location, note, proofImage
         }
 
         await shopOrder.update(orderUpdateData, { transaction });
-        
+
         // Ghi log vào ShopOrderStatusHistory
         await db.ShopOrderStatusHistory.create({
           shop_order_id: shopOrder.id,
@@ -291,11 +306,11 @@ const addShipmentHistory = async (shipmentId, status, location, note, proofImage
           orderUpdateData.shipper_id = updateData.shipper_id;
           needsUpdate = true;
         }
-        
+
         if (needsUpdate) {
           const oldStatus = shopOrder.status;
           await shopOrder.update(orderUpdateData, { transaction });
-          
+
           if (orderUpdateData.status) {
             await db.ShopOrderStatusHistory.create({
               shop_order_id: shopOrder.id,

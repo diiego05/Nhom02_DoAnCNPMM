@@ -6,9 +6,9 @@ import { generateTrackingNumber } from "../utils/helpers.js";
 const returnService = {
   createReturnRequest: async (userId, shopOrderId, data) => {
     const { reason, evidenceUrls, returnItems } = data; // returnItems: [{ orderItemId, quantity, reason/note }]
-    
+
     const transaction = await db.sequelize.transaction();
-    
+
     try {
       const order = await db.ShopOrder.findOne({
         where: { id: shopOrderId, status: ["DELIVERED", "COMPLETED"] },
@@ -73,7 +73,7 @@ const returnService = {
         const orderItem = order.items.find(i => i.id === reqItem.orderItemId);
         if (!orderItem) throw new Error("Sản phẩm trả không thuộc đơn hàng này");
         if (reqItem.quantity <= 0 || reqItem.quantity > orderItem.quantity) {
-           throw new Error(`Số lượng trả cho sản phẩm ${orderItem.product_name} không hợp lệ`);
+          throw new Error(`Số lượng trả cho sản phẩm ${orderItem.product_name} không hợp lệ`);
         }
 
         await db.ReturnItem.create({
@@ -102,9 +102,9 @@ const returnService = {
         const amountToFreeze = order.final_amount - order.commission_amount;
         if (oldStatus === "COMPLETED") {
           if (shopWallet.balance >= amountToFreeze) {
-              shopWallet.balance -= amountToFreeze;
-              shopWallet.pending_balance += amountToFreeze;
-              await shopWallet.save({ transaction });
+            shopWallet.balance -= amountToFreeze;
+            shopWallet.pending_balance += amountToFreeze;
+            await shopWallet.save({ transaction });
           }
         }
       }
@@ -129,7 +129,7 @@ const returnService = {
     } catch (error) {
       try {
         if (transaction) await transaction.rollback();
-      } catch (e) {}
+      } catch (e) { }
       throw error;
     }
   },
@@ -137,7 +137,7 @@ const returnService = {
   getReturnRequestsByUser: async (userId, query) => {
     const { page = 1, limit = 10, status } = query;
     const offset = (page - 1) * limit;
-    
+
     const whereClause = { user_id: userId };
     if (status && status !== "ALL") {
       whereClause.status = status;
@@ -147,11 +147,11 @@ const returnService = {
       where: whereClause,
       include: [
         { model: db.ShopOrder, as: "shopOrder", include: [{ model: db.Shop, as: "shop" }] },
-        { 
-          model: db.ReturnItem, 
-          as: "items", 
-          include: [{ 
-            model: db.OrderItem, 
+        {
+          model: db.ReturnItem,
+          as: "items",
+          include: [{
+            model: db.OrderItem,
             as: "orderItem",
             include: [{
               model: db.ProductVariant,
@@ -167,7 +167,7 @@ const returnService = {
                 }]
               }]
             }]
-          }] 
+          }]
         }
       ],
       order: [["created_at", "DESC"]],
@@ -196,17 +196,17 @@ const returnService = {
       where: whereClause,
       include: [
         { model: db.ShopOrder, as: "shopOrder", where: { shop_id: shopId }, required: true, include: [{ model: db.User, as: "shipper" }] },
-        { 
-          model: db.User, 
-          as: "user", 
+        {
+          model: db.User,
+          as: "user",
           attributes: ["id", "email"],
-          include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name", "avatar_url"] }] 
+          include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name", "avatar_url"] }]
         },
-        { 
-          model: db.ReturnItem, 
-          as: "items", 
-          include: [{ 
-            model: db.OrderItem, 
+        {
+          model: db.ReturnItem,
+          as: "items",
+          include: [{
+            model: db.OrderItem,
             as: "orderItem",
             include: [{
               model: db.ProductVariant,
@@ -222,7 +222,7 @@ const returnService = {
                 }]
               }]
             }]
-          }] 
+          }]
         }
       ],
       order: [["created_at", "DESC"]],
@@ -241,30 +241,30 @@ const returnService = {
   getAllReturnRequestsForManager: async (query) => {
     const { page = 1, limit = 10, status } = query;
     const offset = (page - 1) * limit;
-    
+
     const whereClause = {};
     if (status && status !== "ALL") {
       whereClause.status = status;
     } else {
-        // By default, manager only sees rejected or pending resolution
-        whereClause.status = ["REJECTED", "RESOLVED_BY_ADMIN"];
+      // By default, manager only sees rejected or pending resolution
+      whereClause.status = ["REJECTED", "RESOLVED_BY_ADMIN"];
     }
 
     const { count, rows } = await db.ReturnRequest.findAndCountAll({
       where: whereClause,
       include: [
         { model: db.ShopOrder, as: "shopOrder", include: [{ model: db.Shop, as: "shop" }] },
-        { 
-          model: db.User, 
-          as: "user", 
+        {
+          model: db.User,
+          as: "user",
           attributes: ["id", "email"],
-          include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name", "avatar_url"] }] 
+          include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name", "avatar_url"] }]
         },
-        { 
-          model: db.ReturnItem, 
-          as: "items", 
-          include: [{ 
-            model: db.OrderItem, 
+        {
+          model: db.ReturnItem,
+          as: "items",
+          include: [{
+            model: db.OrderItem,
             as: "orderItem",
             include: [{
               model: db.ProductVariant,
@@ -280,7 +280,7 @@ const returnService = {
                 }]
               }]
             }]
-          }] 
+          }]
         }
       ],
       order: [["created_at", "DESC"]],
@@ -301,17 +301,17 @@ const returnService = {
       where: { id },
       include: [
         { model: db.ShopOrder, as: "shopOrder", include: [{ model: db.Shop, as: "shop" }] },
-        { 
-          model: db.User, 
-          as: "user", 
+        {
+          model: db.User,
+          as: "user",
           attributes: ["id", "email"],
-          include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name", "avatar_url"] }] 
+          include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name", "avatar_url"] }]
         },
-        { 
-          model: db.User, 
-          as: "resolver", 
+        {
+          model: db.User,
+          as: "resolver",
           attributes: ["id", "email"],
-          include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name"] }] 
+          include: [{ model: db.UserProfile, as: "profile", attributes: ["full_name"] }]
         },
         { model: db.ReturnItem, as: "items", include: [{ model: db.OrderItem, as: "orderItem" }] }
       ]
@@ -328,7 +328,7 @@ const returnService = {
         where: { id: returnRequestId, status: "PENDING" },
         include: [
           { model: db.ShopOrder, as: "shopOrder", where: { shop_id: shopId }, required: true, include: [{ model: db.ParentOrder, as: "parentOrder" }] },
-          { model: db.ReturnItem, as: "items", include: [{ model: db.OrderItem, as: "orderItem" }]}
+          { model: db.ReturnItem, as: "items", include: [{ model: db.OrderItem, as: "orderItem" }] }
         ],
         transaction
       });
@@ -336,11 +336,11 @@ const returnService = {
       if (!returnRequest) throw new Error("Yêu cầu trả hàng không hợp lệ hoặc đã được xử lý");
 
       await returnRequest.update({ status: "APPROVED_BY_SHOP", resolved_by: null }, { transaction });
-      
+
       const shopOrder = returnRequest.shopOrder;
       // Auto-assign shipper if not already assigned
       if (!shopOrder.shipper_id) {
-        const assignedShipperId = await orderService.autoAssignShipperByArea(shopOrder.id);
+        const assignedShipperId = await orderService.autoAssignShipperByArea(shopOrder.id, transaction);
         if (assignedShipperId) {
           await shopOrder.update({ shipper_id: assignedShipperId }, { transaction });
           shopOrder.shipper_id = assignedShipperId;
@@ -404,21 +404,21 @@ const returnService = {
   vendorRejectReturn: async (shopId, returnRequestId, rejectNote) => {
     const transaction = await db.sequelize.transaction();
     try {
-        const returnRequest = await db.ReturnRequest.findOne({
-            where: { id: returnRequestId, status: "PENDING" },
-            include: [{ model: db.ShopOrder, as: "shopOrder", where: { shop_id: shopId }, required: true }],
-            transaction
-        });
-    
-        if (!returnRequest) throw new Error("Yêu cầu trả hàng không hợp lệ hoặc đã được xử lý");
-    
-        await returnRequest.update({ status: "REJECTED", resolve_note: rejectNote }, { transaction });
-        
-        await transaction.commit();
-        return returnRequest;
-    } catch(err) {
-        await transaction.rollback();
-        throw err;
+      const returnRequest = await db.ReturnRequest.findOne({
+        where: { id: returnRequestId, status: "PENDING" },
+        include: [{ model: db.ShopOrder, as: "shopOrder", where: { shop_id: shopId }, required: true }],
+        transaction
+      });
+
+      if (!returnRequest) throw new Error("Yêu cầu trả hàng không hợp lệ hoặc đã được xử lý");
+
+      await returnRequest.update({ status: "REJECTED", resolve_note: rejectNote }, { transaction });
+
+      await transaction.commit();
+      return returnRequest;
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
     }
   },
 
@@ -429,20 +429,21 @@ const returnService = {
         where: { id: returnRequestId, status: "REJECTED" },
         include: [
           { model: db.ShopOrder, as: "shopOrder", include: [{ model: db.ParentOrder, as: "parentOrder" }] },
-          { model: db.ReturnItem, as: "items", include: [{ model: db.OrderItem, as: "orderItem" }]}
+          { model: db.ReturnItem, as: "items", include: [{ model: db.OrderItem, as: "orderItem" }] }
         ],
         transaction
       });
 
       if (!returnRequest) throw new Error("Yêu cầu trả hàng không hợp lệ hoặc không ở trạng thái tranh chấp");
 
+      const shopOrder = returnRequest.shopOrder;
+
       if (approved) {
         await returnRequest.update({ status: "RESOLVED_BY_ADMIN", resolved_by: managerId, resolve_note: resolveNote }, { transaction });
-        
-        const shopOrder = returnRequest.shopOrder;
+
         // Auto-assign shipper if not already assigned
         if (!shopOrder.shipper_id) {
-          const assignedShipperId = await orderService.autoAssignShipperByArea(shopOrder.id);
+          const assignedShipperId = await orderService.autoAssignShipperByArea(shopOrder.id, transaction);
           if (assignedShipperId) {
             await shopOrder.update({ shipper_id: assignedShipperId }, { transaction });
             shopOrder.shipper_id = assignedShipperId;
@@ -479,7 +480,34 @@ const returnService = {
           status: 'PENDING_PICKUP',
           note: 'Admin đã duyệt yêu cầu hoàn trả. Shipper đang đến nhận hàng từ người mua.'
         }, { transaction });
+      } else {
+        await returnRequest.update({ status: "RESOLVED_BY_ADMIN", resolved_by: managerId, resolve_note: resolveNote }, { transaction });
 
+        await shopOrder.update({ status: "DELIVERED" }, { transaction });
+        await db.ShopOrderStatusHistory.create({
+          shop_order_id: shopOrder.id,
+          old_status: "RETURN_PENDING",
+          new_status: "DELIVERED",
+          changed_by: managerId,
+          note: "Quản trị viên từ chối trả hàng",
+        }, { transaction });
+
+        // Unfreeze pending balance for shop
+        const shopWallet = await db.ShopWallet.findOne({ where: { shop_id: shopOrder.shop_id }, transaction });
+        if (shopWallet) {
+          const amountToUnfreeze = shopOrder.final_amount - shopOrder.commission_amount;
+          if (shopWallet.pending_balance >= amountToUnfreeze) {
+            shopWallet.pending_balance -= amountToUnfreeze;
+            shopWallet.balance += amountToUnfreeze;
+            await shopWallet.save({ transaction });
+          }
+        }
+      }
+
+      await transaction.commit();
+
+      // Notifications (after commit)
+      if (approved) {
         // Notify shipper
         if (shopOrder.shipper_id) {
           try {
@@ -521,29 +549,6 @@ const returnService = {
           console.error("Error sending notification to vendor:", notifErr);
         }
       } else {
-        await returnRequest.update({ status: "RESOLVED_BY_ADMIN", resolved_by: managerId, resolve_note: resolveNote }, { transaction });
-        
-        const shopOrder = returnRequest.shopOrder;
-        await shopOrder.update({ status: "DELIVERED" }, { transaction });
-        await db.ShopOrderStatusHistory.create({
-            shop_order_id: shopOrder.id,
-            old_status: "RETURN_PENDING",
-            new_status: "DELIVERED",
-            changed_by: managerId,
-            note: "Quản trị viên từ chối trả hàng",
-        }, { transaction });
-
-        // Unfreeze pending balance for shop
-        const shopWallet = await db.ShopWallet.findOne({ where: { shop_id: shopOrder.shop_id }, transaction });
-        if (shopWallet) {
-            const amountToUnfreeze = shopOrder.final_amount - shopOrder.commission_amount;
-            if (shopWallet.pending_balance >= amountToUnfreeze) {
-                shopWallet.pending_balance -= amountToUnfreeze;
-                shopWallet.balance += amountToUnfreeze;
-                await shopWallet.save({ transaction });
-            }
-        }
-
         // Notify customer
         try {
           await notificationService.createNotification(
@@ -572,7 +577,6 @@ const returnService = {
         }
       }
 
-      await transaction.commit();
       return returnRequest;
     } catch (error) {
       await transaction.rollback();
@@ -582,7 +586,7 @@ const returnService = {
 
   _processRefundOnly: async (returnRequest, transaction) => {
     const shopOrder = returnRequest.shopOrder;
-    
+
     // Calculate total return value
     let returnAmount = 0;
     for (const item of returnRequest.items) {
@@ -593,15 +597,15 @@ const returnService = {
     // Proportion of final_amount
     const returnRatio = returnAmount / shopOrder.subtotal;
     const finalReturnAmount = shopOrder.final_amount * returnRatio;
-    
+
     // Phân loại lỗi dựa trên lý do trả hàng
     const reasonText = (returnRequest.reason || "").toLowerCase();
-    const isBuyerFault = reasonText.includes("đổi ý") || 
-                         reasonText.includes("không thích") || 
-                         reasonText.includes("không vừa") || 
-                         reasonText.includes("nhầm size") || 
-                         reasonText.includes("mua nhầm") || 
-                         reasonText.includes("đổi size");
+    const isBuyerFault = reasonText.includes("đổi ý") ||
+      reasonText.includes("không thích") ||
+      reasonText.includes("không vừa") ||
+      reasonText.includes("nhầm size") ||
+      reasonText.includes("mua nhầm") ||
+      reasonText.includes("đổi size");
 
     let cashRefundToUser = finalReturnAmount;
     if (isBuyerFault) {
@@ -611,36 +615,38 @@ const returnService = {
       // Lỗi do người bán/vận chuyển -> hoàn lại 100% tiền hàng và ship
       cashRefundToUser = finalReturnAmount;
     }
-    
+
     const pointsUsedReturned = Math.floor(shopOrder.points_used * returnRatio);
     const pointsEarnedDeducted = Math.floor(shopOrder.points_earned * returnRatio);
-    
+
     // Đọc tỷ lệ tích điểm từ system_settings (vd: earnRate=100 → 1đ/100VNĐ)
-    const earnRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_EARN_RATE' } });
+    const earnRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_EARN_RATE' }, transaction });
+    const redeemRateSetting = await db.SystemSetting.findOne({ where: { setting_key: 'LOYALTY_POINT_REDEEM_RATE' }, transaction });
     const earnRate = earnRateSetting ? Number(earnRateSetting.setting_value) : 100;
+    const redeemRate = redeemRateSetting ? Number(redeemRateSetting.setting_value) : 1;
 
     // Hoàn điểm tương ứng số tiền hoàn lại (theo đúng tỷ lệ tích điểm)
     let pointsToRefund = pointsUsedReturned;
-    pointsToRefund += Math.floor(cashRefundToUser / earnRate);
+    pointsToRefund += Math.floor(cashRefundToUser * (redeemRate / earnRate));
 
     // Update User points
     const user = await db.User.findByPk(returnRequest.user_id, { transaction });
     if (user) {
-        user.loyalty_points = Math.max(0, user.loyalty_points + pointsToRefund - pointsEarnedDeducted);
-        await user.save({ transaction });
+      user.loyalty_points = Math.max(0, user.loyalty_points + pointsToRefund - pointsEarnedDeducted);
+      await user.save({ transaction });
     }
-    
+
     // Deduct pending_balance from shop
     const shopWallet = await db.ShopWallet.findOne({ where: { shop_id: shopOrder.shop_id }, transaction });
     if (shopWallet) {
-        const frozenAmount = shopOrder.final_amount - shopOrder.commission_amount;
-        const actualRefundToUserFromShop = cashRefundToUser - (shopOrder.commission_amount * returnRatio);
-        
-        if (shopWallet.pending_balance >= frozenAmount) {
-            shopWallet.pending_balance -= frozenAmount;
-            shopWallet.balance += (frozenAmount - actualRefundToUserFromShop);
-            await shopWallet.save({ transaction });
-        }
+      const frozenAmount = shopOrder.final_amount - shopOrder.commission_amount;
+      const actualRefundToUserFromShop = cashRefundToUser - (shopOrder.commission_amount * returnRatio);
+
+      if (shopWallet.pending_balance >= frozenAmount) {
+        shopWallet.pending_balance -= frozenAmount;
+        shopWallet.balance += (frozenAmount - actualRefundToUserFromShop);
+        await shopWallet.save({ transaction });
+      }
     }
   },
 

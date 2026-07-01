@@ -363,6 +363,18 @@ const CheckoutPage = () => {
     }
   }, [isCodBlocked, paymentMethod]);
 
+  const displaySubtotal = calculatedData ? calculatedData.parentSubtotal : subtotal;
+  const discountAmount = calculatedData ? calculatedData.totalShopDiscount + calculatedData.platformDiscount : 0;
+  const pointsDiscount = calculatedData ? calculatedData.pointsDiscount || 0 : 0;
+  const currentShippingFee = calculatedData ? calculatedData.totalShippingFee : fallbackShippingFee;
+  const displayTotal = calculatedData ? calculatedData.totalAmount : subtotal + currentShippingFee;
+
+  useEffect(() => {
+    if (displayTotal === 0 && paymentMethod !== "COD") {
+      setPaymentMethod("COD");
+    }
+  }, [displayTotal, paymentMethod]);
+
   if (isCartLoading || isAddressesLoading) {
     return (
       <div className="min-h-screen bg-[#F4F4F0] flex items-center justify-center">
@@ -370,12 +382,6 @@ const CheckoutPage = () => {
       </div>
     );
   }
-
-  const displaySubtotal = calculatedData ? calculatedData.parentSubtotal : subtotal;
-  const discountAmount = calculatedData ? calculatedData.totalShopDiscount + calculatedData.platformDiscount : 0;
-  const pointsDiscount = calculatedData ? calculatedData.pointsDiscount || 0 : 0;
-  const currentShippingFee = calculatedData ? calculatedData.totalShippingFee : fallbackShippingFee;
-  const displayTotal = calculatedData ? calculatedData.totalAmount : subtotal + currentShippingFee;
 
   const handleApplyCoupon = () => {
     setCouponCode(inputCoupon);
@@ -518,35 +524,53 @@ const CheckoutPage = () => {
                   <div className="card-brutal !p-8 !rounded-[2rem] bg-white border-2 border-black shadow-brutal">
                     <h3 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3"><CreditCard className="text-primary" /> Phương thức thanh toán</h3>
                     <div className="space-y-4">
-                      <button 
-                        type="button" 
-                        disabled={isCodBlocked}
-                        onClick={() => !isCodBlocked && setPaymentMethod("COD")} 
-                        className={`w-full flex items-center justify-between p-6 border-2 rounded-2xl transition-all text-left ${isCodBlocked ? 'bg-gray-100 border-black/10 opacity-60 cursor-not-allowed' : paymentMethod === 'COD' ? 'bg-primary/5 border-primary' : 'bg-white border-black/10 hover:border-black'}`}
+                      <button
+                        type="button"
+                        disabled={isCodBlocked || displayTotal === 0}
+                        onClick={() => !isCodBlocked && displayTotal > 0 && setPaymentMethod("COD")}
+                        className={`w-full flex items-center justify-between p-6 border-2 rounded-2xl transition-all text-left ${displayTotal === 0
+                            ? 'bg-gray-50 border-black/10 opacity-50 cursor-not-allowed'
+                            : isCodBlocked
+                              ? 'bg-gray-100 border-black/10 opacity-60 cursor-not-allowed'
+                              : paymentMethod === 'COD'
+                                ? 'bg-primary/5 border-primary'
+                                : 'bg-white border-black/10 hover:border-black'
+                          }`}
                       >
                         <div className="flex items-center gap-4">
-                          <Wallet size={24} className={isCodBlocked ? 'text-gray-300' : paymentMethod === 'COD' ? 'text-primary' : 'text-gray-400'} />
+                          <Wallet size={24} className={isCodBlocked || displayTotal === 0 ? 'text-gray-300' : paymentMethod === 'COD' ? 'text-primary' : 'text-gray-400'} />
                           <div>
                             <p className="text-sm font-black uppercase">Thanh toán khi nhận hàng (COD)</p>
-                            {isCodBlocked && (
+                            {isCodBlocked && displayTotal > 0 && (
                               <p className="text-[10px] text-red-500 font-bold uppercase tracking-tight mt-1 animate-pulse">
                                 Bị khóa tạm thời do bom hàng quá 3 lần trong 1 tháng qua!
                               </p>
                             )}
+
                           </div>
                         </div>
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center bg-white ${paymentMethod === 'COD' ? 'border-primary' : 'border-gray-300'}`}>
-                          {paymentMethod === 'COD' && <div className="w-2 h-2 rounded-full bg-primary"></div>}
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center bg-white ${(paymentMethod === 'COD' && displayTotal > 0) ? 'border-primary' : 'border-gray-300'}`}>
+                          {(paymentMethod === 'COD' && displayTotal > 0) && <div className="w-2 h-2 rounded-full bg-primary"></div>}
                         </div>
                       </button>
 
-                      <button type="button" onClick={() => setPaymentMethod("VNPAY")} className={`w-full flex items-center justify-between p-6 border-2 rounded-2xl transition-all ${paymentMethod === 'VNPAY' ? 'bg-primary/5 border-primary' : 'bg-white border-black/10 hover:border-black'}`}>
+                      <button
+                        type="button"
+                        disabled={displayTotal === 0}
+                        onClick={() => displayTotal > 0 && setPaymentMethod("VNPAY")}
+                        className={`w-full flex items-center justify-between p-6 border-2 rounded-2xl transition-all text-left ${displayTotal === 0
+                            ? 'bg-gray-50 border-black/10 opacity-50 cursor-not-allowed'
+                            : paymentMethod === 'VNPAY'
+                              ? 'bg-primary/5 border-primary'
+                              : 'bg-white border-black/10 hover:border-black'
+                          }`}
+                      >
                         <div className="flex items-center gap-4">
-                          <Landmark size={24} className={paymentMethod === 'VNPAY' ? 'text-primary' : 'text-gray-400'} />
+                          <Landmark size={24} className={displayTotal === 0 ? 'text-gray-300' : paymentMethod === 'VNPAY' ? 'text-primary' : 'text-gray-400'} />
                           <p className="text-sm font-black uppercase">Thanh toán qua VNPAY</p>
                         </div>
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center bg-white ${paymentMethod === 'VNPAY' ? 'border-primary' : 'border-gray-300'}`}>
-                          {paymentMethod === 'VNPAY' && <div className="w-2 h-2 rounded-full bg-primary"></div>}
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center bg-white ${(paymentMethod === 'VNPAY' && displayTotal > 0) ? 'border-primary' : 'border-gray-300'}`}>
+                          {(paymentMethod === 'VNPAY' && displayTotal > 0) && <div className="w-2 h-2 rounded-full bg-primary"></div>}
                         </div>
                       </button>
                     </div>

@@ -146,7 +146,7 @@ const CartPage = () => {
                 Giỏ hàng
               </h1>
             </div>
-            <p className="text-gray-500 font-medium flex items-center gap-4 mt-2">
+            <div className="text-gray-500 font-medium flex items-center gap-4 mt-2">
               <label className="flex items-center gap-2 cursor-pointer group select-none">
                 <div 
                   className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all duration-200 ${
@@ -167,7 +167,7 @@ const CartPage = () => {
                   Chọn tất cả ({cartItems.length})
                 </span>
               </label>
-            </p>
+            </div>
           </div>
           <Link
             to="/products"

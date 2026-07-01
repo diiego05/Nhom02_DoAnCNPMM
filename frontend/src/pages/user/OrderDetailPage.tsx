@@ -828,8 +828,10 @@ const OrderDetailPage = () => {
                   Tổng cộng
                 </span>
                 <span className="text-4xl font-black text-primary tracking-tighter">
-                  {Number(
-                    order.final_amount || order.total_amount || 0,
+                  {Math.max(
+                    0,
+                    Number(order.final_amount || order.total_amount || 0) -
+                      Number(order.points_used || 0) * (systemSettings?.redeemRate || 100)
                   ).toLocaleString()}
                   ₫
                 </span>

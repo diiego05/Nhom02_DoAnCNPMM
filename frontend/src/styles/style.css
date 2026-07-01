@@ -13,6 +13,9 @@
   
   --shadow-brutal: 6px 6px 0px 0px #000000;
   --shadow-subtle: 3px 3px 0px 0px #000000;
+
+  --font-sans: 'Inter', 'Be Vietnam Pro', sans-serif;
+  --font-serif: 'Playfair Display', serif;
 }
 
 :root {
