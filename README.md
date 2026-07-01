@@ -1,5 +1,7 @@
 # UTEShop
 
+![NodeJS](https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white) ![Express.js](https://img.shields.io/badge/express.js-%23000000.svg?style=for-the-badge&logo=express&logoColor=white) ![ReactJS with TypeScript](https://img.shields.io/badge/react%20ts-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB) ![MySQL](https://img.shields.io/badge/mysql-%2300f.svg?style=for-the-badge&logo=mysql&logoColor=white) ![Tailwind CSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)
+
 UTEShop là nền tảng thương mại điện tử đa gian hàng (Multi-vendor E-commerce) kết nối **Khách hàng**, **Nhà bán hàng (Vendor)**, **Người giao hàng (Shipper)** và **Ban quản trị (Manager/Admin)** trong một hệ sinh thái mua bán trực tuyến hoàn chỉnh.
 
 ---
