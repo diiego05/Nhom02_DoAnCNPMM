@@ -832,7 +832,7 @@ const getFinancialReport = async (dateFrom, dateTo, groupBy, shopMonth, shopYear
 
   const shopOrders = await db.ShopOrder.findAll({
     where: {
-      status: "DELIVERED",
+      status: { [db.Sequelize.Op.in]: ["DELIVERED", "COMPLETED"] },
       [Op.or]: [
         {
           delivered_at: { [Op.between]: [shopRangeStart, shopRangeEnd] }
