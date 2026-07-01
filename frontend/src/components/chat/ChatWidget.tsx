@@ -31,6 +31,56 @@ interface ActiveShop {
 const ChatWidget = () => {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+
+  // Hàm tự động phân tích cú pháp link Markdown [tên](url) để hiển thị thành liên kết bấm được
+  const renderMessageBody = (body: string) => {
+    const regex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(body)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(body.substring(lastIndex, match.index));
+      }
+      const linkText = match[1];
+      const linkUrl = match[2];
+      
+      // Nếu là link sản phẩm trên sàn, dùng react-router navigate chuyển trang không reload
+      const localProductPrefix = "http://localhost:5173/products/";
+      const isLocalProduct = linkUrl.startsWith(localProductPrefix);
+
+      parts.push(
+        <a
+          key={match.index}
+          href={linkUrl}
+          target={isLocalProduct ? "_self" : "_blank"}
+          rel="noopener noreferrer"
+          className="underline font-bold text-blue-500 hover:text-blue-700 hover:underline cursor-pointer break-all"
+          onClick={(e) => {
+            if (isLocalProduct) {
+              e.preventDefault();
+              const productId = linkUrl.substring(localProductPrefix.length);
+              navigate(`/products/${productId}`);
+            }
+          }}
+        >
+          {linkText}
+        </a>
+      );
+      lastIndex = regex.lastIndex;
+    }
+
+    if (lastIndex < body.length) {
+      parts.push(body.substring(lastIndex));
+    }
+
+    return parts.length > 0 ? (
+      <span className="whitespace-pre-line">{parts}</span>
+    ) : (
+      <span className="whitespace-pre-line">{body}</span>
+    );
+  };
   
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -274,6 +324,7 @@ const ChatWidget = () => {
           id: `ai-${Date.now()}`,
           sender_id: 0,
           body: res.reply,
+          products: res.products,
           sent_at: new Date().toISOString(),
         };
         setAiMessages((prev) => [...prev, aiReply]);
@@ -656,7 +707,39 @@ const ChatWidget = () => {
                                     </div>
                                   )}
                                   {msg.body && (
-                                    <p className="text-[11px] font-medium leading-relaxed break-words">{msg.body}</p>
+                                    <p className="text-[11px] font-medium leading-relaxed break-words">
+                                      {renderMessageBody(msg.body)}
+                                    </p>
+                                  )}
+                                  {msg.products && msg.products.length > 0 && (
+                                    <div className="mt-3 flex gap-2 overflow-x-auto pb-2 scrollbar-thin max-w-full">
+                                      {msg.products.map((prod: any) => (
+                                        <div
+                                          key={prod.id}
+                                          onClick={() => {
+                                            setIsOpen(false); // Close chat widget when navigating to product
+                                            navigate(`/products/${prod.slug}`);
+                                          }}
+                                          className="flex-shrink-0 w-[110px] bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-all cursor-pointer group"
+                                        >
+                                          <div className="w-full h-[75px] bg-gray-50 overflow-hidden relative">
+                                            <img
+                                              src={prod.image_url || "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=300"}
+                                              alt={prod.name}
+                                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                            />
+                                          </div>
+                                          <div className="p-2">
+                                            <h5 className="text-[9px] font-black text-gray-800 line-clamp-2 min-h-[24px]">
+                                              {prod.name}
+                                            </h5>
+                                            <p className="text-[9px] font-extrabold text-primary mt-1">
+                                              {Number(prod.price).toLocaleString("vi-VN")}đ
+                                            </p>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
                                   )}
                                 </div>
                                 <span className="text-[8px] font-bold text-gray-400 block px-1 select-none">
